@@ -56,7 +56,7 @@ type Order = { id: string; service: ServiceId; detail: Text; amount: number; dat
 type NewOrder = Pick<Order, 'service' | 'detail' | 'amount'>
 type ServiceProps = { user: User; onPlaceOrder: (order: NewOrder) => void }
 type Row = Record<string, string>
-type Column = { key: string; label: string; placeholder?: string; numeric?: boolean }
+type Column = { key: string; label: string; placeholder?: string; numeric?: boolean; optional?: boolean }
 
 const SERVICES = [
   { id: 'bazar', icon: ShoppingBag, bn: 'কাঁচা বাজার', en: 'Fresh market' },
@@ -84,7 +84,7 @@ const toAmount = (value: string | undefined) => Math.max(0, Number(value) || 0)
 const hasValue = (value: string | undefined) => !!value?.trim()
 // A row is "started" once any box has text; started rows must have every box filled.
 const isRowStarted = (row: Row) => Object.values(row).some(hasValue)
-const isRowComplete = (row: Row, columns: Column[]) => columns.every(column => hasValue(row[column.key]))
+const isRowComplete = (row: Row, columns: Column[]) => columns.every(column => column.optional || hasValue(row[column.key]))
 const sameText = (text: string): Text => ({ bn: text, en: text })
 const serviceById = (id: ServiceId) => SERVICES.find(service => service.id === id) ?? SERVICES[0]
 
@@ -411,8 +411,8 @@ function Bazar({ user, onPlaceOrder }: ServiceProps) {
   const columns: Column[] = [
     { key: 'item', label: t('কাঁচা বাজারের লিস্ট লিখুন', 'Bazar list item'), placeholder: t('আলু', 'Potatoes') },
     { key: 'quantity', label: t('পরিমাণ', 'Quantity'), placeholder: t('1 কেজি', '1 kg') },
-    { key: 'variety', label: t('জাত বা ধরণ', 'Variety / type'), placeholder: t('দেশি', 'Local') },
-    { key: 'price', label: t('দর', 'Price'), placeholder: '৳', numeric: true },
+    { key: 'variety', label: t('জাত বা ধরণ', 'Variety / type'), placeholder: t('দেশি', 'Local'), optional: true },
+    { key: 'price', label: t('দর', 'Price'), placeholder: '৳', numeric: true, optional: true },
   ]
   const bazarCost = rows.reduce((sum, row) => sum + toAmount(row.price), 0)
   const total = bazarCost + BAZAR_SHOPPING_FEE + BAZAR_DELIVERY_FEE
@@ -422,7 +422,7 @@ function Bazar({ user, onPlaceOrder }: ServiceProps) {
   const error = !showError
     ? null
     : !rowsOk
-      ? t('প্রতিটি লাইনের সব ঘর পূরণ করুন।', 'Fill every box in each row.')
+      ? t('প্রতিটি লাইনে বাজারের নাম ও পরিমাণ লিখুন।', 'Fill in the item and quantity in each row.')
       : !detailsOk
         ? t('ঠিকানা, মোবাইল নম্বর ও অন্তত একটি বাজারের লাইন দিন।', 'Add your address, mobile number and at least one item.')
         : null

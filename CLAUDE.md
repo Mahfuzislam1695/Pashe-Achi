@@ -45,7 +45,7 @@ yarn shadcn add <component>   # config lives in components.json
   - `Orders` and `Profile` mount only while active.
 - **Shared pieces:**
   - `CustomerInfo`: the নাম / মোবা / লোকেশন / point header on every service
-  - `LineTable`: numbered rows, used by the bazar and medicine tables. A table starts with one row, and "add more" appears only once every box in the last row is filled. On confirm, every started row must be complete (`isRowStarted` / `isRowComplete`); fully empty rows are ignored.
+  - `LineTable`: numbered rows, used by the bazar and medicine tables. A table starts with one row, and "add more" appears only once every required box in the last row is filled. A column marked `optional` is not required; in the bazar table only item and quantity are required, while every medicine column is. On confirm, every started row must be complete (`isRowStarted` / `isRowComplete`); fully empty rows are ignored.
   - `BillSummary`: bill lines, a rule, then the total
   - `ContactDock`: Chat and Call, fixed at bottom centre on every screen, including auth
 - **Orders:** each service's confirm button checks its required fields, then calls `onPlaceOrder`. That prepends to `orders` and switches to Order history.
