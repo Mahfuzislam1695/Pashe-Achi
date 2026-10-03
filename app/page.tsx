@@ -410,8 +410,8 @@ function Bazar({ user, onPlaceOrder }: ServiceProps) {
   const [showError, setShowError] = useState(false)
   const columns: Column[] = [
     { key: 'item', label: t('কাঁচা বাজারের লিস্ট লিখুন', 'Bazar list item'), placeholder: t('আলু', 'Potatoes') },
-    { key: 'quantity', label: t('পরিমাণ', 'Quantity'), placeholder: '1' },
-    { key: 'weight', label: t('ওজন', 'Weight'), placeholder: t('কেজি', 'kg') },
+    { key: 'quantity', label: t('পরিমাণ', 'Quantity'), placeholder: t('1 কেজি', '1 kg') },
+    { key: 'variety', label: t('জাত বা ধরণ', 'Variety / type'), placeholder: t('দেশি', 'Local') },
     { key: 'price', label: t('দর', 'Price'), placeholder: '৳', numeric: true },
   ]
   const bazarCost = rows.reduce((sum, row) => sum + toAmount(row.price), 0)
