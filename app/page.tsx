@@ -57,6 +57,7 @@ type NewOrder = Pick<Order, 'service' | 'detail' | 'amount'>
 type ServiceProps = { user: User; onPlaceOrder: (order: NewOrder) => void }
 type Row = Record<string, string>
 type Column = { key: string; label: string; placeholder?: string; numeric?: boolean; optional?: boolean }
+type Schedule = { date: string; time: string }
 
 const SERVICES = [
   { id: 'bazar', icon: ShoppingBag, bn: 'কাঁচা বাজার', en: 'Fresh market' },
@@ -70,6 +71,9 @@ const ORDER_STATUS: Record<OrderStatus, Text> = {
   booked: { bn: 'বুক করা হয়েছে', en: 'Booked' },
   completed: { bn: 'সম্পন্ন', en: 'Completed' },
 }
+
+const SCHEDULE_ERROR: Text = { bn: 'ডেলিভারি তারিখ ও টাইম দিন।', en: 'Choose the delivery date and time.' }
+const EMPTY_SCHEDULE: Schedule = { date: '', time: '' }
 
 // Sample history using the totals from the sketches.
 const SAMPLE_ORDERS: Order[] = [
@@ -85,6 +89,9 @@ const hasValue = (value: string | undefined) => !!value?.trim()
 // A row is "started" once any box has text; started rows must have every box filled.
 const isRowStarted = (row: Row) => Object.values(row).some(hasValue)
 const isRowComplete = (row: Row, columns: Column[]) => columns.every(column => column.optional || hasValue(row[column.key]))
+const isScheduleSet = (schedule: Schedule) => hasValue(schedule.date) && hasValue(schedule.time)
+// en-CA formats a date as YYYY-MM-DD, the value format of <input type="date">.
+const todayIso = () => new Date().toLocaleDateString('en-CA')
 const sameText = (text: string): Text => ({ bn: text, en: text })
 const serviceById = (id: ServiceId) => SERVICES.find(service => service.id === id) ?? SERVICES[0]
 
@@ -149,6 +156,33 @@ function PageCard({ icon: Icon, title, subtitle, children }: { icon: typeof Truc
       {children}
     </section>
   )
+}
+
+// Service screens have no heading: the bottom nav already shows which service is open.
+function ServiceCard({ id, children }: { id: ServiceId; children: React.ReactNode }) {
+  const { lang } = useLang()
+  return (
+    <section className="page-card" aria-label={serviceById(id)[lang]}>
+      {children}
+    </section>
+  )
+}
+
+// ডেলিভারি তারিখ and ডেলিভারি টাইম, required on every service. `inline` matches the parcel screen's label-left rows.
+function DeliverySchedule({ value, onChange, inline = false }: { value: Schedule; onChange: (value: Schedule) => void; inline?: boolean }) {
+  const { t } = useLang()
+  const Wrap = inline ? InlineField : Field
+  const fields = (
+    <>
+      <Wrap label={t('ডেলিভারি তারিখ', 'Delivery date')}>
+        <input type="date" min={todayIso()} value={value.date} onChange={e => onChange({ ...value, date: e.target.value })} />
+      </Wrap>
+      <Wrap label={t('ডেলিভারি টাইম', 'Delivery time')}>
+        <input type="time" value={value.time} onChange={e => onChange({ ...value, time: e.target.value })} />
+      </Wrap>
+    </>
+  )
+  return inline ? fields : <div className="field-pair even">{fields}</div>
 }
 
 function LangToggle({ lang, onChange, compact = false }: { lang: Lang; onChange: (lang: Lang) => void; compact?: boolean }) {
@@ -403,9 +437,10 @@ function Auth({ lang, onLangChange, onComplete }: { lang: Lang; onLangChange: (l
 }
 
 function Bazar({ user, onPlaceOrder }: ServiceProps) {
-  const { t } = useLang()
+  const { t, lang } = useLang()
   const [address, setAddress] = useState('')
   const [mobile, setMobile] = useState(user.mobile)
+  const [schedule, setSchedule] = useState(EMPTY_SCHEDULE)
   const [rows, setRows] = useState<Row[]>([{}])
   const [showError, setShowError] = useState(false)
   const columns: Column[] = [
@@ -425,21 +460,24 @@ function Bazar({ user, onPlaceOrder }: ServiceProps) {
       ? t('প্রতিটি লাইনে বাজারের নাম ও পরিমাণ লিখুন।', 'Fill in the item and quantity in each row.')
       : !detailsOk
         ? t('ঠিকানা, মোবাইল নম্বর ও অন্তত একটি বাজারের লাইন দিন।', 'Add your address, mobile number and at least one item.')
-        : null
+        : !isScheduleSet(schedule)
+          ? SCHEDULE_ERROR[lang]
+          : null
 
   const confirm = () => {
-    if (!rowsOk || !detailsOk) {
+    if (!rowsOk || !detailsOk || !isScheduleSet(schedule)) {
       setShowError(true)
       return
     }
     onPlaceOrder({ service: 'bazar', detail: sameText(started.map(row => row.item.trim()).join(', ')), amount: total })
     setAddress('')
+    setSchedule(EMPTY_SCHEDULE)
     setRows([{}])
     setShowError(false)
   }
 
   return (
-    <PageCard icon={ShoppingBag} title={t('কাঁচা বাজার', 'Fresh market')}>
+    <ServiceCard id="bazar">
       <CustomerInfo user={user} />
       <p className="notice">
         <Clock size={16} />
@@ -453,6 +491,7 @@ function Bazar({ user, onPlaceOrder }: ServiceProps) {
           <input type="tel" inputMode="tel" value={mobile} onChange={e => setMobile(e.target.value)} placeholder="01XXXXXXXXX" />
         </Field>
       </div>
+      <DeliverySchedule value={schedule} onChange={setSchedule} />
       <LineTable template="1.7fr .8fr .9fr .8fr" columns={columns} rows={rows} onChange={setRows} addLabel={t('আরো যোগ করতে ক্লিক করুন', 'Click to add more')} />
       <BillSummary
         lines={[
@@ -464,7 +503,7 @@ function Bazar({ user, onPlaceOrder }: ServiceProps) {
         total={total}
       />
       <ConfirmButton error={error} onConfirm={confirm} />
-    </PageCard>
+    </ServiceCard>
   )
 }
 
@@ -486,6 +525,7 @@ function Shifting({ user, onPlaceOrder }: ServiceProps) {
   const { t, lang } = useLang()
   const [loadingArea, setLoadingArea] = useState('')
   const [unloadingArea, setUnloadingArea] = useState('')
+  const [schedule, setSchedule] = useState(EMPTY_SCHEDULE)
   const [vehicleId, setVehicleId] = useState<string>(VEHICLES[0].id)
   const [labourers, setLabourers] = useState('1')
   const [loadingFloor, setLoadingFloor] = useState('1')
@@ -493,20 +533,29 @@ function Shifting({ user, onPlaceOrder }: ServiceProps) {
   const [showError, setShowError] = useState(false)
   const vehicle = VEHICLES.find(option => option.id === vehicleId) ?? VEHICLES[0]
   const total = vehicle.rate + toAmount(labourers) * WAGE_PER_LABOURER + toAmount(loadingFloor) * LOADING_RATE_PER_FLOOR + toAmount(unloadingFloor) * UNLOADING_RATE_PER_FLOOR
+  const areasOk = hasValue(loadingArea) && hasValue(unloadingArea)
+  const error = !showError
+    ? null
+    : !areasOk
+      ? t('Loading Area ও Unloading Area দিন।', 'Add the loading and unloading areas.')
+      : !isScheduleSet(schedule)
+        ? SCHEDULE_ERROR[lang]
+        : null
 
   const confirm = () => {
-    if (!loadingArea.trim() || !unloadingArea.trim()) {
+    if (!areasOk || !isScheduleSet(schedule)) {
       setShowError(true)
       return
     }
     onPlaceOrder({ service: 'shifting', detail: sameText(`${loadingArea.trim()} → ${unloadingArea.trim()}`), amount: total })
     setLoadingArea('')
     setUnloadingArea('')
+    setSchedule(EMPTY_SCHEDULE)
     setShowError(false)
   }
 
   return (
-    <PageCard icon={Truck} title={t('বাসা বদল', 'House shifting')}>
+    <ServiceCard id="shifting">
       <CustomerInfo user={user} showPoints={false} />
       <div className="field-pair even">
         <Field label={t('Loading Area', 'Loading area')}>
@@ -516,6 +565,7 @@ function Shifting({ user, onPlaceOrder }: ServiceProps) {
           <input value={unloadingArea} onChange={e => setUnloadingArea(e.target.value)} placeholder={t('যেমন: উত্তরা', 'e.g. Uttara')} />
         </Field>
       </div>
+      <DeliverySchedule value={schedule} onChange={setSchedule} />
       <div className="steps">
         <StepRow n={1} label={t('গাড়ী', 'Vehicle')} rateLabel={t('রেট', 'Rate')} rate={vehicle.rate}>
           <select value={vehicleId} onChange={e => setVehicleId(e.target.value)}>
@@ -537,21 +587,23 @@ function Shifting({ user, onPlaceOrder }: ServiceProps) {
         </StepRow>
       </div>
       <BillSummary lines={[]} totalLabel={t('Total cost', 'Total cost')} total={total} />
-      <ConfirmButton error={showError ? t('Loading Area ও Unloading Area দিন।', 'Add the loading and unloading areas.') : null} onConfirm={confirm} />
-    </PageCard>
+      <ConfirmButton error={error} onConfirm={confirm} />
+    </ServiceCard>
   )
 }
 
 function Medicine({ user, onPlaceOrder }: ServiceProps) {
-  const { t } = useLang()
+  const { t, lang } = useLang()
   const [address, setAddress] = useState('')
   const [mobile, setMobile] = useState(user.mobile)
+  const [schedule, setSchedule] = useState(EMPTY_SCHEDULE)
   const [prescription, setPrescription] = useState('')
   const [fileInputKey, setFileInputKey] = useState(0)
   const [rows, setRows] = useState<Row[]>([{}])
   const [showError, setShowError] = useState(false)
   const columns: Column[] = [
     { key: 'name', label: t('ঔষুধের নাম লিখুন', 'Medicine name'), placeholder: 'Napa' },
+    { key: 'quantity', label: t('পরিমাণ', 'Quantity'), placeholder: t('1 পাতা', '1 strip') },
     { key: 'company', label: t('কোম্পানীর নাম', 'Company'), placeholder: 'Beximco' },
     { key: 'category', label: t('ক্যাটাগরি', 'Category'), placeholder: t('জ্বর', 'Fever') },
     { key: 'price', label: t('মূল্য', 'Price'), placeholder: '৳', numeric: true },
@@ -567,15 +619,18 @@ function Medicine({ user, onPlaceOrder }: ServiceProps) {
       ? t('প্রতিটি লাইনের সব ঘর পূরণ করুন।', 'Fill every box in each row.')
       : !detailsOk
         ? t('ঠিকানা, মোবাইল নম্বর এবং প্রেসক্রিপশন বা অন্তত একটি ঔষুধের লাইন দিন।', 'Add the address, mobile number, and a prescription or at least one medicine.')
-        : null
+        : !isScheduleSet(schedule)
+          ? SCHEDULE_ERROR[lang]
+          : null
 
   const confirm = () => {
-    if (!rowsOk || !detailsOk) {
+    if (!rowsOk || !detailsOk || !isScheduleSet(schedule)) {
       setShowError(true)
       return
     }
     onPlaceOrder({ service: 'medicine', detail: sameText(started.map(row => row.name.trim()).join(', ') || prescription), amount: total })
     setAddress('')
+    setSchedule(EMPTY_SCHEDULE)
     setPrescription('')
     setFileInputKey(key => key + 1)
     setRows([{}])
@@ -583,7 +638,7 @@ function Medicine({ user, onPlaceOrder }: ServiceProps) {
   }
 
   return (
-    <PageCard icon={Pill} title={t('ইমারজেন্সী সেবা', 'Emergency service')} subtitle={t('জরুরী ঔষুধ', 'Emergency medicine')}>
+    <ServiceCard id="medicine">
       <CustomerInfo user={user} />
       <div className="field-pair">
         <Field label={t('গ্রহীতার ঠিকানা', "Receiver's address")}>
@@ -593,6 +648,7 @@ function Medicine({ user, onPlaceOrder }: ServiceProps) {
           <input type="tel" inputMode="tel" value={mobile} onChange={e => setMobile(e.target.value)} placeholder="01XXXXXXXXX" />
         </Field>
       </div>
+      <DeliverySchedule value={schedule} onChange={setSchedule} />
       <div className="invoice-upload">
         <input
           key={fileInputKey}
@@ -612,7 +668,7 @@ function Medicine({ user, onPlaceOrder }: ServiceProps) {
           </span>
         </label>
       </div>
-      <LineTable template="1.4fr 1.1fr 1fr .8fr" columns={columns} rows={rows} onChange={setRows} addLabel={t('আরো এড করুন', 'Add more')} />
+      <LineTable template="1.2fr .8fr 1fr .9fr .8fr" columns={columns} rows={rows} onChange={setRows} addLabel={t('আরো এড করুন', 'Add more')} />
       <BillSummary
         lines={[
           [t('ঔষুধ মূল্য', 'Medicine cost'), medicineCost],
@@ -622,29 +678,39 @@ function Medicine({ user, onPlaceOrder }: ServiceProps) {
         total={total}
       />
       <ConfirmButton error={error} onConfirm={confirm} />
-    </PageCard>
+    </ServiceCard>
   )
 }
 
 function Parcel({ user, onPlaceOrder }: ServiceProps) {
-  const { t, taka } = useLang()
+  const { t, lang, taka } = useLang()
   const empty = { product: '', weight: '', pickup: '', dropoff: '', receiverMobile: '' }
   const [form, setForm] = useState(empty)
+  const [schedule, setSchedule] = useState(EMPTY_SCHEDULE)
   const [showError, setShowError] = useState(false)
   const bind = (key: keyof typeof empty) => ({ value: form[key], onChange: (e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, [key]: e.target.value }) })
+  const detailsOk = hasValue(form.product) && hasValue(form.pickup) && hasValue(form.dropoff) && hasValue(form.receiverMobile)
+  const error = !showError
+    ? null
+    : !detailsOk
+      ? t('পণ্যের নাম, দুই ঠিকানা ও গ্রহীতার মোবাইল নম্বর দিন।', "Add the product name, both addresses and the receiver's mobile.")
+      : !isScheduleSet(schedule)
+        ? SCHEDULE_ERROR[lang]
+        : null
 
   const confirm = () => {
-    if (!form.product.trim() || !form.pickup.trim() || !form.dropoff.trim() || !form.receiverMobile.trim()) {
+    if (!detailsOk || !isScheduleSet(schedule)) {
       setShowError(true)
       return
     }
     onPlaceOrder({ service: 'parcel', detail: sameText(`${form.product.trim()} · ${form.pickup.trim()} → ${form.dropoff.trim()}`), amount: PARCEL_DELIVERY_FEE })
     setForm(empty)
+    setSchedule(EMPTY_SCHEDULE)
     setShowError(false)
   }
 
   return (
-    <PageCard icon={PackageCheck} title={t('পণ্য আদান প্রদান', 'Parcel delivery')}>
+    <ServiceCard id="parcel">
       <CustomerInfo user={user} />
       <div className="field-rows">
         <InlineField label={t('পণ্যের নাম', 'Product name')}>
@@ -662,13 +728,14 @@ function Parcel({ user, onPlaceOrder }: ServiceProps) {
         <InlineField label={t('গ্রহীতার মোবা', "Receiver's mobile")}>
           <input type="tel" inputMode="tel" {...bind('receiverMobile')} placeholder="01XXXXXXXXX" />
         </InlineField>
+        <DeliverySchedule inline value={schedule} onChange={setSchedule} />
         <div className="field-row charge">
           <span>{t('ডেলিভারী খরচ', 'Delivery charge')}</span>
           <div className="fixed-rate">{taka(PARCEL_DELIVERY_FEE)}</div>
         </div>
       </div>
-      <ConfirmButton error={showError ? t('পণ্যের নাম, দুই ঠিকানা ও গ্রহীতার মোবাইল নম্বর দিন।', "Add the product name, both addresses and the receiver's mobile.") : null} onConfirm={confirm} />
-    </PageCard>
+      <ConfirmButton error={error} onConfirm={confirm} />
+    </ServiceCard>
   )
 }
 
