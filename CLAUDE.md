@@ -4,65 +4,173 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-Pashe Achi (পাশে আছি, "we're by your side"; formerly Jibon Khata) is a phone-first, bilingual (Bangla/English) service app with four services: কাঁচা বাজার (fresh market), বাসা বদল (house shifting), জরুরী ঔষুধ (emergency medicine) and পণ্য আদান প্রদান (parcel delivery). It also has order history and a profile. The screens follow the owner's hand-drawn Bangla sketches, so labels in Bangla mode match the sketch wording exactly, including the English words the sketches use (Loading Area, Total Bill, Total cost, Chat, Call, point). It started from v0.app (the v0 sandbox entries in `.gitignore` are left from that). It is a front-end prototype only. There is no backend, API, database, persistence or real authentication.
+Pashe Achi (পাশে আছি, "we're by your side") is a bilingual (Bangla/English) service app. It has four services: কাঁচা বাজার (fresh market), বাসা বদল (house shifting), জরুরী ঔষুধ (emergency medicine) and পণ্য আদান প্রদান (parcel delivery).
 
-The app name lives in `lib/brand.ts`, along with the logo letter (পা), the order-ID prefix (`PA-`) and the welcome phrases that depend on the name. `app/layout.tsx` and `app/page.tsx` read it from there. The icons in `public/` (`icon-32x32.png`, `icon-192x192.png`, `apple-icon.png`) are static PNGs of the logo mark, so they must be re-rendered if the name changes. The project folder is still named `jibon-khata-app-development`.
+It is **one project that runs as one server on one port** (3000 by default):
 
-Stack: Next.js 16 (App Router), React 19, TypeScript, Tailwind CSS v4 (through `@tailwindcss/postcss`, no `tailwind.config`), shadcn in the `base-nova` style (built on `@base-ui/react`, not Radix), and lucide-react icons. The `@/*` path alias resolves to the repo root.
+| URL | What answers it |
+|---|---|
+| `/`, `/bazar`, `/orders`, … | Customer site (Next.js 16), phone-first |
+| `/admin`, `/admin/orders`, … | Admin panel (the same Next.js app, styled with Tailwind) |
+| `/api/v1/…` | NestJS 11 REST API (Prisma 7, PostgreSQL) |
+| `/api/docs`, `/api/docs-json` | Swagger UI and the OpenAPI document |
+| `/socket.io/` (namespace `/ws`) | Socket.IO realtime notifications |
+
+- **Wording.** The customer site started as a v0.app prototype drawn from the owner's hand-drawn Bangla sketches. Labels in Bangla mode match the sketch wording exactly, including the English words the sketches use (Loading Area, Total Bill, Total cost, Chat, Call, point).
+- **Mobile app.** A Flutter app comes later and will use the same API. So the API stays REST, versioned and documented, and it accepts `Authorization: Bearer` as well as cookies.
+
+## One of everything (owner's explicit requirement)
+
+The project has one `package.json`, one `node_modules`, one `.env`, one port, and a flat layout. Don't reintroduce `apps/` or `packages/`, workspaces, Turborepo, per-folder `package.json` or env files, or a second server or port.
+
+- Add dependencies to the root `package.json` at **exact** versions. The package manager is npm; don't add a pnpm or Yarn lockfile.
+- `.env` (gitignored) at the root holds every setting, and `.env.example` is the committed template. `src/server/config/env.ts` validates it at boot and lists every problem at once.
 
 ## Commands
 
-The package manager is Yarn 1 (Classic), pinned to `yarn@1.22.22` through `packageManager` in `package.json`. Don't use npm or pnpm, which would create a second lockfile next to `yarn.lock`.
-
 ```bash
-yarn install
-yarn dev                 # next dev
-yarn build               # next build
-yarn start               # serve the production build
-yarn tsc --noEmit        # type-check
-yarn shadcn add <component>   # config lives in components.json
+npm install
+npm run dev          # the one server, with hot reload for pages and a restart on src/server or src/shared changes
+npm run build        # prisma generate, next build (pages; type-checks the whole project), nest build (dist/server)
+npm start            # production: node dist/server/main.js, serving the .next build
+npm run typecheck    # tsc for everything, then tsc -p tsconfig.build.json (the server's CommonJS settings)
+npm test             # Vitest (src/shared) + Jest unit tests (src/server/**/*.spec.ts)
+npm run test:e2e     # test/*.e2e-spec.ts: the Nest app against a real PostgreSQL test database
+npm run db:migrate   # prisma migrate dev (creates a migration); then npm run db:generate
+npm run db:deploy | db:seed | db:seed:demo | db:studio | db:generate
 ```
 
-- `next.config.mjs` sets `typescript.ignoreBuildErrors: true`, so `yarn build` passes even when there are type errors. Run `yarn tsc --noEmit` to catch them.
-- There is no lint script, test framework or test suite.
+- **Single test file.** `npx vitest run src/shared/pricing.test.ts`, or `npx jest src/server/auth/cookies.spec.ts`.
+- **Dev vs production.** `npm run dev` runs `nest start --watch -- --dev`. That `--dev` flag, not `NODE_ENV`, puts Next.js in dev mode. `src/server/load-env.ts` then sets `NODE_ENV` to development or production to match, unless the environment already sets it.
+- **e2e database.** `test:e2e` uses `TEST_DATABASE_URL`, or `DATABASE_URL` with `_test` appended. It creates that database (UTF8), migrates it, and truncates it on every run. It runs Jest through `node --experimental-vm-modules`, because the Prisma 7 client loads its query engine with dynamic `import()`. The e2e tests boot the API alone, through `configureApp`, without the pages.
+- **Seed.** `npm run db:seed:demo` also adds a demo customer (01811111111 / demo1234) with three orders. The first super admin comes from `SEED_ADMIN_*` in `.env`.
+- **Lint.** There is no lint script.
 
-## Architecture
+## Layout and request flow
 
-**The whole app lives in `app/page.tsx`**, a single `'use client'` file. It contains the screens (`Auth`, `Bazar`, `Shifting`, `Medicine`, `Parcel`, `Orders`, `Profile`) and the shared pieces they use.
+```
+src/
+  server/      NestJS: main.ts, load-env.ts, bootstrap.ts and the modules; generated/ is the Prisma client (gitignored)
+  app/         Next.js App Router: (customer)/ and (admin)/admin/ are two separate root layouts
+  customer/    customer site screens: components/, features/, lib/
+  admin/       admin panel: components/, lib/
+  shared/      the contract every other folder uses (no framework code)
+  api-client/  browser client (fetch + Socket.IO) used by the customer site and the admin panel
+  proxy.ts     Next 16's name for middleware
+prisma/  schema, migrations, seed.ts        test/  API e2e tests        public/  icons
+```
 
-- **Business constants** are at the top of the file: every fee and rate, `VEHICLES`, and the placeholder support number `SUPPORT_PHONE` / `SUPPORT_WHATSAPP`. Change prices there, not inside the screens.
-- **Services:** the `SERVICES` array (id, icon, `bn`, `en`) drives the bottom nav, the drawer, the welcome screen and Order history. To add a service:
-  1. Add it to `ServiceId` and `SERVICES`.
-  2. Write its component.
-  3. Add a `hidden` wrapper for it in `Page`.
+- **One port.** `src/server/main.ts` works in this order:
+  1. It creates the Nest app.
+  2. It creates Next with `next({ dev, dir: PROJECT_ROOT, httpServer })`.
+  3. It registers a middleware **before** `configureApp`. That middleware hands every request outside `/api` to Next's request handler, so pages never pass through helmet, the body parsers or the pino request log.
+  4. Socket.IO (engine.io) catches `/socket.io/` on the HTTP server itself, before Express sees it.
+- **Things that keep the one port working:**
+  - `AppIoAdapter` in `bootstrap.ts` sets `destroyUpgrade: false`. Without it, engine.io closes Next's hot-reload WebSocket.
+  - The matcher in `src/proxy.ts` excludes `api/` and `socket.io/`. Next runs route resolution, including the proxy, for every WebSocket upgrade, and a redirect there would break Socket.IO.
+  - `configureApp` turns off Express's `x-powered-by` app-wide, because pages skip helmet.
+  - A custom server like this can't be deployed to Vercel and can't use `output: 'standalone'`. Run it with `npm start` on any Node host.
+- **Aliases.**
+  - `@/*` maps to `src/*`. One `tsconfig.json` serves the editor, `tsc` and `next build`, with decorators enabled.
+  - Server code imports only `@/shared` and relative paths, never customer, admin or api-client code.
+  - `nest build` uses `tsconfig.build.json`: CommonJS, `rootDir: src`, and `incremental: false`, because incremental builds combined with `deleteOutDir` emitted nothing. It rewrites `@/shared` into relative requires, and the entry point is `dist/server/main.js`.
+  - Jest maps `@/` with `moduleNameMapper`.
+- **Paths.** `PROJECT_ROOT` (`src/server/project-root.ts`) is the repo root whether the code runs from `src/server` or `dist/server`. `.env`, `.next` and `UPLOAD_DIR` resolve against it.
+
+### src/shared: the contract between the server, the customer site and the admin panel
+
+- `schemas/*`: Zod 4 schemas for every request body. The API validates with them through `nestjs-zod`, and both front ends validate the same payload before sending.
+- `messages.ts`: every user-facing error as a `MessageCode` with `{ bn, en }` text.
+  - Schemas use codes as their messages, and the API returns `{ statusCode, code, message: { bn, en }, issues? }`.
+  - `FORM_ERROR_PRIORITY` with `pickIssueCode` / `validateForm` makes each form show one message, in the original screens' order.
+  - Add new error text here, never inline.
+- `pricing.ts`: `calcBazar`, `calcShifting` and the other calculators. The customer bill preview and the API use the same functions. The API never trusts client totals. Each order stores a snapshot (`itemsTotal`, `serviceFee`, `deliveryFee`, `total`), so price changes never alter old bills.
+- `enums.ts`: services, statuses, `ORDER_TRANSITIONS` (the allowed status moves), roles, `API_PREFIX` (`api/v1`), `SOCKET_NAMESPACE` and `SOCKET_EVENTS`.
+- `labels.ts`: bilingual service and status labels.
+- `brand.ts`: app name, logo letter, `PA-` order prefix.
+- `types.ts`: response DTOs.
+
+### src/server (the API)
+
+- **Modules:**
+  - `auth` (customer and admin)
+  - `users` (`/me`, `/admin/customers`)
+  - `admins` (`/admin/staff`)
+  - `catalog` (pricing, vehicles, support line)
+  - `uploads`
+  - `orders`
+  - `notifications`
+  - `dashboard`
+  - `health`
+- **Request DTOs.** All of them are in `common/dto.ts`, wrapping the shared schemas.
+- **Errors.** Throw `AppException.badRequest('code')` and similar. `common/all-exceptions.filter.ts` shapes every error, including Prisma P2002/P2025.
+- **Auth:**
+  - Customers (`User`) and staff (`Admin`) are separate tables, with separate JWT secrets and separate cookies. Customers get `pa_at` / `pa_rt`; admins get `pa_admin_at` / `pa_admin_rt`. Both live on the one origin with path `/`.
+  - Access tokens are 15-minute JWTs.
+  - Refresh tokens are random strings stored as SHA-256 hashes. They rotate on every use. A replayed token, outside a 30-second grace window, revokes its whole family (`auth/token.service.ts`).
+  - `CustomerGuard` and `AdminGuard` re-read the account on every request, so blocking or deactivating someone takes effect immediately. Use `@Roles('MANAGER')` for manager-only routes; `SUPER_ADMIN` always passes.
+  - Roles: OPERATOR handles orders. MANAGER also handles catalog, customer blocking and points, and broadcasts. SUPER_ADMIN also manages staff.
+- **Orders:**
+  - `orders.service.ts` writes the order, its children and its first timeline event in one transaction.
+  - Status changes use `updateMany where status = from`, so concurrent changes can't both win. Every change writes an `OrderStatusEvent`.
+  - After commit it emits domain events (`common/domain-events.ts`) through `@nestjs/event-emitter`.
+- **Notifications:**
+  - `notifications.listener.ts` turns those domain events into stored bilingual `Notification` rows, plus Socket.IO pushes.
+  - The gateway is at namespace `/ws`. It authenticates in Socket.IO middleware, and rejected handshakes get `connect_error` "unauthorized". Sockets join the rooms `user:<id>`, `admin:<id>` and `admins`.
+  - Delivery goes through the `NOTIFICATION_CHANNELS` list in `channels.ts`. Add FCM push or SMS there.
+- **Prisma 7:**
+  - `prisma.config.ts` (root) holds the datasource URL and loads `.env`.
+  - The `prisma-client` generator writes to `src/server/generated/prisma`, which is gitignored. It uses `moduleFormat = "cjs"` and `importFileExtension = "js"`.
+  - The client uses `@prisma/adapter-pg`.
+  - `migrate dev` does not regenerate the client, so run `db:generate`.
+  - The first migration restarts the order-number sequence at 1001.
+  - The database must be **UTF8**, or Bangla writes fail, and `PrismaService` refuses to start otherwise. On Windows, create it with `CREATE DATABASE … ENCODING 'UTF8' TEMPLATE template0`.
+- **Uploads.** Prescriptions are checked by their magic bytes (`uploads/file-signature.ts`), not by MIME type. They are stored through the `StorageService` abstraction, currently `LocalDiskStorage` under `UPLOAD_DIR`. Customers can read only their own files; admins use `/admin/uploads/:id`.
+- **Env.** In production, `config/env.ts` refuses the example secrets from `.env.example`.
+- **Dependency pins.** Stay on the NestJS 11 line: Nest 12 and `@nestjs/event-emitter` 12 are ESM-only. `nestjs-zod` needs Nest 11, and Jest can't load ESM-only packages. Keep `@nestjs/event-emitter` at 3.x.
+
+### Pages: one Next.js app with two root layouts
+
+- **Two root layouts.** `src/app/(customer)/layout.tsx` and `src/app/(admin)/layout.tsx` are separate root layouts, each with its own `globals.css`, providers and language cookie.
+  - Moving between `/` and `/admin` is a full page load, so the customer CSS and the admin Tailwind theme never mix.
+  - Each `globals.css` limits Tailwind's scan to its own side, with `source(none)` plus `@source`.
+  - Unknown URLs get `src/app/global-not-found.tsx` (`experimental.globalNotFound`). The font is defined in `src/app/fonts.ts`.
+- **`src/proxy.ts`.** Redirects based only on whether a session cookie exists. The API does the real auth check.
+  - Under `/admin` it checks `pa_admin_rt` and redirects to `/admin/login`.
+  - Everywhere else it checks `pa_rt` and redirects to `/login`.
+- **Calling the API.** Both front ends call the API on their own origin: the base is `/${API_PREFIX}`, and Socket.IO connects with `io(SOCKET_NAMESPACE)`. There is no API URL setting and no CORS.
+
+### Customer site (src/customer, src/app/(customer))
+
+- **Routes:** `/` (welcome), `/login`, `/signup`, then `(main)/…` for `/bazar`, `/shifting`, `/medicine`, `/parcel`, `/orders`, `/orders/[id]`, `/notifications` and `/profile`.
+- **Shell.** `components/app-shell.tsx` (drawer, top bar with bell, bottom nav, Chat/Call dock) renders only after the customer and catalog queries load. Below it, screens call `useSession()`.
+- **Drafts.** Form input survives switching services because `lib/drafts.tsx`'s `useDraft` stores it in the `(main)` layout, which stays mounted.
+- **Screens and data.**
+  - Screens live in `features/*.tsx`; the pieces they share live in `components/ui.tsx`, `line-table.tsx` and `delivery-schedule.tsx`.
+  - Data goes through TanStack Query (`lib/queries.ts`) and `lib/api.ts`. That client comes from `src/api-client`: fetch with credentials, plus one automatic refresh and retry on 401.
+  - `lib/realtime.tsx` handles the socket, bell count and toast.
 - **Language:**
-  - `lang` state lives in `Page` and reaches components through `LangContext`.
-  - Components call `useLang()` for `t(bn, en)`, `taka(n)`, `digits(n)` and `rowNumber(i)`. Every visible string is written as `t('বাংলা', 'English')` at its point of use. There is no separate dictionary.
-  - Amounts use Latin digits in both languages ("760 টাকা" / "Tk 760"), as in the sketches. Row numbers use Bengali digits in Bangla mode.
-- **`Page` state:** `lang`, `user` (`{ name, mobile, location, points }`; when it's `null`, `Auth` renders), `active: View`, `menuOpen` and `orders`.
-- **Navigation** uses state, not routes, and there are no other routes under `app/`.
-  - The four service screens are always mounted, and the inactive ones sit inside `<div hidden>`, so form input survives tab switches.
-  - `Orders` and `Profile` mount only while active.
-- **Shared pieces:**
-  - `ServiceCard`: the card around each service screen. It has no heading, because the bottom nav already shows which service is open. `PageCard` (icon + title) is only for Order history and Profile.
-  - `CustomerInfo`: the নাম / মোবা / লোকেশন / point header on every service, and the first thing on each service screen
-  - `DeliverySchedule`: ডেলিভারি তারিখ and ডেলিভারি টাইম, required on every service, placed under the address / receiver fields. Parcel uses its `inline` (label-left) form.
-  - `LineTable`: numbered rows, used by the bazar and medicine tables. A table starts with one row, and "add more" appears only once every required box in the last row is filled. A column marked `optional` is not required; in the bazar table only item and quantity are required, while all five medicine columns (name, quantity, company, category, price) are. On confirm, every started row must be complete (`isRowStarted` / `isRowComplete`); fully empty rows are ignored.
-  - `BillSummary`: bill lines, a rule, then the total
-  - `ContactDock`: Chat and Call, fixed at bottom centre on every screen, including auth
-- **Orders:** each service's confirm button checks its required fields, then calls `onPlaceOrder`. That prepends to `orders` and switches to Order history.
-- **Mocks:** auth (mobile + password, never checked) and reward points (always 0) are fake, and all state is in memory. File inputs only keep `file.name`.
-- Vercel Analytics renders only when `NODE_ENV === 'production'`.
+  - `lib/i18n.tsx` provides `useLang()` with `t('বাংলা', 'English')`, `text()`, `taka()`, `digits()`, `rowNumber()` and `formatDate()`. Every visible string is written as `t(…)` where it's used.
+  - The language is kept in the `pa_lang` cookie, and the root layout reads it on the server.
+  - Amounts use Latin digits in both languages; row numbers use Bengali digits in Bangla mode.
+- **Line tables.** A table starts with one row, and "add more" appears once the last row's required boxes are filled. Bazar requires item and quantity; medicine requires all five columns. Fully empty rows are ignored.
+- **Styling:**
+  - Screens use the hand-written classes in `globals.css` (`.page-card`, `.field`, `.line-table`, `.bill` and so on), not Tailwind utilities.
+  - The file is minified old v0 CSS, then "Screens from the paper sketches", then "Live data screens (API)". Later rules win.
+  - Variable names are misleading: `--blue` is the teal primary `#287c68` and `--green` is amber.
+  - Bangla needs `letter-spacing: 0` (via `html[lang='bn']`) to keep the headstroke (মাত্রা).
+  - The layout is a phone-first 430px column at every width.
+  - The font is Hind Siliguri via `next/font/google`, so builds need internet access.
 
-## Styling
+### Admin panel (src/admin, src/app/(admin)/admin)
 
-- The screens use **hand-written semantic classes in `app/globals.css`** (`.page-card`, `.primary-button`, `.field`, `.line-table`, `.bill` and so on), not Tailwind utilities. Use the same classes when editing screens.
-- The font is Hind Siliguri (Bengali + Latin). `app/layout.tsx` loads it with `next/font/google` as `--font-bangla`, so `yarn build` needs internet access.
-- Theme colors are CSS variables on `:root`. Their names are left over from an older theme and are misleading: `--blue` is the teal primary (`#287c68`) and `--green` is amber. Many rules also hard-code hex colors.
-- The layout is phone-first at every width. A `@media (min-width: 801px)` block limits `.app-shell` and `.auth-shell` to a centered 430px column. The drawer (`.sidebar.open` plus `.scrim`) slides over that column at every width.
-- `globals.css` is minified old v0 CSS followed by a readable section, "Screens from the paper sketches", at the end. Order matters because later rules override earlier ones, and that section overrides several older rules. The older part still holds many unused classes.
-- Bangla text needs `letter-spacing: 0`, because letter-spacing breaks the headstroke (মাত্রা). Rules keyed on `html[lang='bn']` handle this. `Page` keeps `<html lang>` in sync with the language toggle.
-- The shadcn scaffolding (`components/ui/button.tsx`, and `cn` in `lib/utils.ts`) is unused by any screen. `globals.css` defines no shadcn theme tokens (`--primary`, `--ring`, `--border` and so on) and has no `@theme inline` block. Before relying on shadcn component styling, check that those tokens resolve.
+- **Stack.** Tailwind v4 utilities, with brand tokens in the `@theme` block of its `globals.css` (`brand-*`, `ink`, `muted`, `line`, `canvas`, `chart`). UI primitives are in `components/ui.tsx` (cva and tailwind-merge) and toasts use `sonner`.
+- **Routes.** `/admin/login`, then `(panel)/…` for `/admin` (dashboard), orders, customers, catalog, notifications, staff and profile. Every link and redirect in the panel starts with `/admin`.
+- **Filters.** Order filters live in the URL query.
+- **Permissions.** `lib/utils.ts` `canManage` / `isSuperAdmin` mirror the API's role checks to hide controls. The API still enforces them.
+- **Realtime.** `lib/realtime.tsx` shows a toast and plays a WebAudio chime on `order:new`, and refreshes the lists on any order change. The sound toggle is stored in localStorage.
+- **Language.** The panel defaults to English, using the same `t()` convention; the cookie is `pa_admin_lang`.
+- **Charts.** `components/charts.tsx` follows the data-viz rules: single series, one hue, ≤24px columns with 4px rounded ends, 2px gaps, hover/focus tooltips and a table view.
 
 <!-- BEGIN:nextjs-agent-rules -->
 

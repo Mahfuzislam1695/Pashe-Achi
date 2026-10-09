@@ -1,0 +1,272 @@
+// Pashe Achi database. After editing: `npm run db:migrate` (creates a migration), then `npm run db:generate`.
+// Amounts are whole taka (Int). Every order keeps a snapshot of the fees it was priced with.
+
+generator client {
+  provider            = "prisma-client"
+  output              = "../src/server/generated/prisma"
+  moduleFormat        = "cjs"
+  importFileExtension = "js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Lang {
+  bn
+  en
+}
+
+enum ServiceId {
+  bazar
+  shifting
+  medicine
+  parcel
+}
+
+enum OrderStatus {
+  PENDING
+  BOOKED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum AdminRole {
+  SUPER_ADMIN
+  MANAGER
+  OPERATOR
+}
+
+enum OrderEventActor {
+  CUSTOMER
+  ADMIN
+  SYSTEM
+}
+
+enum NotificationType {
+  ORDER_CREATED
+  ORDER_STATUS
+  ORDER_BILL
+  ANNOUNCEMENT
+}
+
+/// A customer of the web/mobile app.
+model User {
+  id            String         @id @default(cuid())
+  name          String
+  mobile        String         @unique
+  location      String         @default("")
+  passwordHash  String
+  points        Int            @default(0)
+  lang          Lang           @default(bn)
+  isBlocked     Boolean        @default(false)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  orders        Order[]
+  uploads       Upload[]
+  notifications Notification[]
+  refreshTokens RefreshToken[]
+
+  @@index([createdAt])
+}
+
+/// Staff who use the admin panel. Kept apart from customers so the two sessions never mix.
+model Admin {
+  id            String             @id @default(cuid())
+  name          String
+  mobile        String             @unique
+  passwordHash  String
+  role          AdminRole          @default(OPERATOR)
+  isActive      Boolean            @default(true)
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+  notifications Notification[]
+  refreshTokens RefreshToken[]
+  orderEvents   OrderStatusEvent[]
+}
+
+/// One row per issued refresh token (hashed). Rotated on every refresh; a reused token revokes its family.
+model RefreshToken {
+  id         String    @id @default(cuid())
+  tokenHash  String    @unique
+  familyId   String
+  userId     String?
+  adminId    String?
+  userAgent  String?
+  expiresAt  DateTime
+  revokedAt  DateTime?
+  replacedBy String?
+  createdAt  DateTime  @default(now())
+  user       User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  admin      Admin?    @relation(fields: [adminId], references: [id], onDelete: Cascade)
+
+  @@index([familyId])
+  @@index([userId])
+  @@index([adminId])
+}
+
+model Order {
+  id            String             @id @default(cuid())
+  /// Shown as PA-<number>. The sequence starts at 1001 (see the first migration).
+  number        Int                @unique @default(autoincrement())
+  userId        String
+  service       ServiceId
+  status        OrderStatus        @default(PENDING)
+  /// One line for lists and notifications.
+  summary       String
+  contactMobile String
+  address       String?
+  note          String?
+  scheduledDate DateTime           @db.Date
+  /// HH:mm, Bangladesh time.
+  scheduledTime String
+  itemsTotal    Int
+  serviceFee    Int
+  deliveryFee   Int
+  total         Int
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+  user          User               @relation(fields: [userId], references: [id], onDelete: Restrict)
+  items         OrderItem[]
+  shifting      ShiftingDetail?
+  parcel        ParcelDetail?
+  uploads       Upload[]
+  events        OrderStatusEvent[]
+
+  @@index([userId, createdAt])
+  @@index([status, createdAt])
+  @@index([service, createdAt])
+  @@index([createdAt])
+}
+
+/// A bazar or medicine line.
+model OrderItem {
+  id       String  @id @default(cuid())
+  orderId  String
+  position Int
+  name     String
+  quantity String
+  variety  String?
+  company  String?
+  category String?
+  price    Int?
+  order    Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId, position])
+}
+
+model ShiftingDetail {
+  orderId               String   @id
+  loadingArea           String
+  unloadingArea         String
+  vehicleId             String?
+  vehicleNameBn         String
+  vehicleNameEn         String
+  vehicleRate           Int
+  labourers             Int
+  wagePerLabourer       Int
+  loadingFloor          Int
+  loadingRatePerFloor   Int
+  unloadingFloor        Int
+  unloadingRatePerFloor Int
+  order                 Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  vehicle               Vehicle? @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+}
+
+model ParcelDetail {
+  orderId        String  @id
+  product        String
+  weight         String?
+  pickupAddress  String
+  dropoffAddress String
+  receiverMobile String
+  order          Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+}
+
+/// A file a customer uploaded (prescriptions). Attached to an order when the order is placed.
+model Upload {
+  id           String   @id @default(cuid())
+  ownerId      String
+  orderId      String?
+  originalName String
+  mime         String
+  size         Int
+  storageKey   String   @unique
+  createdAt    DateTime @default(now())
+  owner        User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  order        Order?   @relation(fields: [orderId], references: [id], onDelete: SetNull)
+
+  @@index([ownerId])
+  @@index([orderId])
+}
+
+model OrderStatusEvent {
+  id        String          @id @default(cuid())
+  orderId   String
+  from      OrderStatus?
+  to        OrderStatus
+  note      String?
+  actor     OrderEventActor
+  adminId   String?
+  createdAt DateTime        @default(now())
+  order     Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  admin     Admin?          @relation(fields: [adminId], references: [id], onDelete: SetNull)
+
+  @@index([orderId, createdAt])
+}
+
+/// Fees and rates. A single row with id 1, edited in the admin panel's Catalog page.
+model Pricing {
+  id                    Int      @id @default(1)
+  bazarShoppingFee      Int
+  bazarDeliveryFee      Int
+  medicineDeliveryFee   Int
+  parcelDeliveryFee     Int
+  wagePerLabourer       Int
+  loadingRatePerFloor   Int
+  unloadingRatePerFloor Int
+  updatedAt             DateTime @updatedAt
+}
+
+model Vehicle {
+  id        String           @id @default(cuid())
+  slug      String           @unique
+  nameBn    String
+  nameEn    String
+  rate      Int
+  isActive  Boolean          @default(true)
+  sortOrder Int              @default(0)
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+  shiftings ShiftingDetail[]
+}
+
+/// Simple key/value settings (support phone and WhatsApp link).
+model Setting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+}
+
+/// An in-app notification for exactly one customer (userId) or one admin (adminId).
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String?
+  adminId   String?
+  type      NotificationType
+  titleBn   String
+  titleEn   String
+  bodyBn    String
+  bodyEn    String
+  data      Json             @default("{}")
+  readAt    DateTime?
+  createdAt DateTime         @default(now())
+  user      User?            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  admin     Admin?           @relation(fields: [adminId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([adminId, createdAt])
+  @@index([userId, readAt])
+  @@index([adminId, readAt])
+}

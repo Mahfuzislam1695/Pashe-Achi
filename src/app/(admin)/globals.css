@@ -1,0 +1,48 @@
+@import 'tailwindcss' source(none);
+/* Tailwind scans only the admin side: src/admin and this route group. */
+@source '../../admin';
+@source '.';
+
+/*
+ * Admin panel theme. Same brand as the customer app (teal primary, amber accent, Hind Siliguri),
+ * expressed as Tailwind tokens: bg-brand-600, text-ink, border-line, bg-canvas and so on.
+ */
+@theme {
+  --font-sans: var(--font-bangla), ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+
+  --color-brand-50: #eef7f3;
+  --color-brand-100: #d8eee5;
+  --color-brand-200: #b3dccb;
+  --color-brand-500: #2f8a73;
+  --color-brand-600: #287c68;
+  --color-brand-700: #1f6352;
+  --color-brand-800: #1a5144;
+  /* Chart bars: a slightly more saturated teal so a single-series bar never reads gray. */
+  --color-chart: #1a8a6e;
+
+  --color-canvas: #f6f7f3;
+  --color-surface: #ffffff;
+  --color-line: #e3e8e1;
+  --color-ink: #20312d;
+  --color-muted: #6b7c75;
+}
+
+@layer base {
+  html,
+  body {
+    background: var(--color-canvas);
+    color: var(--color-ink);
+  }
+  body {
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+  button:not(:disabled),
+  [role='button']:not([aria-disabled='true']) {
+    cursor: pointer;
+  }
+  /* Letter-spacing breaks the Bangla headstroke (মাত্রা). */
+  html[lang='bn'] * {
+    letter-spacing: 0 !important;
+  }
+}

@@ -6,11 +6,21 @@ __v0_jsx-dev-runtime.ts
 .v0-trash/
 .vercel/
 
-# Environment variables
+# Environment (the committed template is .env.example)
+.env
 .env*.local
 
-# Common ignores
+# Dependencies and build output
 node_modules
 .next/
+/dist/
+*.tsbuildinfo
+coverage/
+
+# Prisma generated client and local uploads
+src/server/generated/
+/uploads/
+
+# OS / logs
 .DS_Store
-yarn-error.log*
+*.log

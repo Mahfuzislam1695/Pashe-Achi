@@ -1,0 +1,20 @@
+{
+  // Nest build: src/server plus src/shared, compiled to CommonJS in dist/ (entry: dist/server/main.js).
+  // Nest's build rewrites the "@/shared" alias into relative requires. The pages are built by `next build`.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "lib": ["ES2023"],
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "allowJs": false,
+    "noEmit": false,
+    "incremental": false,
+    "declaration": false,
+    "sourceMap": true,
+    "rootDir": "src",
+    "outDir": "dist",
+    "plugins": []
+  },
+  "include": ["src/server", "src/shared"],
+  "exclude": ["node_modules", "dist", "**/*.spec.ts", "**/*.test.ts"]
+}
