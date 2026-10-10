@@ -85,7 +85,15 @@ export function ShiftingScreen() {
   }
 
   return (
-    <ServiceCard id="shifting">
+    <ServiceCard
+      id="shifting"
+      summary={
+        <>
+          <BillSummary lines={[]} totalLabel={t('Total cost', 'Total cost')} total={bill.total} />
+          <ConfirmButton error={error} pending={placeOrder.isPending} onConfirm={confirm} />
+        </>
+      }
+    >
       <CustomerInfo user={user} showPoints={false} />
       <div className="field-pair even">
         <Field label={t('Loading Area', 'Loading area')}>
@@ -116,8 +124,6 @@ export function ShiftingScreen() {
           <input type="number" min={0} inputMode="numeric" value={draft.unloadingFloor} onChange={e => update({ unloadingFloor: e.target.value })} />
         </StepRow>
       </div>
-      <BillSummary lines={[]} totalLabel={t('Total cost', 'Total cost')} total={bill.total} />
-      <ConfirmButton error={error} pending={placeOrder.isPending} onConfirm={confirm} />
     </ServiceCard>
   )
 }

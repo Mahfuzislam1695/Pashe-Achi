@@ -66,12 +66,17 @@ export function PageCard({ icon: Icon, title, subtitle, children }: { icon: Luci
   )
 }
 
-/** Service screens have no heading: the bottom nav already shows which service is open. */
-export function ServiceCard({ id, children }: { id: ServiceId; children: React.ReactNode }) {
+/**
+ * Service screens have no heading: the bottom nav (phone) or the top bar (web) already shows which
+ * service is open. `summary` (the bill and Confirm) follows the form on a phone and becomes a sticky
+ * column beside it on a wide screen.
+ */
+export function ServiceCard({ id, summary, children }: { id: ServiceId; summary?: React.ReactNode; children: React.ReactNode }) {
   const { text } = useLang()
   return (
-    <section className="page-card" aria-label={text(SERVICE_LABELS[id])}>
-      {children}
+    <section className={`page-card service-card ${summary ? 'has-summary' : ''}`} aria-label={text(SERVICE_LABELS[id])}>
+      <div className="service-main">{children}</div>
+      {summary && <div className="service-summary">{summary}</div>}
     </section>
   )
 }

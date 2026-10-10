@@ -90,7 +90,22 @@ export function MedicineScreen() {
   }
 
   return (
-    <ServiceCard id="medicine">
+    <ServiceCard
+      id="medicine"
+      summary={
+        <>
+          <BillSummary
+            lines={[
+              [t('ঔষুধ মূল্য', 'Medicine cost'), bill.itemsTotal],
+              [t('ডেলিভারী চার্জ', 'Delivery charge'), bill.deliveryFee],
+            ]}
+            totalLabel="Total"
+            total={bill.total}
+          />
+          <ConfirmButton error={error} pending={placeOrder.isPending || upload.isPending} onConfirm={confirm} />
+        </>
+      }
+    >
       <CustomerInfo user={user} />
       <div className="field-pair">
         <Field label={t('গ্রহীতার ঠিকানা', "Receiver's address")}>
@@ -117,15 +132,6 @@ export function MedicineScreen() {
         )}
       </div>
       <LineTable template="1.2fr .8fr 1fr .9fr .8fr" columns={columns} rows={draft.rows} onChange={rows => update({ rows })} addLabel={t('আরো এড করুন', 'Add more')} />
-      <BillSummary
-        lines={[
-          [t('ঔষুধ মূল্য', 'Medicine cost'), bill.itemsTotal],
-          [t('ডেলিভারী চার্জ', 'Delivery charge'), bill.deliveryFee],
-        ]}
-        totalLabel="Total"
-        total={bill.total}
-      />
-      <ConfirmButton error={error} pending={placeOrder.isPending || upload.isPending} onConfirm={confirm} />
     </ServiceCard>
   )
 }

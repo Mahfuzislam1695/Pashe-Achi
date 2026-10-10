@@ -8,6 +8,7 @@ import { useState } from 'react'
 import { Field, FormError, PageCard } from '@/customer/components/ui'
 import { api } from '@/customer/lib/api'
 import { useLang } from '@/customer/lib/i18n'
+import { usePaths } from '@/customer/lib/paths'
 import { errorCode, queryKeys, useSession } from '@/customer/lib/queries'
 
 const PRIORITY = FORM_ERROR_PRIORITY.profile
@@ -78,13 +79,14 @@ export function ProfileScreen() {
 }
 
 function ChangePassword() {
+  const paths = usePaths()
   const { t } = useLang()
   const [draft, setDraft] = useState({ currentPassword: '', newPassword: '' })
   const [error, setError] = useState<MessageCode | null>(null)
   const change = useMutation({
     mutationFn: api.me.changePassword,
     // Changing the password ends every session, this one included.
-    onSuccess: () => window.location.assign('/login'),
+    onSuccess: () => window.location.assign(paths.login),
     onError: failure => setError(errorCode(failure)),
   })
   const submit = () => {

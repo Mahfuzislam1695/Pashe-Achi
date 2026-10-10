@@ -7,6 +7,7 @@ import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tansta
 import { useRouter } from 'next/navigation'
 
 import { api } from './api'
+import { usePaths } from './paths'
 
 export const queryKeys = {
   me: ['me'] as const,
@@ -60,11 +61,12 @@ export const useUnreadCount = () => useQuery({ queryKey: queryKeys.unread, query
 export function usePlaceOrder<TInput>(send: (input: TInput) => Promise<OrderDetail>) {
   const queryClient = useQueryClient()
   const router = useRouter()
+  const paths = usePaths()
   return useMutation({
     mutationFn: send,
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: queryKeys.orders })
-      router.push('/orders')
+      router.push(paths.orders)
     },
   })
 }

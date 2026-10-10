@@ -7,12 +7,14 @@ import { useRouter } from 'next/navigation'
 
 import { FormError, LoadingNote, PageCard } from '@/customer/components/ui'
 import { api } from '@/customer/lib/api'
+import { usePaths } from '@/customer/lib/paths'
 import { useLang } from '@/customer/lib/i18n'
 import { errorCode, queryKeys, useNotifications, useUnreadCount } from '@/customer/lib/queries'
 
 export function NotificationsScreen() {
   const { t, text, formatDate } = useLang()
   const router = useRouter()
+  const paths = usePaths()
   const queryClient = useQueryClient()
   const notifications = useNotifications()
   const unread = useUnreadCount()
@@ -26,7 +28,7 @@ export function NotificationsScreen() {
       await api.notifications.markRead(notification.id).catch(() => undefined)
       void refresh()
     }
-    if (notification.data.orderId) router.push(`/orders/${notification.data.orderId}`)
+    if (notification.data.orderId) router.push(paths.order(notification.data.orderId))
   }
 
   return (

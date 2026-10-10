@@ -150,9 +150,21 @@ prisma/  schema, migrations, seed.ts        test/  API e2e tests        public/ 
 
 ### Customer site (src/customer, src/app/(customer))
 
-- **Routes:** `/` (welcome), `/login`, `/signup`, then `(main)/…` for `/bazar`, `/shifting`, `/medicine`, `/parcel`, `/orders`, `/orders/[id]`, `/notifications` and `/profile`.
-- **Shell.** `components/app-shell.tsx` (drawer, top bar with bell, bottom nav, Chat/Call dock) renders only after the customer and catalog queries load. Below it, screens call `useSession()`.
-- **Drafts.** Form input survives switching services because `lib/drafts.tsx`'s `useDraft` stores it in the `(main)` layout, which stays mounted.
+- **Two versions, same screens.** The feature screens are shared. Only the shell, the links and the CSS differ.
+
+  | Version | Entry and auth | Signed-in screens | Look |
+  |---|---|---|---|
+  | Web | `/` (landing, `features/landing.tsx`), `/login`, `/signup` | `(web)/…`: `/bazar`, `/shifting`, `/medicine`, `/parcel`, `/orders`, `/orders/[id]`, `/notifications`, `/profile` | Desktop layout from 1024px, phone layout below |
+  | App | `app/(entry)/…`: `/app` (welcome screen), `/app/login`, `/app/signup` | `app/(main)/…`: `/app/bazar` … `/app/profile` | The original phone design at every width |
+
+  - The landing page shows live pricing from `GET /catalog`. Signed-in visitors see "Open app" in place of Sign up / Login.
+  - Each layout renders `<AppShell mode="web|app">`. `AuthScreen` and `AuthShell` take `version`.
+  - Build every customer URL with `usePaths()` from `lib/paths.tsx` (inside a shell) or `webPaths` / `appPaths`, never a string literal. That way a link never leaves its version.
+  - `src/proxy.ts` keeps each version separate:
+    - Signed out: a screen goes to its version's login with `?next=`.
+    - Signed in: a login, signup or `/app` welcome screen goes to `next` or that version's home (`HOME_PATH` `/bazar` or `APP_HOME_PATH` `/app/bazar`).
+- **Shell.** `components/app-shell.tsx` (sidebar or drawer, top bar with bell, bottom nav, Chat/Call dock) renders only after the customer and catalog queries load. Below it, screens call `useSession()`.
+- **Drafts.** Form input survives switching services because `lib/drafts.tsx`'s `useDraft` stores it in the version's layout, which stays mounted.
 - **Screens and data.**
   - Screens live in `features/*.tsx`; the pieces they share live in `components/ui.tsx`, `line-table.tsx` and `delivery-schedule.tsx`.
   - Data goes through TanStack Query (`lib/queries.ts`) and `lib/api.ts`. That client comes from `src/api-client`: fetch with credentials, plus one automatic refresh and retry on 401.
@@ -164,10 +176,15 @@ prisma/  schema, migrations, seed.ts        test/  API e2e tests        public/ 
 - **Line tables.** A table starts with one row, and "add more" appears once the last row's required boxes are filled. Bazar requires item and quantity; medicine requires all five columns. Fully empty rows are ignored.
 - **Styling:**
   - Screens use the hand-written classes in `globals.css` (`.page-card`, `.field`, `.line-table`, `.bill` and so on), not Tailwind utilities.
-  - The file is minified old v0 CSS, then "Screens from the paper sketches", then "Live data screens (API)". Later rules win.
+  - The file is minified old v0 CSS, then "Screens from the paper sketches", then "Live data screens (API)", then "Landing page", then "Web version". Later rules win.
   - Variable names are misleading: `--blue` is the teal primary `#287c68` and `--green` is amber.
   - Bangla needs `letter-spacing: 0` (via `html[lang='bn']`) to keep the headstroke (মাত্রা).
-  - The layout is a phone-first 430px column at every width.
+  - Everything before the "Web version" section is the app version's look: a 430px phone column at every width. Leave it alone.
+  - Every web-only rule is scoped to `.mode-web`, the class on the web shells. Add new web styles there.
+    - Phones (≤800px) get the same layout as the app.
+    - Tablets (801–1023px) get a wider centred column.
+    - The web (≥1024px) gets a fixed sidebar, a titled top bar, two-column screens and the split login.
+  - Service forms pass their bill and Confirm as `ServiceCard`'s `summary`, which becomes a sticky column only on the web.
   - The font is Hind Siliguri via `next/font/google`, so builds need internet access.
 
 ### Admin panel (src/admin, src/app/(admin)/admin)

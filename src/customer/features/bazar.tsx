@@ -62,7 +62,23 @@ export function BazarScreen() {
   }
 
   return (
-    <ServiceCard id="bazar">
+    <ServiceCard
+      id="bazar"
+      summary={
+        <>
+          <BillSummary
+            lines={[
+              [t('সর্বমোট বাজারের দাম', 'Total bazar cost'), bill.itemsTotal],
+              [t('বাজার ক্রয় বাবদ মজুরী', 'Shopping fee'), bill.serviceFee],
+              [t('ডেলিভারী খরচ', 'Delivery charge'), bill.deliveryFee],
+            ]}
+            totalLabel={t('Total Bill', 'Total bill')}
+            total={bill.total}
+          />
+          <ConfirmButton error={error} pending={placeOrder.isPending} onConfirm={confirm} />
+        </>
+      }
+    >
       <CustomerInfo user={user} />
       <p className="notice">
         <Clock size={16} />
@@ -78,16 +94,6 @@ export function BazarScreen() {
       </div>
       <DeliverySchedule value={draft.schedule} onChange={schedule => update({ schedule })} />
       <LineTable template="1.7fr .8fr .9fr .8fr" columns={columns} rows={draft.rows} onChange={rows => update({ rows })} addLabel={t('আরো যোগ করতে ক্লিক করুন', 'Click to add more')} />
-      <BillSummary
-        lines={[
-          [t('সর্বমোট বাজারের দাম', 'Total bazar cost'), bill.itemsTotal],
-          [t('বাজার ক্রয় বাবদ মজুরী', 'Shopping fee'), bill.serviceFee],
-          [t('ডেলিভারী খরচ', 'Delivery charge'), bill.deliveryFee],
-        ]}
-        totalLabel={t('Total Bill', 'Total bill')}
-        total={bill.total}
-      />
-      <ConfirmButton error={error} pending={placeOrder.isPending} onConfirm={confirm} />
     </ServiceCard>
   )
 }

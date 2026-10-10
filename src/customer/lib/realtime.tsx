@@ -9,6 +9,7 @@ import { useEffect, useState } from 'react'
 
 import { api } from './api'
 import { useLang } from './i18n'
+import { usePaths } from './paths'
 import { queryKeys } from './queries'
 
 /**
@@ -51,10 +52,11 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
 function NotificationToast({ notification, onClose }: { notification: NotificationDto; onClose: () => void }) {
   const { text, t } = useLang()
   const router = useRouter()
+  const paths = usePaths()
   const open = () => {
     onClose()
     void api.notifications.markRead(notification.id).catch(() => undefined)
-    router.push(notification.data.orderId ? `/orders/${notification.data.orderId}` : '/notifications')
+    router.push(notification.data.orderId ? paths.order(notification.data.orderId) : paths.notifications)
   }
   return (
     <div className="toast" role="status" aria-live="polite">

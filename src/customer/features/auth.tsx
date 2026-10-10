@@ -21,14 +21,19 @@ import { useState } from 'react'
 
 import { ContactDock, Field, FormError, LangToggle, Logo } from '@/customer/components/ui'
 import { api } from '@/customer/lib/api'
-import { HOME_PATH } from '@/customer/lib/constants'
 import { useLang } from '@/customer/lib/i18n'
+import { appPaths, type Mode, type Paths, pathsFor } from '@/customer/lib/paths'
 import { errorCode, queryKeys } from '@/customer/lib/queries'
 import { SERVICE_ICONS } from './orders'
 
-function AuthShell({ children }: { children: React.ReactNode }) {
+/**
+ * The signed-out frame. The app version (/app, /app/login, /app/signup) keeps the phone design at
+ * every width; the web version (/login, /signup) puts a brand panel beside the form on a wide screen.
+ */
+function AuthShell({ version, children }: { version: Mode; children: React.ReactNode }) {
   return (
-    <main className="auth-shell">
+    <main className={`auth-shell mode-${version}`}>
+      {version === 'web' && <BrandPanel />}
       <section className="auth-panel">
         <div className="auth-form">
           <div className="mobile-auth-logo">
@@ -42,11 +47,40 @@ function AuthShell({ children }: { children: React.ReactNode }) {
   )
 }
 
-/** The entry screen: language, sign up and login in one row, then the four services. */
+function BrandPanel() {
+  const { t, lang, text } = useLang()
+  return (
+    <aside className="auth-visual">
+      <Link href={pathsFor('web').entry} className="auth-visual-brand">
+        <Logo />
+      </Link>
+      <div className="auth-message">
+        <img className="auth-visual-logo" src={APP_LOGO_LARGE} alt="" />
+        <p className="eyebrow">{APP_WELCOME[lang]}</p>
+        <h1>{APP_TAGLINE[lang]}</h1>
+        <p>{t('কাঁচা বাজার, বাসা বদল, জরুরী ঔষুধ ও পণ্য আদান প্রদান — এক জায়গায়।', 'Fresh market, house shifting, emergency medicine and parcel delivery, in one place.')}</p>
+        <ul className="auth-visual-services">
+          {SERVICE_IDS.map(service => {
+            const Icon = SERVICE_ICONS[service]
+            return (
+              <li key={service}>
+                <Icon size={18} />
+                <span>{text(SERVICE_LABELS[service])}</span>
+              </li>
+            )
+          })}
+        </ul>
+      </div>
+      <small className="auth-visual-foot">© {new Date().getFullYear()} {APP_NAME[lang]}</small>
+    </aside>
+  )
+}
+
+/** The app version's entry screen (/app): language, sign up and login in one row, then the four services. */
 export function WelcomeScreen() {
   const { t, lang, setLang, text } = useLang()
   return (
-    <AuthShell>
+    <AuthShell version="app">
       <div className="welcome">
         <img className="welcome-logo" src={APP_LOGO_LARGE} alt={APP_NAME[lang]} />
         <p className="eyebrow">{APP_WELCOME[lang]}</p>
@@ -54,11 +88,11 @@ export function WelcomeScreen() {
         <p className="auth-subtitle">{t('কাঁচা বাজার, বাসা বদল, জরুরী ঔষুধ ও পণ্য আদান প্রদান।', 'Fresh market, house shifting, emergency medicine and parcel delivery.')}</p>
         <div className="welcome-actions">
           <LangToggle lang={lang} onChange={setLang} />
-          <Link className="primary-button" href="/signup">
+          <Link className="primary-button" href={appPaths.signup}>
             <UserPlus size={16} />
             {t('সাইন আপ', 'Sign up')}
           </Link>
-          <Link className="secondary-button" href="/login">
+          <Link className="secondary-button" href={appPaths.login}>
             <LogIn size={16} />
             {t('লগইন', 'Login')}
           </Link>
@@ -79,14 +113,15 @@ export function WelcomeScreen() {
   )
 }
 
-/** Only same-site paths are allowed as a post-login destination. */
-const safeNext = () => {
+/** Only same-site paths are allowed as a post-login destination; otherwise the version's home screen. */
+const safeNext = (paths: Paths) => {
   const next = new URLSearchParams(window.location.search).get('next')
-  return next && next.startsWith('/') && !next.startsWith('//') && next !== '/login' && next !== '/signup' ? next : HOME_PATH
+  return next && next.startsWith('/') && !next.startsWith('//') && next !== paths.login && next !== paths.signup ? next : paths.home
 }
 
-export function AuthScreen({ mode }: { mode: 'login' | 'signup' }) {
+export function AuthScreen({ mode, version }: { mode: 'login' | 'signup'; version: Mode }) {
   const { t, lang, setLang } = useLang()
+  const paths = pathsFor(version)
   const router = useRouter()
   const queryClient = useQueryClient()
   const isSignup = mode === 'signup'
@@ -107,7 +142,7 @@ export function AuthScreen({ mode }: { mode: 'login' | 'signup' }) {
     },
     onSuccess: result => {
       queryClient.setQueryData(queryKeys.me, result.user)
-      router.replace(safeNext())
+      router.replace(safeNext(paths))
     },
     onError: failure => setError(typeof failure === 'string' ? (failure as MessageCode) : errorCode(failure, priority)),
   })
@@ -121,7 +156,7 @@ export function AuthScreen({ mode }: { mode: 'login' | 'signup' }) {
   })
 
   return (
-    <AuthShell>
+    <AuthShell version={version}>
       <form
         noValidate
         onSubmit={event => {
@@ -130,7 +165,7 @@ export function AuthScreen({ mode }: { mode: 'login' | 'signup' }) {
         }}
       >
         <div className="auth-top">
-          <Link className="link-button back" href="/">
+          <Link className="link-button back" href={paths.entry}>
             <ArrowLeft size={15} />
             {t('ফিরে যান', 'Back')}
           </Link>
@@ -175,7 +210,7 @@ export function AuthScreen({ mode }: { mode: 'login' | 'signup' }) {
         </button>
         <p className="switch-auth">
           {isSignup ? t('আগে থেকেই অ্যাকাউন্ট আছে?', 'Already have an account?') : t('নতুন গ্রাহক?', `New to ${APP_NAME.en}?`)}{' '}
-          <Link className="link-button" href={isSignup ? '/login' : '/signup'}>
+          <Link className="link-button" href={isSignup ? paths.login : paths.signup}>
             {isSignup ? t('লগইন', 'Login') : t('সাইন আপ', 'Sign up')}
           </Link>
         </p>

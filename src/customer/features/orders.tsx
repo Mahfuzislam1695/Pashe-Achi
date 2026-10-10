@@ -8,11 +8,13 @@ import Link from 'next/link'
 import { BillSummary, FormError, LoadingNote, PageCard, StatusPill } from '@/customer/components/ui'
 import { api } from '@/customer/lib/api'
 import { useLang } from '@/customer/lib/i18n'
+import { usePaths } from '@/customer/lib/paths'
 import { errorCode, queryKeys, useOrder, useOrders } from '@/customer/lib/queries'
 
 export const SERVICE_ICONS: Record<ServiceId, typeof Truck> = { bazar: ShoppingBag, shifting: Truck, medicine: Pill, parcel: PackageCheck }
 
 export function OrdersScreen() {
+  const paths = usePaths()
   const { t, text, taka, formatDate } = useLang()
   const orders = useOrders()
   const items = orders.data?.pages.flatMap(page => page.items) ?? []
@@ -26,7 +28,7 @@ export function OrdersScreen() {
         {items.map(order => {
           const Icon = SERVICE_ICONS[order.service]
           return (
-            <Link className="order-link" href={`/orders/${order.id}`} key={order.id}>
+            <Link className="order-link" href={paths.order(order.id)} key={order.id}>
               <article className="order-card">
                 <div className="order-icon">
                   <Icon size={18} />
@@ -58,12 +60,13 @@ export function OrdersScreen() {
 }
 
 export function OrderDetailScreen({ id }: { id: string }) {
+  const paths = usePaths()
   const { t, text } = useLang()
   const order = useOrder(id)
 
   return (
     <PageCard icon={ClipboardList} title={order.data ? order.data.code : t('অর্ডার', 'Order')} subtitle={order.data ? text(SERVICE_LABELS[order.data.service]) : undefined}>
-      <Link href="/orders" className="link-button back detail-back">
+      <Link href={paths.orders} className="link-button back detail-back">
         <ArrowLeft size={15} />
         {t('অর্ডার হিস্ট্রি', 'Order history')}
       </Link>
@@ -104,120 +107,124 @@ function OrderDetailBody({ order }: { order: OrderDetail }) {
             ]
           : [[t('ডেলিভারী খরচ', 'Delivery charge'), order.deliveryFee]]
 
+  // Phone: one column. Web: the order on the left, the bill, timeline and cancel beside it.
   return (
-    <>
-      <div className="order-head">
-        <StatusPill status={order.status} />
-        <small>{formatDate(order.createdAt, true)}</small>
-      </div>
+    <div className="order-detail">
+      <div className="order-detail-main">
+        <div className="order-head">
+          <StatusPill status={order.status} />
+          <small>{formatDate(order.createdAt, true)}</small>
+        </div>
 
-      <section className="detail-section">
-        <dl className="detail-grid">
-          <dt>{t('ডেলিভারি', 'Delivery')}</dt>
-          <dd>
-            {formatDate(order.scheduledDate)} · {order.scheduledTime}
-          </dd>
-          {order.address && (
-            <>
-              <dt>{t('ঠিকানা', 'Address')}</dt>
-              <dd>{order.address}</dd>
-            </>
-          )}
-          <dt>{t('মোবা', 'Mobile')}</dt>
-          <dd>{order.contactMobile}</dd>
-          {order.shifting && (
-            <>
-              <dt>Loading Area</dt>
-              <dd>{order.shifting.loadingArea}</dd>
-              <dt>Unloading Area</dt>
-              <dd>{order.shifting.unloadingArea}</dd>
-              <dt>{t('গাড়ী', 'Vehicle')}</dt>
-              <dd>
-                {text(order.shifting.vehicleName)} · {taka(order.shifting.vehicleRate)}
-              </dd>
-              <dt>{t('লেবার', 'Labourers')}</dt>
-              <dd>{order.shifting.labourers}</dd>
-              <dt>{t('ফ্লোর', 'Floors')}</dt>
-              <dd>
-                {order.shifting.loadingFloor} → {order.shifting.unloadingFloor}
-              </dd>
-            </>
-          )}
-          {order.parcel && (
-            <>
-              <dt>{t('পণ্য', 'Product')}</dt>
-              <dd>
-                {order.parcel.product}
-                {order.parcel.weight ? ` · ${order.parcel.weight}` : ''}
-              </dd>
-              <dt>{t('গ্রহণ', 'Pickup')}</dt>
-              <dd>{order.parcel.pickupAddress}</dd>
-              <dt>{t('পৌঁছানো', 'Drop-off')}</dt>
-              <dd>{order.parcel.dropoffAddress}</dd>
-              <dt>{t('গ্রহীতা', 'Receiver')}</dt>
-              <dd>{order.parcel.receiverMobile}</dd>
-            </>
-          )}
-        </dl>
-      </section>
-
-      {order.items.length > 0 && (
         <section className="detail-section">
-          <ul className="detail-items">
-            {order.items.map((item, index) => (
-              <li key={item.id}>
-                <span>
-                  {rowNumber(index)} {item.name}
-                  <small>{[item.quantity, item.variety, item.company, item.category].filter(Boolean).join(' · ')}</small>
-                </span>
-                <strong>{item.price ?? '—'}</strong>
+          <dl className="detail-grid">
+            <dt>{t('ডেলিভারি', 'Delivery')}</dt>
+            <dd>
+              {formatDate(order.scheduledDate)} · {order.scheduledTime}
+            </dd>
+            {order.address && (
+              <>
+                <dt>{t('ঠিকানা', 'Address')}</dt>
+                <dd>{order.address}</dd>
+              </>
+            )}
+            <dt>{t('মোবা', 'Mobile')}</dt>
+            <dd>{order.contactMobile}</dd>
+            {order.shifting && (
+              <>
+                <dt>Loading Area</dt>
+                <dd>{order.shifting.loadingArea}</dd>
+                <dt>Unloading Area</dt>
+                <dd>{order.shifting.unloadingArea}</dd>
+                <dt>{t('গাড়ী', 'Vehicle')}</dt>
+                <dd>
+                  {text(order.shifting.vehicleName)} · {taka(order.shifting.vehicleRate)}
+                </dd>
+                <dt>{t('লেবার', 'Labourers')}</dt>
+                <dd>{order.shifting.labourers}</dd>
+                <dt>{t('ফ্লোর', 'Floors')}</dt>
+                <dd>
+                  {order.shifting.loadingFloor} → {order.shifting.unloadingFloor}
+                </dd>
+              </>
+            )}
+            {order.parcel && (
+              <>
+                <dt>{t('পণ্য', 'Product')}</dt>
+                <dd>
+                  {order.parcel.product}
+                  {order.parcel.weight ? ` · ${order.parcel.weight}` : ''}
+                </dd>
+                <dt>{t('গ্রহণ', 'Pickup')}</dt>
+                <dd>{order.parcel.pickupAddress}</dd>
+                <dt>{t('পৌঁছানো', 'Drop-off')}</dt>
+                <dd>{order.parcel.dropoffAddress}</dd>
+                <dt>{t('গ্রহীতা', 'Receiver')}</dt>
+                <dd>{order.parcel.receiverMobile}</dd>
+              </>
+            )}
+          </dl>
+        </section>
+
+        {order.items.length > 0 && (
+          <section className="detail-section">
+            <ul className="detail-items">
+              {order.items.map((item, index) => (
+                <li key={item.id}>
+                  <span>
+                    {rowNumber(index)} {item.name}
+                    <small>{[item.quantity, item.variety, item.company, item.category].filter(Boolean).join(' · ')}</small>
+                  </span>
+                  <strong>{item.price ?? '—'}</strong>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+
+        {order.prescription && (
+          <section className="detail-section">
+            <a className="secondary-button" href={api.uploads.url(order.prescription.id)} target="_blank" rel="noopener noreferrer">
+              <FileText size={16} />
+              {t('প্রেসক্রিপশন দেখুন', 'View prescription')}
+            </a>
+          </section>
+        )}
+      </div>
+      <div className="order-detail-side">
+        <section className="detail-section">
+          <BillSummary lines={billLines} totalLabel={t('Total Bill', 'Total bill')} total={order.total} />
+        </section>
+
+        <section className="detail-section">
+          <ol className="timeline">
+            {order.events.map(event => (
+              <li key={event.id}>
+                <StatusPill status={event.to} />
+                {event.note && <span className="timeline-note">{event.note}</span>}
+                <small>{formatDate(event.createdAt, true)}</small>
               </li>
             ))}
-          </ul>
+          </ol>
         </section>
-      )}
 
-      {order.prescription && (
-        <section className="detail-section">
-          <a className="secondary-button" href={api.uploads.url(order.prescription.id)} target="_blank" rel="noopener noreferrer">
-            <FileText size={16} />
-            {t('প্রেসক্রিপশন দেখুন', 'View prescription')}
-          </a>
-        </section>
-      )}
-
-      <section className="detail-section">
-        <BillSummary lines={billLines} totalLabel={t('Total Bill', 'Total bill')} total={order.total} />
-      </section>
-
-      <section className="detail-section">
-        <ol className="timeline">
-          {order.events.map(event => (
-            <li key={event.id}>
-              <StatusPill status={event.to} />
-              {event.note && <span className="timeline-note">{event.note}</span>}
-              <small>{formatDate(event.createdAt, true)}</small>
-            </li>
-          ))}
-        </ol>
-      </section>
-
-      {order.canCancel && (
-        <div className="confirm detail-section">
-          <FormError code={cancel.isError ? errorCode(cancel.error) : null} />
-          <button
-            type="button"
-            className="secondary-button danger-button"
-            disabled={cancel.isPending}
-            onClick={() => {
-              if (window.confirm(t('অর্ডারটি বাতিল করবেন?', 'Cancel this order?'))) cancel.mutate()
-            }}
-          >
-            <X size={16} />
-            {t('অর্ডার বাতিল করুন', 'Cancel order')}
-          </button>
-        </div>
-      )}
-    </>
+        {order.canCancel && (
+          <div className="confirm detail-section">
+            <FormError code={cancel.isError ? errorCode(cancel.error) : null} />
+            <button
+              type="button"
+              className="secondary-button danger-button"
+              disabled={cancel.isPending}
+              onClick={() => {
+                if (window.confirm(t('অর্ডারটি বাতিল করবেন?', 'Cancel this order?'))) cancel.mutate()
+              }}
+            >
+              <X size={16} />
+              {t('অর্ডার বাতিল করুন', 'Cancel order')}
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
   )
 }

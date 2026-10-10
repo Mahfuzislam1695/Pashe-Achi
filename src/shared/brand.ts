@@ -4,6 +4,7 @@
 export const APP_NAME = { bn: 'কিংফিশার', en: 'Kingfisher' } as const
 export const APP_LOGO = '/logo/logo-mark.webp'
 export const APP_LOGO_LARGE = '/logo/logo-256.webp'
+export const APP_LOGO_HERO = '/logo/logo-512.webp'
 export const ORDER_PREFIX = 'PA'
 
 // These phrases depend on the name's wording and grammar, so they live with it.
