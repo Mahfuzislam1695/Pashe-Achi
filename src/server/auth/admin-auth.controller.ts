@@ -3,6 +3,7 @@ import { ApiCookieAuth, ApiOperation, ApiTags } from '@nestjs/swagger'
 import type { AdminDto, AuthResponse } from '@/shared'
 import type { Request, Response } from 'express'
 
+import { Actor, type AuditActor, clientInfo } from '../audit/actor'
 import { ChangePasswordDto, LoginDto, RefreshDto } from '../common/dto'
 import { ENV, type Env } from '../config/env'
 import { AdminAuthService } from './admin-auth.service'
@@ -22,9 +23,9 @@ export class AdminAuthController {
   @Post('login')
   @HttpCode(200)
   @AuthThrottle()
-  @ApiOperation({ summary: 'Admin login with mobile number and password' })
+  @ApiOperation({ summary: 'Admin login with mobile number and password (recorded in the history log, as are failed attempts)' })
   async login(@Body() body: LoginDto, @Req() request: Request, @Res({ passthrough: true }) response: Response): Promise<AuthResponse<AdminDto>> {
-    const result = await this.auth.login(body, request.get('user-agent'))
+    const result = await this.auth.login(body, clientInfo(request))
     setAuthCookies(response, this.env, 'admin', result.tokens)
     return result
   }
@@ -46,7 +47,7 @@ export class AdminAuthController {
   @Post('logout')
   @HttpCode(204)
   async logout(@Body() body: RefreshDto, @Req() request: Request, @Res({ passthrough: true }) response: Response) {
-    await this.auth.logout(readRefreshToken(request, 'admin', body.refreshToken))
+    await this.auth.logout(readRefreshToken(request, 'admin', body.refreshToken), clientInfo(request))
     clearAuthCookies(response, this.env, 'admin')
   }
 
@@ -61,8 +62,13 @@ export class AdminAuthController {
   @HttpCode(204)
   @UseGuards(AdminGuard)
   @ApiOperation({ summary: 'Change your own password (logs out other sessions)' })
-  async changePassword(@CurrentAdmin() admin: AdminPrincipal, @Body() body: ChangePasswordDto, @Res({ passthrough: true }) response: Response) {
-    await this.auth.changePassword(admin.id, body)
+  async changePassword(
+    @CurrentAdmin() admin: AdminPrincipal,
+    @Body() body: ChangePasswordDto,
+    @Actor() actor: AuditActor,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    await this.auth.changePassword(admin.id, body, actor)
     clearAuthCookies(response, this.env, 'admin')
   }
 }

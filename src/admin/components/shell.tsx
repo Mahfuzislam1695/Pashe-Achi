@@ -2,7 +2,7 @@
 
 import { ADMIN_ROLE_LABELS, APP_INITIAL, APP_NAME } from '@/shared'
 import { useQueryClient } from '@tanstack/react-query'
-import { Bell, ClipboardList, LayoutDashboard, LogOut, Megaphone, Menu, RotateCw, Settings2, ShieldCheck, UserRound, Users, Volume2, VolumeX, X } from 'lucide-react'
+import { Bell, ClipboardList, History, LayoutDashboard, LogOut, Megaphone, Menu, RotateCw, Settings2, ShieldCheck, UserRound, Users, Volume2, VolumeX, X } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
@@ -11,7 +11,7 @@ import { api } from '@/admin/lib/api'
 import { useLang } from '@/admin/lib/i18n'
 import { useAdmin, useUnreadCount } from '@/admin/lib/queries'
 import { RealtimeProvider, useOrderSound } from '@/admin/lib/realtime'
-import { cn, isSuperAdmin } from '@/admin/lib/utils'
+import { canManage, cn, isSuperAdmin } from '@/admin/lib/utils'
 import { Button, ErrorNote, LangSwitch, Loading } from './ui'
 
 /** Waits for the signed-in admin, then renders the panel frame with live updates. */
@@ -72,6 +72,7 @@ function Frame({ children }: { children: React.ReactNode }) {
     { href: '/admin/customers', label: t('গ্রাহক', 'Customers'), icon: Users },
     { href: '/admin/catalog', label: t('দাম ও গাড়ী', 'Pricing & vehicles'), icon: Settings2 },
     { href: '/admin/notifications', label: t('নোটিফিকেশন', 'Notifications'), icon: Megaphone },
+    ...(canManage(admin.role) ? [{ href: '/admin/history', label: t('ইতিহাস', 'History'), icon: History }] : []),
     ...(isSuperAdmin(admin.role) ? [{ href: '/admin/staff', label: t('স্টাফ', 'Staff'), icon: ShieldCheck }] : []),
   ]
   const isActive = (href: string) => (href === '/admin' ? pathname === '/admin' : pathname === href || pathname.startsWith(`${href}/`))

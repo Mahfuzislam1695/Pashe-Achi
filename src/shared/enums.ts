@@ -33,6 +33,51 @@ export type AdminRole = (typeof ADMIN_ROLES)[number]
 export const NOTIFICATION_TYPES = ['ORDER_CREATED', 'ORDER_STATUS', 'ORDER_BILL', 'ANNOUNCEMENT'] as const
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number]
 
+/** Who acted, in the order timeline and the history log. */
+export const ACTOR_TYPES = ['CUSTOMER', 'ADMIN', 'SYSTEM'] as const
+export type ActorType = (typeof ACTOR_TYPES)[number]
+
+/** The kinds of record the history log (AuditLog) is about. */
+export const AUDIT_ENTITIES = ['ORDER', 'CUSTOMER', 'STAFF', 'PRICING', 'VEHICLE', 'SUPPORT', 'ANNOUNCEMENT'] as const
+export type AuditEntity = (typeof AUDIT_ENTITIES)[number]
+
+/** Every action the history log records (same order as the AuditAction enum in schema.prisma). */
+export const AUDIT_ACTIONS = [
+  'CUSTOMER_SIGNED_UP',
+  'CUSTOMER_PROFILE_UPDATED',
+  'CUSTOMER_PASSWORD_CHANGED',
+  'CUSTOMER_BLOCKED',
+  'CUSTOMER_UNBLOCKED',
+  'CUSTOMER_POINTS_CHANGED',
+  'ORDER_CREATED',
+  'ORDER_STATUS_CHANGED',
+  'ORDER_BILL_UPDATED',
+  'PRICING_UPDATED',
+  'VEHICLE_CREATED',
+  'VEHICLE_UPDATED',
+  'SUPPORT_UPDATED',
+  'STAFF_CREATED',
+  'STAFF_UPDATED',
+  'STAFF_PASSWORD_RESET',
+  'ADMIN_SIGNED_IN',
+  'ADMIN_SIGN_IN_FAILED',
+  'ADMIN_SIGNED_OUT',
+  'ADMIN_PASSWORD_CHANGED',
+  'ANNOUNCEMENT_SENT',
+] as const
+export type AuditAction = (typeof AUDIT_ACTIONS)[number]
+
+/** The actions grouped by the record they are about (the history page's filters). */
+export const AUDIT_ACTIONS_BY_ENTITY: Record<AuditEntity, readonly AuditAction[]> = {
+  ORDER: ['ORDER_CREATED', 'ORDER_STATUS_CHANGED', 'ORDER_BILL_UPDATED'],
+  CUSTOMER: ['CUSTOMER_SIGNED_UP', 'CUSTOMER_PROFILE_UPDATED', 'CUSTOMER_PASSWORD_CHANGED', 'CUSTOMER_BLOCKED', 'CUSTOMER_UNBLOCKED', 'CUSTOMER_POINTS_CHANGED'],
+  STAFF: ['STAFF_CREATED', 'STAFF_UPDATED', 'STAFF_PASSWORD_RESET', 'ADMIN_SIGNED_IN', 'ADMIN_SIGN_IN_FAILED', 'ADMIN_SIGNED_OUT', 'ADMIN_PASSWORD_CHANGED'],
+  PRICING: ['PRICING_UPDATED'],
+  VEHICLE: ['VEHICLE_CREATED', 'VEHICLE_UPDATED'],
+  SUPPORT: ['SUPPORT_UPDATED'],
+  ANNOUNCEMENT: ['ANNOUNCEMENT_SENT'],
+}
+
 /** Where the REST API lives on the one server: /api/v1. The pages call it on their own origin. */
 export const API_PREFIX = 'api/v1'
 

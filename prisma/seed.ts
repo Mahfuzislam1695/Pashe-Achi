@@ -3,28 +3,64 @@
  * an admin has since changed:
  * - the pricing row, the vehicles and the support line (defaults from the paper sketches)
  * - the first super admin from SEED_ADMIN_* in .env
- * `npm run db:seed:demo` (or SEED_DEMO=true) also adds a demo customer (01811111111 / demo1234) with three orders.
+ * Everything it creates is also written to the history log, as done by the system.
+ *
+ * `npm run db:seed:demo` (or SEED_DEMO=true) also adds a realistic month of demo data: see seed-demo.ts.
  */
 import 'dotenv/config'
 
-import { DEFAULT_PRICING, DEFAULT_VEHICLES, isoDateInBd, MOBILE_PATTERN, normalizeMobile } from '@/shared'
+import { type AuditChange, DEFAULT_PRICING, DEFAULT_VEHICLES, MOBILE_PATTERN, normalizeMobile } from '@/shared'
 import { PrismaPg } from '@prisma/adapter-pg'
 import bcrypt from 'bcryptjs'
 
+import type { AuditActor } from '../src/server/audit/actor'
+import { type AuditEntry, toAuditRow } from '../src/server/audit/audit.mapper'
 import { PrismaClient } from '../src/server/generated/prisma/client'
+import { seedDemo } from './seed-demo'
 
 const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL! }) })
 
+const SYSTEM: AuditActor = { type: 'SYSTEM', id: null, name: 'System' }
+const DEFAULT_SUPPORT = { phone: '+8801700000000', whatsapp: 'https://wa.me/8801700000000' }
+
+/** "Created with these values": every field from null. */
+const created = (values: Record<string, string | number | boolean>): AuditChange[] => Object.entries(values).map(([field, to]) => ({ field, from: null, to }))
+
+const log = (entry: AuditEntry) => prisma.auditLog.create({ data: toAuditRow(entry) })
+
 async function seedCatalog() {
-  await prisma.pricing.upsert({ where: { id: 1 }, create: { id: 1, ...DEFAULT_PRICING }, update: {} })
-  for (const [index, vehicle] of DEFAULT_VEHICLES.entries()) {
-    await prisma.vehicle.upsert({ where: { slug: vehicle.slug }, create: { ...vehicle, sortOrder: index }, update: {} })
+  if (!(await prisma.pricing.findUnique({ where: { id: 1 } }))) {
+    await prisma.$transaction([
+      prisma.pricing.create({ data: { id: 1, ...DEFAULT_PRICING } }),
+      log({ action: 'PRICING_UPDATED', actor: SYSTEM, entity: { type: 'PRICING' }, changes: created({ ...DEFAULT_PRICING }) }),
+    ])
   }
-  for (const [key, value] of [
-    ['support.phone', '+8801700000000'],
-    ['support.whatsapp', 'https://wa.me/8801700000000'],
-  ] as const) {
-    await prisma.setting.upsert({ where: { key }, create: { key, value }, update: {} })
+
+  for (const [index, vehicle] of DEFAULT_VEHICLES.entries()) {
+    if (await prisma.vehicle.findUnique({ where: { slug: vehicle.slug } })) continue
+    await prisma.$transaction(async tx => {
+      const row = await tx.vehicle.create({ data: { ...vehicle, sortOrder: index } })
+      await tx.auditLog.create({
+        data: toAuditRow({
+          action: 'VEHICLE_CREATED',
+          actor: SYSTEM,
+          entity: { type: 'VEHICLE', id: row.id, label: row.nameEn },
+          changes: created({ nameBn: row.nameBn, nameEn: row.nameEn, rate: row.rate, isActive: row.isActive, sortOrder: row.sortOrder }),
+        }),
+      })
+    })
+  }
+
+  const missing = (
+    await Promise.all(
+      (['phone', 'whatsapp'] as const).map(async field => ((await prisma.setting.findUnique({ where: { key: `support.${field}` } })) ? null : field)),
+    )
+  ).filter(field => field !== null)
+  if (missing.length) {
+    await prisma.$transaction([
+      ...missing.map(field => prisma.setting.create({ data: { key: `support.${field}`, value: DEFAULT_SUPPORT[field] } })),
+      log({ action: 'SUPPORT_UPDATED', actor: SYSTEM, entity: { type: 'SUPPORT' }, changes: created(Object.fromEntries(missing.map(field => [field, DEFAULT_SUPPORT[field]]))) }),
+    ])
   }
   console.log('✔ pricing, vehicles and support line')
 }
@@ -36,116 +72,29 @@ async function seedSuperAdmin() {
     console.warn('! SEED_ADMIN_MOBILE / SEED_ADMIN_PASSWORD missing or invalid; skipped the super admin')
     return
   }
-  const existing = await prisma.admin.findUnique({ where: { mobile } })
-  if (existing) {
+  if (await prisma.admin.findUnique({ where: { mobile } })) {
     console.log(`✔ admin ${mobile} already exists`)
     return
   }
-  await prisma.admin.create({
-    data: { name: process.env.SEED_ADMIN_NAME || 'Super Admin', mobile, role: 'SUPER_ADMIN', passwordHash: await bcrypt.hash(password, 12) },
+  const passwordHash = await bcrypt.hash(password, 12)
+  await prisma.$transaction(async tx => {
+    const admin = await tx.admin.create({ data: { name: process.env.SEED_ADMIN_NAME || 'Super Admin', mobile, role: 'SUPER_ADMIN', passwordHash } })
+    await tx.auditLog.create({
+      data: toAuditRow({
+        action: 'STAFF_CREATED',
+        actor: SYSTEM,
+        entity: { type: 'STAFF', id: admin.id, label: admin.name },
+        changes: created({ name: admin.name, mobile: admin.mobile, role: admin.role }),
+      }),
+    })
   })
   console.log(`✔ super admin ${mobile}`)
-}
-
-async function seedDemo() {
-  const mobile = '01811111111'
-  if (await prisma.user.findUnique({ where: { mobile } })) {
-    console.log('✔ demo customer already exists')
-    return
-  }
-  const user = await prisma.user.create({
-    data: { name: 'Rahim Uddin', mobile, location: 'মিরপুর ১০, ঢাকা', passwordHash: await bcrypt.hash('demo1234', 12) },
-  })
-  const scheduledDate = new Date(`${isoDateInBd()}T00:00:00.000Z`)
-  const vehicle = await prisma.vehicle.findUniqueOrThrow({ where: { slug: 'covered-van' } })
-
-  // The sample history from the original prototype: 760, 1420 and 160 taka.
-  await prisma.order.create({
-    data: {
-      userId: user.id,
-      service: 'bazar',
-      status: 'COMPLETED',
-      summary: 'চাল, আলু, রুই মাছ',
-      contactMobile: mobile,
-      address: 'বাসা ১২, রোড ৩, মিরপুর ১০',
-      scheduledDate,
-      scheduledTime: '09:00',
-      itemsTotal: 530,
-      serviceFee: DEFAULT_PRICING.bazarShoppingFee,
-      deliveryFee: DEFAULT_PRICING.bazarDeliveryFee,
-      total: 760,
-      items: {
-        create: [
-          { position: 1, name: 'চাল', quantity: '5 কেজি', variety: 'মিনিকেট', price: 350 },
-          { position: 2, name: 'আলু', quantity: '2 কেজি', variety: 'দেশি', price: 80 },
-          { position: 3, name: 'রুই মাছ', quantity: '1 কেজি', price: 100 },
-        ],
-      },
-      events: { create: [{ to: 'PENDING', actor: 'CUSTOMER' }, { from: 'PENDING', to: 'COMPLETED', actor: 'SYSTEM' }] },
-    },
-  })
-  await prisma.order.create({
-    data: {
-      userId: user.id,
-      service: 'shifting',
-      status: 'BOOKED',
-      summary: 'মিরপুর ১০ → উত্তরা',
-      contactMobile: mobile,
-      scheduledDate,
-      scheduledTime: '10:00',
-      itemsTotal: 1200,
-      serviceFee: 220,
-      deliveryFee: 0,
-      total: 1420,
-      shifting: {
-        create: {
-          loadingArea: 'মিরপুর ১০',
-          unloadingArea: 'উত্তরা',
-          vehicleId: vehicle.id,
-          vehicleNameBn: vehicle.nameBn,
-          vehicleNameEn: vehicle.nameEn,
-          vehicleRate: 1200,
-          labourers: 1,
-          wagePerLabourer: DEFAULT_PRICING.wagePerLabourer,
-          loadingFloor: 1,
-          loadingRatePerFloor: DEFAULT_PRICING.loadingRatePerFloor,
-          unloadingFloor: 1,
-          unloadingRatePerFloor: DEFAULT_PRICING.unloadingRatePerFloor,
-        },
-      },
-      events: { create: [{ to: 'PENDING', actor: 'CUSTOMER' }, { from: 'PENDING', to: 'BOOKED', actor: 'SYSTEM' }] },
-    },
-  })
-  await prisma.order.create({
-    data: {
-      userId: user.id,
-      service: 'medicine',
-      status: 'PENDING',
-      summary: 'Napa, Seclo',
-      contactMobile: mobile,
-      address: 'বাসা ১২, রোড ৩, মিরপুর ১০',
-      scheduledDate,
-      scheduledTime: '20:00',
-      itemsTotal: 100,
-      serviceFee: 0,
-      deliveryFee: DEFAULT_PRICING.medicineDeliveryFee,
-      total: 160,
-      items: {
-        create: [
-          { position: 1, name: 'Napa', quantity: '1 পাতা', company: 'Beximco', category: 'জ্বর', price: 12 },
-          { position: 2, name: 'Seclo', quantity: '1 পাতা', company: 'Square', category: 'গ্যাস্ট্রিক', price: 88 },
-        ],
-      },
-      events: { create: [{ to: 'PENDING', actor: 'CUSTOMER' }] },
-    },
-  })
-  console.log('✔ demo customer 01811111111 / demo1234 with three orders')
 }
 
 async function main() {
   await seedCatalog()
   await seedSuperAdmin()
-  if (process.argv.includes('--demo') || process.env.SEED_DEMO === 'true') await seedDemo()
+  if (process.argv.includes('--demo') || process.env.SEED_DEMO === 'true') await seedDemo(prisma)
 }
 
 main()

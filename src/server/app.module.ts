@@ -6,6 +6,7 @@ import { LoggerModule } from 'nestjs-pino'
 import { ZodValidationPipe } from 'nestjs-zod'
 
 import { AdminsModule } from './admins/admins.module'
+import { AuditModule } from './audit/audit.module'
 import { AuthModule } from './auth/auth.module'
 import { CatalogModule } from './catalog/catalog.module'
 import { AllExceptionsFilter } from './common/all-exceptions.filter'
@@ -39,6 +40,7 @@ import { UsersModule } from './users/users.module'
     }),
     EventEmitterModule.forRoot(),
     PrismaModule,
+    AuditModule,
     AuthModule,
     UsersModule,
     AdminsModule,

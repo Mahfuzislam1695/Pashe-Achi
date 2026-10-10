@@ -7,11 +7,12 @@ import Link from 'next/link'
 import { use, useState } from 'react'
 import { toast } from 'sonner'
 
+import { AuditFeed } from '@/admin/components/audit-feed'
 import { OrderTable } from '@/admin/components/order-table'
 import { Badge, Button, Card, Empty, ErrorNote, Field, Input, Loading } from '@/admin/components/ui'
 import { api } from '@/admin/lib/api'
 import { useLang } from '@/admin/lib/i18n'
-import { queryKeys, useCurrentAdmin, useCustomer, useOrderList } from '@/admin/lib/queries'
+import { queryKeys, useAuditList, useCurrentAdmin, useCustomer, useOrderList } from '@/admin/lib/queries'
 import { canManage, errorCode } from '@/admin/lib/utils'
 
 export default function CustomerPage({ params }: { params: Promise<{ id: string }> }) {
@@ -44,6 +45,7 @@ function CustomerView({ customer }: { customer: AdminCustomerDto }) {
     onSuccess: (updated, body) => {
       queryClient.setQueryData(queryKeys.customer(customer.id), updated)
       void queryClient.invalidateQueries({ queryKey: queryKeys.customers })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.audit })
       if (body.isBlocked !== undefined) {
         toast.success(
           body.isBlocked ? t('গ্রাহককে বন্ধ করা হয়েছে', 'Customer blocked') : t('গ্রাহককে চালু করা হয়েছে', 'Customer unblocked'),
@@ -125,6 +127,37 @@ function CustomerView({ customer }: { customer: AdminCustomerDto }) {
           )}
         </Card>
       </div>
+
+      {canManage(admin.role) && <CustomerHistory customerId={customer.id} />}
     </div>
+  )
+}
+
+/** What the customer did (signed up, ordered, changed their profile) and what staff did to the account. */
+function CustomerHistory({ customerId }: { customerId: string }) {
+  const { t } = useLang()
+  const log = useAuditList({ customerId }, 10)
+  const entries = log.data?.pages.flatMap(page => page.items) ?? []
+  return (
+    <Card
+      title={t('ইতিহাস', 'History')}
+      actions={
+        <Link href={`/admin/history?customerId=${encodeURIComponent(customerId)}`} className="text-sm font-semibold text-brand-700 hover:underline">
+          {t('পুরো ইতিহাস', 'Full history')}
+        </Link>
+      }
+    >
+      {log.isPending && <Loading />}
+      <ErrorNote code={log.isError ? errorCode(log.error) : null} />
+      {log.isSuccess && !entries.length && <Empty>{t('এখনো কিছু নেই।', 'Nothing yet.')}</Empty>}
+      {entries.length > 0 && <AuditFeed entries={entries} />}
+      {log.hasNextPage && (
+        <div className="mt-4 flex justify-center">
+          <Button variant="secondary" loading={log.isFetchingNextPage} onClick={() => void log.fetchNextPage()}>
+            {t('আরো দেখুন', 'Load more')}
+          </Button>
+        </div>
+      )}
+    </Card>
   )
 }

@@ -1,6 +1,6 @@
 'use client'
 
-import type { ListCustomersQuery, ListOrdersQuery } from '@/shared'
+import type { ListAuditQuery, ListCustomersQuery, ListOrdersQuery } from '@/shared'
 import { keepPreviousData, useInfiniteQuery, useQuery } from '@tanstack/react-query'
 
 import { api } from './api'
@@ -11,6 +11,10 @@ export const queryKeys = {
   orders: ['orders'] as const,
   orderList: (filters: Partial<ListOrdersQuery>) => ['orders', 'list', filters] as const,
   order: (id: string) => ['orders', 'detail', id] as const,
+  /** Under 'orders', so everything that refreshes orders refreshes an order's history too. */
+  orderHistory: (id: string) => ['orders', 'history', id] as const,
+  audit: ['audit'] as const,
+  auditList: (filters: Partial<ListAuditQuery>) => ['audit', 'list', filters] as const,
   customers: ['customers'] as const,
   customerList: (filters: Partial<ListCustomersQuery>) => ['customers', 'list', filters] as const,
   customer: (id: string) => ['customers', 'detail', id] as const,
@@ -43,6 +47,21 @@ export const useOrderList = (filters: Partial<ListOrdersQuery>) =>
   })
 
 export const useOrder = (id: string) => useQuery({ queryKey: queryKeys.order(id), queryFn: () => api.orders.get(id) })
+
+// The history log is always refetched when shown, so a change made a moment ago is already there.
+
+export const useOrderHistory = (id: string) => useQuery({ queryKey: queryKeys.orderHistory(id), queryFn: () => api.orders.history(id), staleTime: 0 })
+
+/** The history log, newest first. Managers and super admins only. */
+export const useAuditList = (filters: Partial<ListAuditQuery>, pageSize = 30) =>
+  useInfiniteQuery({
+    queryKey: [...queryKeys.auditList(filters), pageSize],
+    queryFn: ({ pageParam }) => api.audit.list({ ...filters, cursor: pageParam, limit: pageSize }),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: page => page.nextCursor ?? undefined,
+    placeholderData: keepPreviousData,
+    staleTime: 0,
+  })
 
 export const useCustomerList = (filters: Partial<ListCustomersQuery>) =>
   useInfiniteQuery({

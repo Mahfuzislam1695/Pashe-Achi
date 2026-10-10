@@ -11,6 +11,9 @@ import {
   type VehicleInput,
 } from '@/shared'
 
+import type { AuditActor } from '../audit/actor'
+import { AuditService } from '../audit/audit.service'
+import { diffChanges } from '../audit/diff'
 import { AppException } from '../common/app.exception'
 import type { Vehicle } from '../generated/prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
@@ -19,6 +22,18 @@ export const SUPPORT_KEYS = { phone: 'support.phone', whatsapp: 'support.whatsap
 
 /** Placeholder support line until an admin sets the real one in Catalog. */
 export const DEFAULT_SUPPORT: SupportSettings = { phone: '+8801700000000', whatsapp: 'https://wa.me/8801700000000' }
+
+export const PRICING_FIELDS = [
+  'bazarShoppingFee',
+  'bazarDeliveryFee',
+  'medicineDeliveryFee',
+  'parcelDeliveryFee',
+  'wagePerLabourer',
+  'loadingRatePerFloor',
+  'unloadingRatePerFloor',
+] as const satisfies readonly (keyof Pricing)[]
+
+export const VEHICLE_FIELDS = ['nameBn', 'nameEn', 'rate', 'isActive', 'sortOrder'] as const satisfies readonly (keyof Vehicle)[]
 
 const toVehicleDto = (vehicle: Vehicle): VehicleDto => ({
   id: vehicle.id,
@@ -39,7 +54,10 @@ const slugify = (text: string) =>
 
 @Injectable()
 export class CatalogService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly audit: AuditService,
+  ) {}
 
   /** The current fees. Falls back to the sketch defaults if the database was never seeded. */
   async getPricing(): Promise<Pricing> {
@@ -65,33 +83,54 @@ export class CatalogService {
     return { pricing, vehicles: vehicles.map(toVehicleDto), support }
   }
 
-  async updatePricing(input: PricingInput): Promise<Pricing> {
-    const { id: _, updatedAt: __, ...pricing } = await this.prisma.pricing.upsert({ where: { id: 1 }, create: { id: 1, ...input }, update: input })
-    return pricing
+  async updatePricing(input: PricingInput, actor: AuditActor): Promise<Pricing> {
+    return this.prisma.$transaction(async tx => {
+      const before = await tx.pricing.findUnique({ where: { id: 1 } })
+      const { id: _, updatedAt: __, ...pricing } = await tx.pricing.upsert({ where: { id: 1 }, create: { id: 1, ...input }, update: input })
+      const changes = diffChanges(before, input, PRICING_FIELDS)
+      if (changes.length) await this.audit.record({ action: 'PRICING_UPDATED', actor, entity: { type: 'PRICING' }, changes }, tx)
+      return pricing
+    })
   }
 
-  async createVehicle(input: VehicleInput): Promise<VehicleDto> {
+  async createVehicle(input: VehicleInput, actor: AuditActor): Promise<VehicleDto> {
     const base = slugify(input.nameEn)
-    const clashes = await this.prisma.vehicle.count({ where: { slug: { startsWith: base } } })
-    const vehicle = await this.prisma.vehicle.create({ data: { ...input, slug: clashes ? `${base}-${clashes + 1}` : base } })
+    const vehicle = await this.prisma.$transaction(async tx => {
+      const clashes = await tx.vehicle.count({ where: { slug: { startsWith: base } } })
+      const created = await tx.vehicle.create({ data: { ...input, slug: clashes ? `${base}-${clashes + 1}` : base } })
+      await this.audit.record({
+        action: 'VEHICLE_CREATED',
+        actor,
+        entity: { type: 'VEHICLE', id: created.id, label: created.nameEn },
+        changes: diffChanges(null, created, VEHICLE_FIELDS),
+      }, tx)
+      return created
+    })
     return toVehicleDto(vehicle)
   }
 
-  async updateVehicle(id: string, input: UpdateVehicleInput): Promise<VehicleDto> {
-    const exists = await this.prisma.vehicle.findUnique({ where: { id }, select: { id: true } })
-    if (!exists) throw AppException.notFound()
-    return toVehicleDto(await this.prisma.vehicle.update({ where: { id }, data: input }))
+  async updateVehicle(id: string, input: UpdateVehicleInput, actor: AuditActor): Promise<VehicleDto> {
+    const vehicle = await this.prisma.$transaction(async tx => {
+      const before = await tx.vehicle.findUnique({ where: { id } })
+      if (!before) throw AppException.notFound()
+      const updated = await tx.vehicle.update({ where: { id }, data: input })
+      const changes = diffChanges(before, input, VEHICLE_FIELDS)
+      if (changes.length) await this.audit.record({ action: 'VEHICLE_UPDATED', actor, entity: { type: 'VEHICLE', id, label: updated.nameEn }, changes }, tx)
+      return updated
+    })
+    return toVehicleDto(vehicle)
   }
 
-  async updateSupport(input: SupportSettingsInput): Promise<SupportSettings> {
-    await this.prisma.$transaction([
-      this.prisma.setting.upsert({ where: { key: SUPPORT_KEYS.phone }, create: { key: SUPPORT_KEYS.phone, value: input.phone }, update: { value: input.phone } }),
-      this.prisma.setting.upsert({
-        where: { key: SUPPORT_KEYS.whatsapp },
-        create: { key: SUPPORT_KEYS.whatsapp, value: input.whatsapp },
-        update: { value: input.whatsapp },
-      }),
-    ])
+  async updateSupport(input: SupportSettingsInput, actor: AuditActor): Promise<SupportSettings> {
+    const before = await this.getSupport()
+    await this.prisma.$transaction(async tx => {
+      for (const field of ['phone', 'whatsapp'] as const) {
+        const key = SUPPORT_KEYS[field]
+        await tx.setting.upsert({ where: { key }, create: { key, value: input[field] }, update: { value: input[field] } })
+      }
+      const changes = diffChanges(before, input, ['phone', 'whatsapp'])
+      if (changes.length) await this.audit.record({ action: 'SUPPORT_UPDATED', actor, entity: { type: 'SUPPORT' }, changes }, tx)
+    })
     return input
   }
 }

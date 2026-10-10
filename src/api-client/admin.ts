@@ -1,12 +1,14 @@
 import type {
   AdminCustomerDto,
   AdminDto,
+  AuditLogDto,
   AuthResponse,
   BroadcastInput,
   CatalogDto,
   ChangePasswordInput,
   CreateAdminInput,
   DashboardDto,
+  ListAuditQuery,
   ListCustomersQuery,
   ListNotificationsQuery,
   ListOrdersQuery,
@@ -50,6 +52,7 @@ export function createAdminApi(options: Omit<HttpClientOptions, 'audience'>) {
     orders: {
       list: (query: Partial<ListOrdersQuery> = {}) => http.get<Paginated<OrderSummary>>('/admin/orders', query),
       get: (orderId: string) => http.get<OrderDetail>(`/admin/orders/${id(orderId)}`),
+      history: (orderId: string) => http.get<AuditLogDto[]>(`/admin/orders/${id(orderId)}/history`),
       updateStatus: (orderId: string, body: UpdateOrderStatusInput) => http.patch<OrderDetail>(`/admin/orders/${id(orderId)}/status`, body),
       updateItems: (orderId: string, body: UpdateOrderItemsInput) => http.patch<OrderDetail>(`/admin/orders/${id(orderId)}/items`, body),
     },
@@ -76,6 +79,9 @@ export function createAdminApi(options: Omit<HttpClientOptions, 'audience'>) {
       markRead: (notificationId: string) => http.patch<NotificationDto>(`/admin/notifications/${id(notificationId)}/read`),
       markAllRead: () => http.post<UnreadCountDto>('/admin/notifications/read-all'),
       broadcast: (body: BroadcastInput) => http.post<{ sent: number }>('/admin/notifications/broadcast', body),
+    },
+    audit: {
+      list: (query: Partial<ListAuditQuery> = {}) => http.get<Paginated<AuditLogDto>>('/admin/audit', query),
     },
     uploads: {
       url: (uploadId: string) => http.url(`/admin/uploads/${id(uploadId)}`),

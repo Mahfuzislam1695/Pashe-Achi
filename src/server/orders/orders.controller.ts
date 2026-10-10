@@ -1,9 +1,11 @@
 import { Body, Controller, Get, HttpCode, Param, Patch, Post, Query, UseGuards } from '@nestjs/common'
 import { ApiBearerAuth, ApiCookieAuth, ApiOperation, ApiTags } from '@nestjs/swagger'
-import type { OrderDetail, OrderSummary, Paginated } from '@/shared'
+import type { AuditLogDto, OrderDetail, OrderSummary, Paginated } from '@/shared'
 
-import type { AdminPrincipal, CustomerPrincipal } from '../auth/auth.types'
-import { AdminGuard, CurrentAdmin, CurrentCustomer, CustomerGuard } from '../auth/guards'
+import { Actor, type AuditActor } from '../audit/actor'
+import { AuditService } from '../audit/audit.service'
+import type { CustomerPrincipal } from '../auth/auth.types'
+import { AdminGuard, CurrentCustomer, CustomerGuard } from '../auth/guards'
 import {
   CreateBazarOrderDto,
   CreateMedicineOrderDto,
@@ -27,26 +29,26 @@ export class OrdersController {
 
   @Post('bazar')
   @ApiOperation({ summary: 'কাঁচা বাজার: place a fresh market order' })
-  bazar(@CurrentCustomer() customer: CustomerPrincipal, @Body() body: CreateBazarOrderDto): Promise<OrderDetail> {
-    return this.orders.createBazar(customer.id, body)
+  bazar(@CurrentCustomer() customer: CustomerPrincipal, @Body() body: CreateBazarOrderDto, @Actor() actor: AuditActor): Promise<OrderDetail> {
+    return this.orders.createBazar(customer.id, body, actor)
   }
 
   @Post('shifting')
   @ApiOperation({ summary: 'বাসা বদল: book a house shifting' })
-  shifting(@CurrentCustomer() customer: CustomerPrincipal, @Body() body: CreateShiftingOrderDto): Promise<OrderDetail> {
-    return this.orders.createShifting(customer.id, body)
+  shifting(@CurrentCustomer() customer: CustomerPrincipal, @Body() body: CreateShiftingOrderDto, @Actor() actor: AuditActor): Promise<OrderDetail> {
+    return this.orders.createShifting(customer.id, body, actor)
   }
 
   @Post('medicine')
   @ApiOperation({ summary: 'জরুরী ঔষুধ: order medicine (upload the prescription first)' })
-  medicine(@CurrentCustomer() customer: CustomerPrincipal, @Body() body: CreateMedicineOrderDto): Promise<OrderDetail> {
-    return this.orders.createMedicine(customer.id, body)
+  medicine(@CurrentCustomer() customer: CustomerPrincipal, @Body() body: CreateMedicineOrderDto, @Actor() actor: AuditActor): Promise<OrderDetail> {
+    return this.orders.createMedicine(customer.id, body, actor)
   }
 
   @Post('parcel')
   @ApiOperation({ summary: 'পণ্য আদান প্রদান: send a parcel' })
-  parcel(@CurrentCustomer() customer: CustomerPrincipal, @Body() body: CreateParcelOrderDto): Promise<OrderDetail> {
-    return this.orders.createParcel(customer.id, body)
+  parcel(@CurrentCustomer() customer: CustomerPrincipal, @Body() body: CreateParcelOrderDto, @Actor() actor: AuditActor): Promise<OrderDetail> {
+    return this.orders.createParcel(customer.id, body, actor)
   }
 
   @Get()
@@ -63,8 +65,8 @@ export class OrdersController {
   @Post(':id/cancel')
   @HttpCode(200)
   @ApiOperation({ summary: 'Cancel your order while it is still pending' })
-  cancel(@CurrentCustomer() customer: CustomerPrincipal, @Param() { id }: IdParamDto): Promise<OrderDetail> {
-    return this.orders.cancelMine(customer.id, id)
+  cancel(@CurrentCustomer() customer: CustomerPrincipal, @Param() { id }: IdParamDto, @Actor() actor: AuditActor): Promise<OrderDetail> {
+    return this.orders.cancelMine(customer.id, id, actor)
   }
 }
 
@@ -73,7 +75,10 @@ export class OrdersController {
 @UseGuards(AdminGuard)
 @Controller('admin/orders')
 export class AdminOrdersController {
-  constructor(private readonly orders: OrdersService) {}
+  constructor(
+    private readonly orders: OrdersService,
+    private readonly audit: AuditService,
+  ) {}
 
   @Get()
   @ApiOperation({ summary: 'Filter by service, status, date range, customer or search text' })
@@ -86,15 +91,21 @@ export class AdminOrdersController {
     return this.orders.get(id)
   }
 
+  @Get(':id/history')
+  @ApiOperation({ summary: "The order's history, oldest first: placed, every status change and bill correction, and who did each" })
+  history(@Param() { id }: IdParamDto): Promise<AuditLogDto[]> {
+    return this.audit.forEntity('ORDER', id)
+  }
+
   @Patch(':id/status')
   @ApiOperation({ summary: 'Move an order to its next status (the customer is notified)' })
-  updateStatus(@CurrentAdmin() admin: AdminPrincipal, @Param() { id }: IdParamDto, @Body() body: UpdateOrderStatusDto): Promise<OrderDetail> {
-    return this.orders.updateStatus(admin, id, body)
+  updateStatus(@Actor() actor: AuditActor, @Param() { id }: IdParamDto, @Body() body: UpdateOrderStatusDto): Promise<OrderDetail> {
+    return this.orders.updateStatus(actor, id, body)
   }
 
   @Patch(':id/items')
   @ApiOperation({ summary: 'Correct bazar/medicine line prices; the total is recomputed and the customer notified' })
-  updateItems(@Param() { id }: IdParamDto, @Body() body: UpdateOrderItemsDto): Promise<OrderDetail> {
-    return this.orders.updateItems(id, body)
+  updateItems(@Actor() actor: AuditActor, @Param() { id }: IdParamDto, @Body() body: UpdateOrderItemsDto): Promise<OrderDetail> {
+    return this.orders.updateItems(actor, id, body)
   }
 }

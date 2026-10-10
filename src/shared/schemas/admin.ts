@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-import { ADMIN_ROLES } from '../enums'
+import { ACTOR_TYPES, ADMIN_ROLES, AUDIT_ACTIONS, AUDIT_ENTITIES } from '../enums'
 import { amount, cursorQuery, mobile, password, requiredText } from './common'
 
 export const listCustomersQuerySchema = z.object({
@@ -78,6 +78,27 @@ export const listNotificationsQuerySchema = z.object({
   unread: z.enum(['true', 'false']).optional(),
 })
 export type ListNotificationsQuery = z.infer<typeof listNotificationsQuerySchema>
+
+const isoDay = z.string().regex(/^\d{4}-\d{2}-\d{2}$/)
+
+/** GET /admin/audit: the history log, newest first. */
+export const listAuditQuerySchema = z.object({
+  ...cursorQuery,
+  action: z.enum(AUDIT_ACTIONS).optional(),
+  entityType: z.enum(AUDIT_ENTITIES).optional(),
+  entityId: z.string().max(64).optional(),
+  actorType: z.enum(ACTOR_TYPES).optional(),
+  /** What this admin did. */
+  adminId: z.string().max(64).optional(),
+  /** What this customer did, and what staff did to their account. */
+  customerId: z.string().max(64).optional(),
+  /** YYYY-MM-DD, inclusive, in Bangladesh time. */
+  from: isoDay.optional(),
+  to: isoDay.optional(),
+  /** Who acted, the record's name or order code (PA-1042), or the note. */
+  q: z.string().trim().max(80).optional(),
+})
+export type ListAuditQuery = z.infer<typeof listAuditQuerySchema>
 
 export const dashboardQuerySchema = z.object({
   days: z.coerce.number().int().min(1).max(90).default(7),

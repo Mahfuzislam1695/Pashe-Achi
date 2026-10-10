@@ -28,10 +28,10 @@ export class CustomerGuard implements CanActivate {
     const payload = token ? await this.tokens.verifyAccessToken('customer', token) : null
     if (!payload) throw AppException.unauthorized()
 
-    const user = await this.prisma.user.findUnique({ where: { id: payload.sub }, select: { id: true, isBlocked: true } })
+    const user = await this.prisma.user.findUnique({ where: { id: payload.sub }, select: { id: true, name: true, isBlocked: true } })
     if (!user) throw AppException.unauthorized()
     if (user.isBlocked) throw AppException.forbidden('auth.blocked')
-    request.customer = { kind: 'customer', id: user.id }
+    request.customer = { kind: 'customer', id: user.id, name: user.name }
     return true
   }
 }

@@ -43,7 +43,7 @@ npm run db:deploy | db:seed | db:seed:demo | db:studio | db:generate
 - **Single test file.** `npx vitest run src/shared/pricing.test.ts`, or `npx jest src/server/auth/cookies.spec.ts`.
 - **Dev vs production.** `npm run dev` runs `nest start --watch -- --dev`. That `--dev` flag, not `NODE_ENV`, puts Next.js in dev mode. `src/server/load-env.ts` then sets `NODE_ENV` to development or production to match, unless the environment already sets it.
 - **e2e database.** `test:e2e` uses `TEST_DATABASE_URL`, or `DATABASE_URL` with `_test` appended. It creates that database (UTF8), migrates it, and truncates it on every run. It runs Jest through `node --experimental-vm-modules`, because the Prisma 7 client loads its query engine with dynamic `import()`. The e2e tests boot the API alone, through `configureApp`, without the pages.
-- **Seed.** `npm run db:seed:demo` also adds a demo customer (01811111111 / demo1234) with three orders. The first super admin comes from `SEED_ADMIN_*` in `.env`.
+- **Seed.** `prisma/seed.ts` is idempotent: catalog defaults and the first super admin (from `SEED_ADMIN_*` in `.env`), each with a SYSTEM history row. `npm run db:seed:demo` adds `prisma/seed-demo.ts`: a deterministic month of data relative to today. It has a demo manager (01822222222), an operator (01833333333) and 8 customers, among them 01811111111 with the prototype's three orders. Every demo password is demo1234. Alongside about 65 orders in every status, it writes timelines, history entries and notifications. It runs in one transaction and skips if the demo customer exists.
 - **Lint.** There is no lint script.
 
 ## Layout and request flow
@@ -80,6 +80,7 @@ prisma/  schema, migrations, seed.ts        test/  API e2e tests        public/ 
 ### src/shared: the contract between the server, the customer site and the admin panel
 
 - `schemas/*`: Zod 4 schemas for every request body. The API validates with them through `nestjs-zod`, and both front ends validate the same payload before sending.
+- `enums.ts` / `labels.ts` also hold the history log's actions, record types and field labels (`AUDIT_*`).
 - `messages.ts`: every user-facing error as a `MessageCode` with `{ bn, en }` text.
   - Schemas use codes as their messages, and the API returns `{ statusCode, code, message: { bn, en }, issues? }`.
   - `FORM_ERROR_PRIORITY` with `pickIssueCode` / `validateForm` makes each form show one message, in the original screens' order.
@@ -101,6 +102,7 @@ prisma/  schema, migrations, seed.ts        test/  API e2e tests        public/ 
   - `orders`
   - `notifications`
   - `dashboard`
+  - `audit` (the history log, `/admin/audit`)
   - `health`
 - **Request DTOs.** All of them are in `common/dto.ts`, wrapping the shared schemas.
 - **Errors.** Throw `AppException.badRequest('code')` and similar. `common/all-exceptions.filter.ts` shapes every error, including Prisma P2002/P2025.
@@ -114,6 +116,12 @@ prisma/  schema, migrations, seed.ts        test/  API e2e tests        public/ 
   - `orders.service.ts` writes the order, its children and its first timeline event in one transaction.
   - Status changes use `updateMany where status = from`, so concurrent changes can't both win. Every change writes an `OrderStatusEvent`.
   - After commit it emits domain events (`common/domain-events.ts`) through `@nestjs/event-emitter`.
+- **History log (`AuditLog`):**
+  - Every change writes one row in the same transaction: `AuditService.record(entry, tx)`. Changes come from orders, bills, catalog, customers, staff, broadcasts, signups, profiles, and admin sign-ins and failed sign-ins.
+  - Each row stores who did it, as snapshots: actor name and role, entity label, IP and user agent. It also stores only the changed fields (`diffChanges` in `audit/diff.ts`), plus a note and meta. No-op updates write nothing, and passwords are never stored.
+  - Controllers pass the actor with `@Actor()` (or `clientInfo(request)` before sign-in). Add new actions to the Prisma enum, `AUDIT_ACTIONS`/`AUDIT_ACTIONS_BY_ENTITY` in `enums.ts`, and the labels in `labels.ts`.
+  - `GET /admin/audit` is for managers and up. Any admin can read `GET /admin/orders/:id/history`.
+  - The `audit_log` migration backfills history from `OrderStatusEvent`, users and admins.
 - **Notifications:**
   - `notifications.listener.ts` turns those domain events into stored bilingual `Notification` rows, plus Socket.IO pushes.
   - The gateway is at namespace `/ws`. It authenticates in Socket.IO middleware, and rejected handshakes get `connect_error` "unauthorized". Sockets join the rooms `user:<id>`, `admin:<id>` and `admins`.
@@ -165,7 +173,8 @@ prisma/  schema, migrations, seed.ts        test/  API e2e tests        public/ 
 ### Admin panel (src/admin, src/app/(admin)/admin)
 
 - **Stack.** Tailwind v4 utilities, with brand tokens in the `@theme` block of its `globals.css` (`brand-*`, `ink`, `muted`, `line`, `canvas`, `chart`). UI primitives are in `components/ui.tsx` (cva and tailwind-merge) and toasts use `sonner`.
-- **Routes.** `/admin/login`, then `(panel)/…` for `/admin` (dashboard), orders, customers, catalog, notifications, staff and profile. Every link and redirect in the panel starts with `/admin`.
+- **Routes.** `/admin/login`, then `(panel)/…` for `/admin` (dashboard), orders, customers, catalog, notifications, history, staff and profile. Every link and redirect in the panel starts with `/admin`.
+- **History.** `components/audit-feed.tsx` renders history entries everywhere. That means `/admin/history` (managers and up, filters in the URL), the order page's History card, the customer page's History card and the dashboard's Recent activity.
 - **Filters.** Order filters live in the URL query.
 - **Permissions.** `lib/utils.ts` `canManage` / `isSuperAdmin` mirror the API's role checks to hide controls. The API still enforces them.
 - **Realtime.** `lib/realtime.tsx` shows a toast and plays a WebAudio chime on `order:new`, and refreshes the lists on any order change. The sound toggle is stored in localStorage.

@@ -2,8 +2,8 @@ import { Body, Controller, Get, Param, Patch, Post, UseGuards } from '@nestjs/co
 import { ApiCookieAuth, ApiTags } from '@nestjs/swagger'
 import type { AdminDto } from '@/shared'
 
-import type { AdminPrincipal } from '../auth/auth.types'
-import { AdminGuard, CurrentAdmin, Roles } from '../auth/guards'
+import { Actor, type AuditActor } from '../audit/actor'
+import { AdminGuard, Roles } from '../auth/guards'
 import { CreateAdminDto, IdParamDto, UpdateAdminDto } from '../common/dto'
 import { StaffService } from './staff.service'
 
@@ -21,12 +21,12 @@ export class StaffController {
   }
 
   @Post()
-  create(@Body() body: CreateAdminDto): Promise<AdminDto> {
-    return this.staff.create(body)
+  create(@Actor() actor: AuditActor, @Body() body: CreateAdminDto): Promise<AdminDto> {
+    return this.staff.create(body, actor)
   }
 
   @Patch(':id')
-  update(@CurrentAdmin() admin: AdminPrincipal, @Param() { id }: IdParamDto, @Body() body: UpdateAdminDto): Promise<AdminDto> {
-    return this.staff.update(admin.id, id, body)
+  update(@Actor() actor: AuditActor, @Param() { id }: IdParamDto, @Body() body: UpdateAdminDto): Promise<AdminDto> {
+    return this.staff.update(actor, id, body)
   }
 }

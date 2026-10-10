@@ -2,7 +2,8 @@
 
 import { ADMIN_ROLE_LABELS, ADMIN_ROLES, type AdminDto, type AdminRole, createAdminSchema, FORM_ERROR_PRIORITY, type MessageCode, validateForm } from '@/shared'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { KeyRound, UserPlus } from 'lucide-react'
+import { History, KeyRound, UserPlus } from 'lucide-react'
+import Link from 'next/link'
 import { useState } from 'react'
 import { toast } from 'sonner'
 
@@ -110,7 +111,14 @@ function StaffList({ myId }: { myId: string }) {
                       {admin.isActive ? t('চালু', 'Active') : t('বন্ধ', 'Disabled')}
                     </label>
                   </Td>
-                  <Td className="text-right">
+                  <Td className="text-right whitespace-nowrap">
+                    <Link
+                      href={`/admin/history?adminId=${encodeURIComponent(admin.id)}`}
+                      className="inline-flex h-8 items-center gap-2 rounded-lg px-3 text-xs font-semibold text-muted hover:bg-canvas hover:text-ink"
+                    >
+                      <History className="size-4" />
+                      {t('কাজের ইতিহাস', 'Activity')}
+                    </Link>
                     <Button size="sm" variant="ghost" onClick={() => resetPassword(admin)}>
                       <KeyRound className="size-4" />
                       {t('পাসওয়ার্ড', 'Password')}

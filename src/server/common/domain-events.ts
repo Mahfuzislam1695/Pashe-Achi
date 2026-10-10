@@ -1,4 +1,4 @@
-import type { OrderStatus } from '@/shared'
+import type { ActorType, OrderStatus } from '@/shared'
 
 import type { OrderWithRelations } from '../orders/order.mapper'
 
@@ -22,7 +22,7 @@ export interface OrderStatusChangedEvent {
   from: OrderStatus
   to: OrderStatus
   note: string | null
-  by: 'CUSTOMER' | 'ADMIN'
+  by: ActorType
 }
 
 export interface OrderBillUpdatedEvent {

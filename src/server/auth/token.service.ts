@@ -95,10 +95,13 @@ export class TokenService {
     return { ownerId, tokens }
   }
 
-  /** Revokes one refresh token (logout). Unknown tokens are ignored. */
-  async revoke(refreshToken: string | undefined) {
-    if (!refreshToken) return
-    await this.prisma.refreshToken.updateMany({ where: { tokenHash: hash(refreshToken), revokedAt: null }, data: { revokedAt: new Date() } })
+  /** Revokes one refresh token (logout) and says whose it was. Unknown or already revoked tokens are ignored (null). */
+  async revoke(refreshToken: string | undefined): Promise<{ userId: string | null; adminId: string | null } | null> {
+    if (!refreshToken) return null
+    const row = await this.prisma.refreshToken.findUnique({ where: { tokenHash: hash(refreshToken) }, select: { id: true, userId: true, adminId: true } })
+    if (!row) return null
+    const { count } = await this.prisma.refreshToken.updateMany({ where: { id: row.id, revokedAt: null }, data: { revokedAt: new Date() } })
+    return count === 1 ? { userId: row.userId, adminId: row.adminId } : null
   }
 
   /** Logs an account out everywhere (password change, block, deactivation). */

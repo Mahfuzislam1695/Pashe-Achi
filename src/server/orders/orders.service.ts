@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common'
 import { EventEmitter2 } from '@nestjs/event-emitter'
 import {
+  type AuditChange,
   BILL_EDITABLE,
   calcBazar,
   calcMedicine,
@@ -17,13 +18,15 @@ import {
   type OrderDetail,
   type OrderStatus,
   type OrderSummary,
+  orderCode,
   type Paginated,
   type ScheduleInput,
   type UpdateOrderItemsInput,
   type UpdateOrderStatusInput,
 } from '@/shared'
 
-import type { AdminPrincipal } from '../auth/auth.types'
+import type { AuditActor } from '../audit/actor'
+import { AuditService } from '../audit/audit.service'
 import { CatalogService } from '../catalog/catalog.service'
 import { AppException } from '../common/app.exception'
 import { DOMAIN_EVENTS, type OrderBillUpdatedEvent, type OrderCreatedEvent, type OrderStatusChangedEvent } from '../common/domain-events'
@@ -47,11 +50,12 @@ export class OrdersService {
     private readonly prisma: PrismaService,
     private readonly catalog: CatalogService,
     private readonly events: EventEmitter2,
+    private readonly audit: AuditService,
   ) {}
 
   // Customer: place orders
 
-  async createBazar(userId: string, input: CreateBazarOrderInput): Promise<OrderDetail> {
+  async createBazar(userId: string, input: CreateBazarOrderInput, actor: AuditActor): Promise<OrderDetail> {
     const bill = calcBazar(await this.catalog.getPricing(), input.items.map(item => item.price))
     return this.place({
       user: { connect: { id: userId } },
@@ -71,10 +75,10 @@ export class OrdersService {
           price: item.price ?? null,
         })),
       },
-    })
+    }, actor)
   }
 
-  async createShifting(userId: string, input: CreateShiftingOrderInput): Promise<OrderDetail> {
+  async createShifting(userId: string, input: CreateShiftingOrderInput, actor: AuditActor): Promise<OrderDetail> {
     const [pricing, vehicle, user] = await Promise.all([
       this.catalog.getPricing(),
       this.prisma.vehicle.findFirst({ where: { id: input.vehicleId, isActive: true } }),
@@ -107,10 +111,10 @@ export class OrdersService {
           unloadingRatePerFloor: pricing.unloadingRatePerFloor,
         },
       },
-    })
+    }, actor)
   }
 
-  async createMedicine(userId: string, input: CreateMedicineOrderInput): Promise<OrderDetail> {
+  async createMedicine(userId: string, input: CreateMedicineOrderInput, actor: AuditActor): Promise<OrderDetail> {
     const bill = calcMedicine(await this.catalog.getPricing(), input.items.map(item => item.price))
     const names = input.items.map(item => item.name).join(', ')
     return this.place(
@@ -134,11 +138,12 @@ export class OrdersService {
           })),
         },
       },
+      actor,
       input.prescriptionUploadId ? { uploadId: input.prescriptionUploadId, ownerId: userId } : undefined,
     )
   }
 
-  async createParcel(userId: string, input: CreateParcelOrderInput): Promise<OrderDetail> {
+  async createParcel(userId: string, input: CreateParcelOrderInput, actor: AuditActor): Promise<OrderDetail> {
     const [pricing, user] = await Promise.all([
       this.catalog.getPricing(),
       this.prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { mobile: true } }),
@@ -160,11 +165,11 @@ export class OrdersService {
           receiverMobile: input.receiverMobile,
         },
       },
-    })
+    }, actor)
   }
 
-  /** Writes the order, its first timeline entry and (for medicine) claims the prescription upload, atomically. */
-  private async place(data: Omit<Prisma.OrderCreateInput, 'events'>, attach?: { uploadId: string; ownerId: string }): Promise<OrderDetail> {
+  /** Writes the order, its first timeline entry, its history entry and (for medicine) claims the prescription upload, atomically. */
+  private async place(data: Omit<Prisma.OrderCreateInput, 'events'>, actor: AuditActor, attach?: { uploadId: string; ownerId: string }): Promise<OrderDetail> {
     const order = await this.prisma.$transaction(async tx => {
       const created = await tx.order.create({ data: { ...data, events: { create: { to: 'PENDING', actor: 'CUSTOMER' } } } })
       if (attach) {
@@ -174,6 +179,12 @@ export class OrdersService {
         })
         if (count !== 1) throw AppException.badRequest('upload.missing')
       }
+      await this.audit.record({
+        action: 'ORDER_CREATED',
+        actor,
+        entity: { type: 'ORDER', id: created.id, label: orderCode(created.number) },
+        meta: { service: created.service, total: created.total },
+      }, tx)
       return tx.order.findUniqueOrThrow({ where: { id: created.id }, include: orderInclude })
     })
     this.events.emit(DOMAIN_EVENTS.orderCreated, { order } satisfies OrderCreatedEvent)
@@ -197,11 +208,11 @@ export class OrdersService {
     return toOrderDetail(order)
   }
 
-  async cancelMine(userId: string, id: string): Promise<OrderDetail> {
+  async cancelMine(userId: string, id: string, actor: AuditActor): Promise<OrderDetail> {
     const order = await this.prisma.order.findFirst({ where: { id, userId }, select: { status: true } })
     if (!order) throw AppException.notFound()
     if (!CUSTOMER_CANCELLABLE.includes(order.status)) throw AppException.badRequest('order.not_cancellable')
-    const updated = await this.changeStatus(id, order.status, 'CANCELLED', { actor: 'CUSTOMER', note: null })
+    const updated = await this.changeStatus(id, order.status, 'CANCELLED', { actor, note: null })
     return toOrderDetail(updated)
   }
 
@@ -218,18 +229,21 @@ export class OrdersService {
     return toOrderDetail(order, true)
   }
 
-  async updateStatus(admin: AdminPrincipal, id: string, input: UpdateOrderStatusInput): Promise<OrderDetail> {
+  async updateStatus(actor: AuditActor, id: string, input: UpdateOrderStatusInput): Promise<OrderDetail> {
     const order = await this.prisma.order.findUnique({ where: { id }, select: { status: true } })
     if (!order) throw AppException.notFound()
     if (!canTransition(order.status, input.status)) throw AppException.badRequest('order.bad_transition')
-    const updated = await this.changeStatus(id, order.status, input.status, { actor: 'ADMIN', adminId: admin.id, note: blankToNull(input.note) })
+    const updated = await this.changeStatus(id, order.status, input.status, { actor, note: blankToNull(input.note) })
     return toOrderDetail(updated, true)
   }
 
-  /** Corrects bazar/medicine line prices once the real cost is known, and recomputes the total. */
-  async updateItems(id: string, input: UpdateOrderItemsInput): Promise<OrderDetail> {
+  /**
+   * Corrects bazar/medicine line prices once the real cost is known, and recomputes the total.
+   * The history entry lists each changed line's old and new price, and the admin's note.
+   */
+  async updateItems(actor: AuditActor, id: string, input: UpdateOrderItemsInput): Promise<OrderDetail> {
     const { order, previousTotal } = await this.prisma.$transaction(async tx => {
-      const current = await tx.order.findUnique({ where: { id }, include: { items: true } })
+      const current = await tx.order.findUnique({ where: { id }, include: { items: { orderBy: { position: 'asc' } } } })
       if (!current) throw AppException.notFound()
       if (current.service !== 'bazar' && current.service !== 'medicine') throw AppException.badRequest('validation')
       if (!BILL_EDITABLE.includes(current.status)) throw AppException.badRequest('order.bill_locked')
@@ -238,10 +252,27 @@ export class OrdersService {
       for (const change of input.items) {
         if (!prices.has(change.id)) throw AppException.badRequest('validation')
         prices.set(change.id, change.price)
-        await tx.orderItem.update({ where: { id: change.id }, data: { price: change.price } })
+      }
+      const changes: AuditChange[] = []
+      for (const item of current.items) {
+        const price = prices.get(item.id) ?? null
+        if (price === item.price) continue
+        changes.push({ field: 'item.price', label: item.name, from: item.price, to: price })
+        await tx.orderItem.update({ where: { id: item.id }, data: { price } })
       }
       const itemsTotal = [...prices.values()].reduce<number>((sum, price) => sum + (price ?? 0), 0)
-      await tx.order.update({ where: { id }, data: { itemsTotal, total: itemsTotal + current.serviceFee + current.deliveryFee } })
+      const total = itemsTotal + current.serviceFee + current.deliveryFee
+      await tx.order.update({ where: { id }, data: { itemsTotal, total } })
+      if (changes.length) {
+        if (total !== current.total) changes.push({ field: 'total', from: current.total, to: total })
+        await this.audit.record({
+          action: 'ORDER_BILL_UPDATED',
+          actor,
+          entity: { type: 'ORDER', id, label: orderCode(current.number) },
+          changes,
+          note: input.note,
+        }, tx)
+      }
       return { order: await tx.order.findUniqueOrThrow({ where: { id }, include: orderInclude }), previousTotal: current.total }
     })
     if (order.total !== previousTotal) this.events.emit(DOMAIN_EVENTS.orderBillUpdated, { order, previousTotal } satisfies OrderBillUpdatedEvent)
@@ -249,22 +280,26 @@ export class OrdersService {
   }
 
   /**
-   * Moves an order between statuses and records it in the timeline. The update only applies if
-   * the status is still `from`, so two people acting at once can't both succeed.
+   * Moves an order between statuses and records it in the timeline and the history log. The update
+   * only applies if the status is still `from`, so two people acting at once can't both succeed.
    */
-  private async changeStatus(
-    id: string,
-    from: OrderStatus,
-    to: OrderStatus,
-    by: { actor: 'CUSTOMER' | 'ADMIN'; adminId?: string; note: string | null },
-  ): Promise<OrderWithRelations> {
+  private async changeStatus(id: string, from: OrderStatus, to: OrderStatus, by: { actor: AuditActor; note: string | null }): Promise<OrderWithRelations> {
     const order = await this.prisma.$transaction(async tx => {
       const { count } = await tx.order.updateMany({ where: { id, status: from }, data: { status: to } })
       if (count !== 1) throw AppException.conflict('order.bad_transition')
-      await tx.orderStatusEvent.create({ data: { orderId: id, from, to, note: by.note, actor: by.actor, adminId: by.adminId } })
-      return tx.order.findUniqueOrThrow({ where: { id }, include: orderInclude })
+      const adminId = by.actor.type === 'ADMIN' ? by.actor.id : null
+      await tx.orderStatusEvent.create({ data: { orderId: id, from, to, note: by.note, actor: by.actor.type, adminId } })
+      const updated = await tx.order.findUniqueOrThrow({ where: { id }, include: orderInclude })
+      await this.audit.record({
+        action: 'ORDER_STATUS_CHANGED',
+        actor: by.actor,
+        entity: { type: 'ORDER', id, label: orderCode(updated.number) },
+        changes: [{ field: 'status', from, to }],
+        note: by.note,
+      }, tx)
+      return updated
     })
-    this.events.emit(DOMAIN_EVENTS.orderStatusChanged, { order, from, to, note: by.note, by: by.actor } satisfies OrderStatusChangedEvent)
+    this.events.emit(DOMAIN_EVENTS.orderStatusChanged, { order, from, to, note: by.note, by: by.actor.type } satisfies OrderStatusChangedEvent)
     return order
   }
 

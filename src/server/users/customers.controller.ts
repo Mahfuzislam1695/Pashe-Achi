@@ -2,6 +2,7 @@ import { Body, Controller, Get, Param, Patch, Query, UseGuards } from '@nestjs/c
 import { ApiCookieAuth, ApiOperation, ApiTags } from '@nestjs/swagger'
 import type { AdminCustomerDto, Paginated } from '@/shared'
 
+import { Actor, type AuditActor } from '../audit/actor'
 import { AdminGuard, Roles } from '../auth/guards'
 import { IdParamDto, ListCustomersQueryDto, UpdateCustomerDto } from '../common/dto'
 import { UsersService } from './users.service'
@@ -27,7 +28,7 @@ export class CustomersController {
   @Patch(':id')
   @Roles('MANAGER')
   @ApiOperation({ summary: 'Block/unblock a customer or set their points' })
-  update(@Param() { id }: IdParamDto, @Body() body: UpdateCustomerDto): Promise<AdminCustomerDto> {
-    return this.users.updateCustomer(id, body)
+  update(@Actor() actor: AuditActor, @Param() { id }: IdParamDto, @Body() body: UpdateCustomerDto): Promise<AdminCustomerDto> {
+    return this.users.updateCustomer(id, body, actor)
   }
 }

@@ -6,6 +6,7 @@ export type Audience = 'customer' | 'admin'
 export interface CustomerPrincipal {
   kind: 'customer'
   id: string
+  name: string
 }
 
 export interface AdminPrincipal {

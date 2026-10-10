@@ -3,6 +3,7 @@ import { ApiBearerAuth, ApiCookieAuth, ApiOperation, ApiTags } from '@nestjs/swa
 import type { AuthResponse, CustomerDto } from '@/shared'
 import type { Request, Response } from 'express'
 
+import { clientInfo } from '../audit/actor'
 import { AppException } from '../common/app.exception'
 import { LoginDto, RefreshDto, SignupDto } from '../common/dto'
 import { ENV, type Env } from '../config/env'
@@ -31,7 +32,7 @@ export class CustomerAuthController {
   @AuthThrottle()
   @ApiOperation({ summary: 'Create a customer account and log in' })
   async signup(@Body() body: SignupDto, @Req() request: Request, @Res({ passthrough: true }) response: Response): Promise<AuthResponse<CustomerDto>> {
-    const result = await this.auth.signup(body, request.get('user-agent'))
+    const result = await this.auth.signup(body, clientInfo(request))
     setAuthCookies(response, this.env, 'customer', result.tokens)
     return result
   }

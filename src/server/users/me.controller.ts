@@ -3,6 +3,7 @@ import { ApiBearerAuth, ApiCookieAuth, ApiOperation, ApiTags } from '@nestjs/swa
 import type { CustomerDto } from '@/shared'
 import type { Response } from 'express'
 
+import { Actor, type AuditActor } from '../audit/actor'
 import type { CustomerPrincipal } from '../auth/auth.types'
 import { clearAuthCookies } from '../auth/cookies'
 import { CurrentCustomer, CustomerGuard } from '../auth/guards'
@@ -23,15 +24,20 @@ export class MeController {
 
   @Patch()
   @ApiOperation({ summary: 'Update name, mobile, location and language' })
-  update(@CurrentCustomer() customer: CustomerPrincipal, @Body() body: UpdateProfileDto): Promise<CustomerDto> {
-    return this.users.updateProfile(customer.id, body)
+  update(@CurrentCustomer() customer: CustomerPrincipal, @Body() body: UpdateProfileDto, @Actor() actor: AuditActor): Promise<CustomerDto> {
+    return this.users.updateProfile(customer.id, body, actor)
   }
 
   @Post('password')
   @HttpCode(204)
   @ApiOperation({ summary: 'Change password (logs out every session, including this one)' })
-  async changePassword(@CurrentCustomer() customer: CustomerPrincipal, @Body() body: ChangePasswordDto, @Res({ passthrough: true }) response: Response) {
-    await this.users.changePassword(customer.id, body)
+  async changePassword(
+    @CurrentCustomer() customer: CustomerPrincipal,
+    @Body() body: ChangePasswordDto,
+    @Actor() actor: AuditActor,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    await this.users.changePassword(customer.id, body, actor)
     clearAuthCookies(response, this.env, 'customer')
   }
 }

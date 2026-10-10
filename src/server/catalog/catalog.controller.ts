@@ -2,6 +2,7 @@ import { Body, Controller, Get, Param, Patch, Post, Put, UseGuards } from '@nest
 import { ApiCookieAuth, ApiOperation, ApiTags } from '@nestjs/swagger'
 import type { CatalogDto, Pricing, SupportSettings, VehicleDto } from '@/shared'
 
+import { Actor, type AuditActor } from '../audit/actor'
 import { AdminGuard, Roles } from '../auth/guards'
 import { IdParamDto, PricingDto, SupportSettingsDto, UpdateVehicleDto, VehicleDto as VehicleBodyDto } from '../common/dto'
 import { CatalogService } from './catalog.service'
@@ -33,25 +34,25 @@ export class AdminCatalogController {
 
   @Put('pricing')
   @Roles('MANAGER')
-  updatePricing(@Body() body: PricingDto): Promise<Pricing> {
-    return this.catalog.updatePricing(body)
+  updatePricing(@Actor() actor: AuditActor, @Body() body: PricingDto): Promise<Pricing> {
+    return this.catalog.updatePricing(body, actor)
   }
 
   @Put('support')
   @Roles('MANAGER')
-  updateSupport(@Body() body: SupportSettingsDto): Promise<SupportSettings> {
-    return this.catalog.updateSupport(body)
+  updateSupport(@Actor() actor: AuditActor, @Body() body: SupportSettingsDto): Promise<SupportSettings> {
+    return this.catalog.updateSupport(body, actor)
   }
 
   @Post('vehicles')
   @Roles('MANAGER')
-  createVehicle(@Body() body: VehicleBodyDto): Promise<VehicleDto> {
-    return this.catalog.createVehicle(body)
+  createVehicle(@Actor() actor: AuditActor, @Body() body: VehicleBodyDto): Promise<VehicleDto> {
+    return this.catalog.createVehicle(body, actor)
   }
 
   @Patch('vehicles/:id')
   @Roles('MANAGER')
-  updateVehicle(@Param() { id }: IdParamDto, @Body() body: UpdateVehicleDto): Promise<VehicleDto> {
-    return this.catalog.updateVehicle(id, body)
+  updateVehicle(@Actor() actor: AuditActor, @Param() { id }: IdParamDto, @Body() body: UpdateVehicleDto): Promise<VehicleDto> {
+    return this.catalog.updateVehicle(id, body, actor)
   }
 }

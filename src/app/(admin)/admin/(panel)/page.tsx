@@ -3,17 +3,19 @@
 import { useState } from 'react'
 import Link from 'next/link'
 
+import { AuditFeed } from '@/admin/components/audit-feed'
 import { DailyOrdersChart, RevenueByServiceChart, StatTile } from '@/admin/components/charts'
 import { OrderTable } from '@/admin/components/order-table'
-import { Card, ErrorNote, Loading, PageHeader, Select } from '@/admin/components/ui'
+import { Card, Empty, ErrorNote, Loading, PageHeader, Select } from '@/admin/components/ui'
 import { useLang } from '@/admin/lib/i18n'
-import { useDashboard } from '@/admin/lib/queries'
-import { errorCode } from '@/admin/lib/utils'
+import { useAuditList, useCurrentAdmin, useDashboard } from '@/admin/lib/queries'
+import { canManage, errorCode } from '@/admin/lib/utils'
 
 const RANGES = [7, 30, 90] as const
 
 export default function DashboardPage() {
   const { t, digits, taka } = useLang()
+  const admin = useCurrentAdmin()
   const [days, setDays] = useState<number>(7)
   const dashboard = useDashboard(days)
   const data = dashboard.data
@@ -62,8 +64,31 @@ export default function DashboardPage() {
           >
             <OrderTable orders={data.recent} />
           </Card>
+          {canManage(admin.role) && <RecentActivity />}
         </div>
       )}
     </>
+  )
+}
+
+/** The latest history entries, for managers and super admins. */
+function RecentActivity() {
+  const { t } = useLang()
+  const log = useAuditList({}, 6)
+  const entries = log.data?.pages[0]?.items ?? []
+  return (
+    <Card
+      title={t('সাম্প্রতিক কাজ', 'Recent activity')}
+      actions={
+        <Link href="/admin/history" className="text-sm font-semibold text-brand-700 hover:underline">
+          {t('পুরো ইতিহাস', 'Full history')}
+        </Link>
+      }
+    >
+      {log.isPending && <Loading />}
+      <ErrorNote code={log.isError ? errorCode(log.error) : null} />
+      {log.isSuccess && !entries.length && <Empty>{t('এখনো কোনো ইতিহাস নেই।', 'No history yet.')}</Empty>}
+      {entries.length > 0 && <AuditFeed entries={entries} />}
+    </Card>
   )
 }

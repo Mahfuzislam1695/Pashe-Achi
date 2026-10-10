@@ -38,6 +38,7 @@ enum AdminRole {
   OPERATOR
 }
 
+/// Who acted: used by both the order timeline (OrderStatusEvent) and the history log (AuditLog).
 enum OrderEventActor {
   CUSTOMER
   ADMIN
@@ -48,6 +49,40 @@ enum NotificationType {
   ORDER_CREATED
   ORDER_STATUS
   ORDER_BILL
+  ANNOUNCEMENT
+}
+
+enum AuditAction {
+  CUSTOMER_SIGNED_UP
+  CUSTOMER_PROFILE_UPDATED
+  CUSTOMER_PASSWORD_CHANGED
+  CUSTOMER_BLOCKED
+  CUSTOMER_UNBLOCKED
+  CUSTOMER_POINTS_CHANGED
+  ORDER_CREATED
+  ORDER_STATUS_CHANGED
+  ORDER_BILL_UPDATED
+  PRICING_UPDATED
+  VEHICLE_CREATED
+  VEHICLE_UPDATED
+  SUPPORT_UPDATED
+  STAFF_CREATED
+  STAFF_UPDATED
+  STAFF_PASSWORD_RESET
+  ADMIN_SIGNED_IN
+  ADMIN_SIGN_IN_FAILED
+  ADMIN_SIGNED_OUT
+  ADMIN_PASSWORD_CHANGED
+  ANNOUNCEMENT_SENT
+}
+
+enum AuditEntity {
+  ORDER
+  CUSTOMER
+  STAFF
+  PRICING
+  VEHICLE
+  SUPPORT
   ANNOUNCEMENT
 }
 
@@ -67,6 +102,7 @@ model User {
   uploads       Upload[]
   notifications Notification[]
   refreshTokens RefreshToken[]
+  auditLogs     AuditLog[]
 
   @@index([createdAt])
 }
@@ -84,6 +120,7 @@ model Admin {
   notifications Notification[]
   refreshTokens RefreshToken[]
   orderEvents   OrderStatusEvent[]
+  auditLogs     AuditLog[]
 }
 
 /// One row per issued refresh token (hashed). Rotated on every refresh; a reused token revokes its family.
@@ -214,6 +251,40 @@ model OrderStatusEvent {
   admin     Admin?          @relation(fields: [adminId], references: [id], onDelete: SetNull)
 
   @@index([orderId, createdAt])
+}
+
+/// The history log: who did what, to which record, and when. Written in the same transaction as the
+/// change it records, and never edited. Names and labels are snapshots, so a row still reads correctly
+/// after a rename. Passwords and hashes are never stored.
+model AuditLog {
+  id          String          @id @default(cuid())
+  action      AuditAction
+  actorType   OrderEventActor
+  adminId     String?
+  userId      String?
+  /// The actor's name at the time (for a failed sign-in with an unknown mobile: the mobile typed).
+  actorName   String
+  actorRole   AdminRole?
+  entityType  AuditEntity
+  entityId    String?
+  /// "PA-1042", or the customer, staff member or vehicle name at the time.
+  entityLabel String?
+  /// [{ field, label?, from, to }]: only the fields that changed.
+  changes     Json            @default("[]")
+  note        String?
+  /// Extra facts for some actions, e.g. { service, total } or { sent } or { reason }.
+  meta        Json            @default("{}")
+  ip          String?
+  userAgent   String?
+  createdAt   DateTime        @default(now())
+  admin       Admin?          @relation(fields: [adminId], references: [id], onDelete: SetNull)
+  user        User?           @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
+  @@index([entityType, entityId, createdAt])
+  @@index([adminId, createdAt])
+  @@index([userId, createdAt])
+  @@index([action, createdAt])
 }
 
 /// Fees and rates. A single row with id 1, edited in the admin panel's Catalog page.

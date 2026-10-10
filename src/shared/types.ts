@@ -1,4 +1,4 @@
-import type { AdminRole, Lang, NotificationType, OrderStatus, ServiceId, Text } from './enums'
+import type { ActorType, AdminRole, AuditAction, AuditEntity, Lang, NotificationType, OrderStatus, ServiceId, Text } from './enums'
 import type { Pricing } from './pricing'
 
 // Response bodies of the API. Dates are ISO 8601 strings; amounts are whole taka.
@@ -132,7 +132,7 @@ export interface UploadDto {
   createdAt: string
 }
 
-export type OrderEventActor = 'CUSTOMER' | 'ADMIN' | 'SYSTEM'
+export type OrderEventActor = ActorType
 
 export interface OrderEventDto {
   id: string
@@ -189,6 +189,46 @@ export interface DashboardDto {
   byService: { service: ServiceId; orders: number; revenue: number }[]
   daily: { date: string; orders: number; revenue: number }[]
   recent: OrderSummary[]
+}
+
+export type AuditValue = string | number | boolean | null
+
+/**
+ * One changed field in a history log entry. `field` is a key of AUDIT_FIELD_LABELS (e.g. "points",
+ * "status", "item.price"); `label` names the thing when the field alone isn't enough (an item's name).
+ */
+export interface AuditChange {
+  field: string
+  label?: string
+  from: AuditValue
+  to: AuditValue
+}
+
+/** A history log entry: GET /admin/audit and GET /admin/orders/:id/history. */
+export interface AuditLogDto {
+  id: string
+  action: AuditAction
+  actor: {
+    type: ActorType
+    /** The admin's or customer's id; null for the system or a failed sign-in with an unknown mobile. */
+    id: string | null
+    /** As it was at the time. */
+    name: string
+    role: AdminRole | null
+  }
+  entity: {
+    type: AuditEntity
+    id: string | null
+    /** As it was at the time: "PA-1042", a customer, staff member or vehicle name. */
+    label: string | null
+  }
+  changes: AuditChange[]
+  note: string | null
+  /** Extra facts for some actions: { service, total } (order placed), { sent } (announcement), { reason } (failed sign-in). */
+  meta: Record<string, AuditValue>
+  ip: string | null
+  userAgent: string | null
+  createdAt: string
 }
 
 export interface HealthDto {

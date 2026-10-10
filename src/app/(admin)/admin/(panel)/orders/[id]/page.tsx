@@ -18,10 +18,11 @@ import Link from 'next/link'
 import { use, useEffect, useState } from 'react'
 import { toast } from 'sonner'
 
-import { Button, Card, ErrorNote, Field, Input, Loading, StatusBadge, Table, Td, Textarea, Th } from '@/admin/components/ui'
+import { AuditFeed } from '@/admin/components/audit-feed'
+import { Button, Card, Empty, ErrorNote, Field, Input, Loading, StatusBadge, Table, Td, Textarea, Th } from '@/admin/components/ui'
 import { api } from '@/admin/lib/api'
 import { useLang } from '@/admin/lib/i18n'
-import { queryKeys, useOrder } from '@/admin/lib/queries'
+import { queryKeys, useOrder, useOrderHistory } from '@/admin/lib/queries'
 import { errorCode } from '@/admin/lib/utils'
 
 export default function OrderPage({ params }: { params: Promise<{ id: string }> }) {
@@ -184,26 +185,23 @@ function OrderView({ order }: { order: OrderDetail }) {
               </div>
             </dl>
           </Card>
-          <Card title={t('টাইমলাইন', 'Timeline')}>
-            <ol className="grid gap-3 border-l-2 border-line pl-4">
-              {order.events.map(event => (
-                <li key={event.id} className="relative grid gap-1 text-sm">
-                  <span className="absolute top-1.5 -left-[23px] size-3 rounded-full border-2 border-surface bg-brand-600" aria-hidden="true" />
-                  <div>
-                    <StatusBadge status={event.to} />
-                  </div>
-                  {event.note && <p>{event.note}</p>}
-                  <p className="text-xs text-muted">
-                    {formatDate(event.createdAt, true)} ·{' '}
-                    {event.actor === 'ADMIN' ? (event.adminName ?? t('অ্যাডমিন', 'Admin')) : event.actor === 'CUSTOMER' ? t('গ্রাহক', 'Customer') : t('সিস্টেম', 'System')}
-                  </p>
-                </li>
-              ))}
-            </ol>
-          </Card>
+          <HistoryCard orderId={order.id} />
         </div>
       </div>
     </div>
+  )
+}
+
+/** Everything that happened to this order, oldest first: placed, each status change and bill correction, and who did it. */
+function HistoryCard({ orderId }: { orderId: string }) {
+  const { t } = useLang()
+  const history = useOrderHistory(orderId)
+  return (
+    <Card title={t('ইতিহাস', 'History')}>
+      {history.isPending && <Loading />}
+      <ErrorNote code={history.isError ? errorCode(history.error) : null} />
+      {history.isSuccess && (history.data.length ? <AuditFeed entries={history.data} showEntity={false} /> : <Empty>{t('এখনো কিছু নেই।', 'Nothing yet.')}</Empty>)}
+    </Card>
   )
 }
 
@@ -269,6 +267,7 @@ function ItemsCard({ order, onUpdated }: { order: OrderDetail; onUpdated: (order
   const editable = BILL_EDITABLE.includes(order.status) && (order.service === 'bazar' || order.service === 'medicine')
   const original = Object.fromEntries(order.items.map(item => [item.id, item.price === null ? '' : String(item.price)]))
   const [prices, setPrices] = useState<Record<string, string>>(original)
+  const [note, setNote] = useState('')
   const [error, setError] = useState<MessageCode | null>(null)
   // Reset when the order changes (e.g. saved, or updated elsewhere).
   useEffect(() => setPrices(original), [order])
@@ -277,12 +276,14 @@ function ItemsCard({ order, onUpdated }: { order: OrderDetail; onUpdated: (order
 
   const save = useMutation({
     mutationFn: () => {
-      const check = validateForm(updateOrderItemsSchema, { items: changed.map(item => ({ id: item.id, price: toAmount(prices[item.id]) })) }, [])
+      const body = { items: changed.map(item => ({ id: item.id, price: toAmount(prices[item.id]) })), note: note.trim() || undefined }
+      const check = validateForm(updateOrderItemsSchema, body, [])
       if (!check.success) throw check.code
       return api.orders.updateItems(order.id, check.data)
     },
     onSuccess: updated => {
       onUpdated(updated)
+      setNote('')
       toast.success(t('বিল আপডেট হয়েছে', 'Bill updated'), { description: t('গ্রাহককে নতুন মোট জানানো হয়েছে।', 'The customer has been told the new total.') })
     },
     onError: failure => setError(errorCode(failure)),
@@ -340,6 +341,11 @@ function ItemsCard({ order, onUpdated }: { order: OrderDetail; onUpdated: (order
           ))}
         </tbody>
       </Table>
+      {editable && changed.length > 0 && (
+        <Field label={t('কারণ (ঐচ্ছিক, ইতিহাসে থাকবে)', 'Reason (optional, kept in the history)')} className="mt-3">
+          <Input maxLength={500} value={note} onChange={e => setNote(e.target.value)} placeholder={t('যেমন: বাজারে দাম বেশি ছিল', 'e.g. Market price was higher today')} />
+        </Field>
+      )}
       <div className="mt-3">
         <ErrorNote code={error} />
       </div>

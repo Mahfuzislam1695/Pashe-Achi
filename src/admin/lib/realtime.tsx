@@ -64,6 +64,7 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
     const refreshOrders = () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.orders })
       void queryClient.invalidateQueries({ queryKey: queryKeys.dashboard })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.audit })
     }
 
     socket.on('connect', () => void queryClient.invalidateQueries({ queryKey: queryKeys.notifications }))

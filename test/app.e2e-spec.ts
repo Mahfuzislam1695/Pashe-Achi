@@ -244,4 +244,81 @@ describe('Pashe Achi API (e2e)', () => {
       expect(dashboard.body.today.orders).toBeGreaterThan(0)
     })
   })
+
+  describe('history log', () => {
+    const staffAgent = async (body: { name: string; mobile: string; password: string; role: 'MANAGER' | 'OPERATOR' }) => {
+      const admin = await adminAgent()
+      const created = await admin.post(api('/admin/staff')).send(body).expect(201)
+      const agent = request.agent(app.getHttpServer())
+      await agent.post(api('/admin/auth/login')).send({ mobile: body.mobile, password: body.password }).expect(200)
+      return { agent, id: created.body.id as string }
+    }
+
+    it('records who changed the prices, with only the values that changed', async () => {
+      const manager = await staffAgent({ name: 'Mina', mobile: '01912000030', password: 'manager1', role: 'MANAGER' })
+      await manager.agent.put(api('/admin/catalog/pricing')).send({ ...DEFAULT_PRICING, bazarShoppingFee: 999 }).expect(200)
+      await manager.agent.put(api('/admin/catalog/pricing')).send(DEFAULT_PRICING).expect(200)
+      await manager.agent.put(api('/admin/catalog/pricing')).send(DEFAULT_PRICING).expect(200)
+
+      const log = await manager.agent.get(api(`/admin/audit?entityType=PRICING&adminId=${manager.id}`)).expect(200)
+      // Newest first; saving unchanged prices adds nothing.
+      expect(log.body.items).toHaveLength(2)
+      expect(log.body.items[1]).toMatchObject({
+        action: 'PRICING_UPDATED',
+        actor: { type: 'ADMIN', id: manager.id, name: 'Mina', role: 'MANAGER' },
+        entity: { type: 'PRICING' },
+        changes: [{ field: 'bazarShoppingFee', from: 150, to: 999 }],
+      })
+      expect(log.body.items[0].changes).toEqual([{ field: 'bazarShoppingFee', from: 999, to: 150 }])
+    })
+
+    it("keeps an order's whole history, which operators can read but not the full log", async () => {
+      const { agent } = await signup('01712000030', 'হাসান')
+      const admin = await adminAgent()
+      const order = (await agent.post(api('/orders/bazar')).send({ address: 'x', contactMobile: '01712000030', schedule, items: [{ name: 'চাল', quantity: '5 কেজি' }] }).expect(201))
+        .body as OrderDetail
+      await admin.patch(api(`/admin/orders/${order.id}/status`)).send({ status: 'BOOKED', note: 'রাইডার আসছে' }).expect(200)
+      await admin.patch(api(`/admin/orders/${order.id}/items`)).send({ items: [{ id: order.items[0]!.id, price: 400 }], note: 'দোকানের রসিদ' }).expect(200)
+
+      const operator = await staffAgent({ name: 'Rafi', mobile: '01912000031', password: 'operator1', role: 'OPERATOR' })
+      const history = (await operator.agent.get(api(`/admin/orders/${order.id}/history`)).expect(200)).body
+      expect(history.map((entry: { action: string }) => entry.action)).toEqual(['ORDER_CREATED', 'ORDER_STATUS_CHANGED', 'ORDER_BILL_UPDATED'])
+      expect(history[0]).toMatchObject({ actor: { type: 'CUSTOMER', name: 'হাসান' }, entity: { type: 'ORDER', id: order.id, label: order.code }, meta: { service: 'bazar', total: 230 } })
+      expect(history[1]).toMatchObject({ actor: { type: 'ADMIN', role: 'SUPER_ADMIN' }, changes: [{ field: 'status', from: 'PENDING', to: 'BOOKED' }], note: 'রাইডার আসছে' })
+      expect(history[2]).toMatchObject({
+        changes: [
+          { field: 'item.price', label: 'চাল', from: null, to: 400 },
+          { field: 'total', from: 230, to: 630 },
+        ],
+        note: 'দোকানের রসিদ',
+      })
+      await operator.agent.get(api('/admin/audit')).expect(403)
+    })
+
+    it('logs staff sign-ins and failed attempts, never the password typed', async () => {
+      await request(app.getHttpServer()).post(api('/admin/auth/login')).send({ mobile: ADMIN.mobile, password: 'wrong-secret-42' }).expect(401)
+      await request(app.getHttpServer()).post(api('/admin/auth/login')).send({ mobile: '01799999999', password: 'whatever1' }).expect(401)
+      const admin = await adminAgent()
+
+      const failed = (await admin.get(api('/admin/audit?action=ADMIN_SIGN_IN_FAILED')).expect(200)).body.items
+      expect(failed.map((entry: { meta: { reason: string } }) => entry.meta.reason)).toEqual(['unknown_mobile', 'wrong_password'])
+      expect(failed[1]).toMatchObject({ actor: { type: 'ADMIN', id: null, name: ADMIN.mobile }, entity: { type: 'STAFF', label: 'Admin' } })
+      expect(JSON.stringify(failed)).not.toContain('wrong-secret-42')
+      const [signedIn] = (await admin.get(api('/admin/audit?action=ADMIN_SIGNED_IN&limit=1')).expect(200)).body.items
+      expect(signedIn).toMatchObject({ actor: { name: 'Admin', role: 'SUPER_ADMIN' }, entity: { type: 'STAFF', label: 'Admin' } })
+    })
+
+    it("shows a customer's own actions and what staff did to the account", async () => {
+      const { agent, body } = await signup('01712000032', 'সুমি')
+      await agent.patch(api('/me')).send({ name: 'সুমি', mobile: '01712000032', location: 'বনানী' }).expect(200)
+      const admin = await adminAgent()
+      await admin.patch(api(`/admin/customers/${body.user.id}`)).send({ points: 40 }).expect(200)
+      await admin.patch(api(`/admin/customers/${body.user.id}`)).send({ isBlocked: true }).expect(200)
+
+      const log = (await admin.get(api(`/admin/audit?customerId=${body.user.id}`)).expect(200)).body.items
+      expect(log.map((entry: { action: string }) => entry.action)).toEqual(['CUSTOMER_BLOCKED', 'CUSTOMER_POINTS_CHANGED', 'CUSTOMER_PROFILE_UPDATED', 'CUSTOMER_SIGNED_UP'])
+      expect(log[1].changes).toEqual([{ field: 'points', from: 0, to: 40 }])
+      expect(log[2].changes).toEqual([{ field: 'location', from: 'উত্তরা', to: 'বনানী' }])
+    })
+  })
 })

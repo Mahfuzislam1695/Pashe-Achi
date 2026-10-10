@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common'
 import type { AuthResponse, CustomerDto, LoginInput, SignupInput } from '@/shared'
 
+import { type ClientInfo, customerActor } from '../audit/actor'
+import { AuditService } from '../audit/audit.service'
 import { AppException } from '../common/app.exception'
 import { PrismaService } from '../prisma/prisma.service'
 import { toCustomerDto } from '../users/user.mapper'
@@ -12,22 +14,26 @@ export class CustomerAuthService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly tokens: TokenService,
+    private readonly audit: AuditService,
   ) {}
 
-  async signup(input: SignupInput, userAgent?: string): Promise<AuthResponse<CustomerDto>> {
+  async signup(input: SignupInput, client: ClientInfo = {}): Promise<AuthResponse<CustomerDto>> {
     const existing = await this.prisma.user.findUnique({ where: { mobile: input.mobile }, select: { id: true } })
     if (existing) throw AppException.conflict('mobile.taken')
 
-    const user = await this.prisma.user.create({
-      data: {
-        name: input.name,
-        mobile: input.mobile,
-        location: input.location ?? '',
-        lang: input.lang ?? 'bn',
-        passwordHash: await hashPassword(input.password),
-      },
+    const passwordHash = await hashPassword(input.password)
+    const user = await this.prisma.$transaction(async tx => {
+      const created = await tx.user.create({
+        data: { name: input.name, mobile: input.mobile, location: input.location ?? '', lang: input.lang ?? 'bn', passwordHash },
+      })
+      await this.audit.record({
+        action: 'CUSTOMER_SIGNED_UP',
+        actor: customerActor(created, client),
+        entity: { type: 'CUSTOMER', id: created.id, label: created.name },
+      }, tx)
+      return created
     })
-    const { refreshId: _, ...tokens } = await this.tokens.issue('customer', user.id, { userAgent })
+    const { refreshId: _, ...tokens } = await this.tokens.issue('customer', user.id, { userAgent: client.userAgent })
     return { user: toCustomerDto(user), tokens }
   }
 

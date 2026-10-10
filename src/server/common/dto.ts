@@ -8,6 +8,7 @@ import {
   createShiftingOrderSchema,
   dashboardQuerySchema,
   idParamSchema,
+  listAuditQuerySchema,
   listCustomersQuerySchema,
   listMyOrdersQuerySchema,
   listNotificationsQuerySchema,
@@ -62,3 +63,4 @@ export class UpdateAdminDto extends createZodDto(updateAdminSchema) {}
 export class BroadcastDto extends createZodDto(broadcastSchema) {}
 export class ListNotificationsQueryDto extends createZodDto(listNotificationsQuerySchema) {}
 export class DashboardQueryDto extends createZodDto(dashboardQuerySchema) {}
+export class ListAuditQueryDto extends createZodDto(listAuditQuerySchema) {}
