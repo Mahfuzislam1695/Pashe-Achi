@@ -1,6 +1,6 @@
 'use client'
 
-import { ADMIN_ROLE_LABELS, APP_INITIAL, APP_NAME } from '@/shared'
+import { ADMIN_ROLE_LABELS, APP_LOGO, APP_NAME } from '@/shared'
 import { useQueryClient } from '@tanstack/react-query'
 import { Bell, ClipboardList, History, LayoutDashboard, LogOut, Megaphone, Menu, RotateCw, Settings2, ShieldCheck, UserRound, Users, Volume2, VolumeX, X } from 'lucide-react'
 import Link from 'next/link'
@@ -45,7 +45,7 @@ export function PanelShell({ children }: { children: React.ReactNode }) {
 function Brand({ compact = false }: { compact?: boolean }) {
   return (
     <div className="flex items-center gap-2.5">
-      <div className="grid size-9 place-items-center rounded-lg bg-brand-600 text-sm font-bold text-white">{APP_INITIAL}</div>
+      <img src={APP_LOGO} alt="" className="size-9 rounded-full bg-white object-cover ring-1 ring-line" />
       <div className={cn('leading-tight', compact && 'hidden sm:block')}>
         <strong className="block text-sm">{APP_NAME.en}</strong>
         <span className="text-xs text-muted">Admin</span>

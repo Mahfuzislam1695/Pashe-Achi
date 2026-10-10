@@ -1,7 +1,7 @@
 'use client'
 
 import {
-  APP_INITIAL,
+  APP_LOGO,
   APP_NAME,
   type CustomerDto,
   type Lang,
@@ -21,7 +21,7 @@ export function Logo() {
   const { lang } = useLang()
   return (
     <div className="brand">
-      <div className="brand-mark">{APP_INITIAL}</div>
+      <img className="brand-mark" src={APP_LOGO} alt="" />
       <div>
         <strong>{APP_NAME[lang]}</strong>
         <small>{APP_NAME[lang === 'bn' ? 'en' : 'bn']}</small>

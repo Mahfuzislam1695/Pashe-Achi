@@ -88,7 +88,7 @@ prisma/  schema, migrations, seed.ts        test/  API e2e tests        public/ 
 - `pricing.ts`: `calcBazar`, `calcShifting` and the other calculators. The customer bill preview and the API use the same functions. The API never trusts client totals. Each order stores a snapshot (`itemsTotal`, `serviceFee`, `deliveryFee`, `total`), so price changes never alter old bills.
 - `enums.ts`: services, statuses, `ORDER_TRANSITIONS` (the allowed status moves), roles, `API_PREFIX` (`api/v1`), `SOCKET_NAMESPACE` and `SOCKET_EVENTS`.
 - `labels.ts`: bilingual service and status labels.
-- `brand.ts`: app name, logo letter, `PA-` order prefix.
+- `brand.ts`: app name, logo paths (resized from `public/logo/logo.jpeg`), `PA-` order prefix.
 - `types.ts`: response DTOs.
 
 ### src/server (the API)

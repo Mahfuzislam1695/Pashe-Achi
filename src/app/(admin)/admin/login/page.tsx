@@ -1,6 +1,6 @@
 'use client'
 
-import { APP_INITIAL, APP_NAME, FORM_ERROR_PRIORITY, loginSchema, type MessageCode, validateForm } from '@/shared'
+import { APP_LOGO, APP_NAME, FORM_ERROR_PRIORITY, loginSchema, type MessageCode, validateForm } from '@/shared'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { LogIn } from 'lucide-react'
 import { useRouter } from 'next/navigation'
@@ -50,7 +50,7 @@ export default function LoginPage() {
       >
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <div className="grid size-10 place-items-center rounded-lg bg-brand-600 font-bold text-white">{APP_INITIAL}</div>
+            <img src={APP_LOGO} alt="" className="size-10 rounded-full bg-white object-cover ring-1 ring-line" />
             <div className="leading-tight">
               <strong className="block">{APP_NAME.en}</strong>
               <span className="text-xs text-muted">{t('অ্যাডমিন প্যানেল', 'Admin panel')}</span>

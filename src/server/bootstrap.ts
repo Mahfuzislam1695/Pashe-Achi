@@ -41,7 +41,7 @@ export function configureApp(app: NestExpressApplication, env: Env) {
   const config = new DocumentBuilder()
     .setTitle(`${APP_NAME.en} API`)
     .setDescription(
-      'REST API for the Pashe Achi web app, admin panel and mobile app. Browsers authenticate with httpOnly cookies; ' +
+      `REST API for the ${APP_NAME.en} web app, admin panel and mobile app. Browsers authenticate with httpOnly cookies; ` +
         `mobile apps send \`Authorization: Bearer <accessToken>\` from the login response. Realtime notifications use Socket.IO at \`${SOCKET_NAMESPACE}\`.`,
     )
     .setVersion('1.0')

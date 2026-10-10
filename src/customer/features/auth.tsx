@@ -1,6 +1,7 @@
 'use client'
 
 import {
+  APP_LOGO_LARGE,
   APP_NAME,
   APP_TAGLINE,
   APP_WELCOME,
@@ -47,6 +48,7 @@ export function WelcomeScreen() {
   return (
     <AuthShell>
       <div className="welcome">
+        <img className="welcome-logo" src={APP_LOGO_LARGE} alt={APP_NAME[lang]} />
         <p className="eyebrow">{APP_WELCOME[lang]}</p>
         <h2>{APP_TAGLINE[lang]}</h2>
         <p className="auth-subtitle">{t('কাঁচা বাজার, বাসা বদল, জরুরী ঔষুধ ও পণ্য আদান প্রদান।', 'Fresh market, house shifting, emergency medicine and parcel delivery.')}</p>
