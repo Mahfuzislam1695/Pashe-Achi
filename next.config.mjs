@@ -11,6 +11,18 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
+  // The push notification worker (public/sw.js): always fetched fresh, and it may load nothing else.
+  async headers() {
+    return [
+      {
+        source: '/sw.js',
+        headers: [
+          { key: 'Cache-Control', value: 'no-cache, no-store, must-revalidate' },
+          { key: 'Content-Security-Policy', value: "default-src 'self'; script-src 'self'" },
+        ],
+      },
+    ]
+  },
   experimental: {
     // The customer site and the admin panel have separate root layouts, so unknown URLs are
     // answered by src/app/global-not-found.tsx.

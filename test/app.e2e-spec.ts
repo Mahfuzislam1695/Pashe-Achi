@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import type { AddressInfo } from 'node:net'
 
 import { Test } from '@nestjs/testing'
@@ -10,11 +11,32 @@ import request from 'supertest'
 import { AppModule } from '../src/server/app.module'
 import { configureApp } from '../src/server/bootstrap'
 import { ENV, type Env } from '../src/server/config/env'
+import { PUSH_SENDER, type PushOptions, type PushSender } from '../src/server/notifications/push.service'
+import type { PushPayload } from '../src/server/notifications/web-push.channel'
 import { PrismaService } from '../src/server/prisma/prisma.service'
 
 const ADMIN = { mobile: '01700000000', password: 'admin12345' }
 const schedule = { date: isoDateInBd(), time: '10:00' }
 const api = (path: string) => `/${API_PREFIX}${path}`
+
+/** Polls until `check` returns something truthy (notifications and pushes are sent after the response). */
+async function waitFor<T>(check: () => T | null | undefined | false | Promise<T | null | undefined | false>, timeout = 3000): Promise<T> {
+  const end = Date.now() + timeout
+  for (;;) {
+    const value = await check()
+    if (value) return value
+    if (Date.now() > end) throw new Error('waitFor: timed out')
+    await new Promise(resolve => setTimeout(resolve, 25))
+  }
+}
+
+/** Web Push without the network: records what would be sent; endpoints in `gone` answer 410 like a dropped browser. */
+const pushes: { endpoint: string; payload: PushPayload; options: PushOptions }[] = []
+const gone = new Set<string>()
+const recordPush: PushSender = async (target, payload, options) => {
+  if (gone.has(target.endpoint)) throw Object.assign(new Error('Gone'), { statusCode: 410 })
+  pushes.push({ endpoint: target.endpoint, payload: JSON.parse(payload) as PushPayload, options })
+}
 
 describe('Pashe Achi API (e2e)', () => {
   let app: NestExpressApplication
@@ -22,7 +44,7 @@ describe('Pashe Achi API (e2e)', () => {
   let baseUrl: string
 
   beforeAll(async () => {
-    const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile()
+    const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).overrideProvider(PUSH_SENDER).useValue(recordPush).compile()
     app = moduleRef.createNestApplication<NestExpressApplication>({ logger: false })
     configureApp(app, app.get<Env>(ENV))
     await app.listen(0)
@@ -54,12 +76,32 @@ describe('Pashe Achi API (e2e)', () => {
   }
 
   describe('auth', () => {
-    it('signs up, normalises the mobile and sets httpOnly cookies', async () => {
-      const response = await request(app.getHttpServer()).post(api('/auth/signup')).send({ name: 'রহিম', mobile: '+880 1712-000001', password: 'secret12' }).expect(201)
+    it('signs up, normalises the mobile and logs in with httpOnly cookies', async () => {
+      const agent = request.agent(app.getHttpServer())
+      const response = await agent.post(api('/auth/signup')).send({ name: 'রহিম', mobile: '+880 1712-000001', password: 'secret12' }).expect(201)
       expect(response.body.user).toMatchObject({ name: 'রহিম', mobile: '01712000001', points: 0 })
       const cookies = ([] as string[]).concat(response.headers['set-cookie'] ?? [])
       expect(cookies.some(cookie => cookie.startsWith('pa_at=') && /HttpOnly/i.test(cookie))).toBe(true)
       expect(cookies.some(cookie => cookie.startsWith('pa_rt=') && /SameSite=Lax/i.test(cookie))).toBe(true)
+      await agent.get(api('/auth/me')).expect(200).expect(res => expect(res.body.mobile).toBe('01712000001'))
+    })
+
+    it('keeps customers signed in for life, but ends admin sessions after REFRESH_TOKEN_TTL_DAYS', async () => {
+      const { body } = await signup('01712000006')
+      const refreshed = await request(app.getHttpServer()).post(api('/auth/refresh')).send({ refreshToken: body.tokens.refreshToken }).expect(200)
+      const cookies = ([] as string[]).concat(refreshed.headers['set-cookie'] ?? [])
+      expect(cookies.some(cookie => cookie.startsWith('pa_rt=') && cookie.includes(`Max-Age=${400 * 24 * 60 * 60}`))).toBe(true)
+      const customerRows = await prisma.refreshToken.findMany({ where: { userId: body.user.id } })
+      expect(customerRows).toHaveLength(2)
+      expect(customerRows.every(row => row.expiresAt === null)).toBe(true)
+
+      const login = await request(app.getHttpServer()).post(api('/admin/auth/login')).send(ADMIN).expect(200)
+      const tokenHash = createHash('sha256').update(login.body.tokens.refreshToken).digest('hex')
+      const adminRow = await prisma.refreshToken.findUniqueOrThrow({ where: { tokenHash } })
+      expect(adminRow.adminId).not.toBeNull()
+      expect(adminRow.expiresAt?.getTime()).toBeGreaterThan(Date.now())
+      await prisma.refreshToken.update({ where: { tokenHash }, data: { expiresAt: new Date(Date.now() - 1000) } })
+      await request(app.getHttpServer()).post(api('/admin/auth/refresh')).send({ refreshToken: login.body.tokens.refreshToken }).expect(401)
     })
 
     it('rejects a duplicate mobile, a wrong password and an empty form with message codes', async () => {
@@ -101,7 +143,9 @@ describe('Pashe Achi API (e2e)', () => {
         .post(api('/orders/bazar'))
         .send({ address: 'বাসা ১', contactMobile: '01712000010', schedule, total: 1, items: [{ name: 'চাল', quantity: '5 কেজি', price: 450 }, { name: 'আলু', quantity: '1 কেজি', price: 80 }] })
         .expect(201)
-      expect(bazar.body).toMatchObject({ code: 'PA-1001', total: 760, itemsTotal: 530, serviceFee: 150, deliveryFee: 80, status: 'PENDING' })
+      // Customers never price a bazar order: the prices sent are dropped and staff quote it later.
+      expect(bazar.body).toMatchObject({ code: 'PA-1001', total: 230, itemsTotal: 0, serviceFee: 150, deliveryFee: 80, status: 'PENDING', canConfirm: false })
+      expect(bazar.body.items.map((item: { price: number | null }) => item.price)).toEqual([null, null])
       const shifting = await agent
         .post(api('/orders/shifting'))
         .send({ loadingArea: 'মিরপুর', unloadingArea: 'উত্তরা', schedule, vehicleId: vehicle.id, labourers: 1, loadingFloor: 1, unloadingFloor: 1 })
@@ -116,7 +160,7 @@ describe('Pashe Achi API (e2e)', () => {
         .post(api('/orders/medicine'))
         .send({ address: 'বাসা ১', contactMobile: '01712000010', schedule, items: [{ name: 'Napa', quantity: '1 পাতা', company: 'Beximco', category: 'জ্বর', price: 100 }] })
         .expect(201)
-      expect(medicine.body.total).toBe(160)
+      expect(medicine.body).toMatchObject({ total: 60, itemsTotal: 0, deliveryFee: 60 })
     })
 
     it('rejects past dates, incomplete rows and disabled vehicles', async () => {
@@ -171,6 +215,232 @@ describe('Pashe Achi API (e2e)', () => {
       expect(cancelled.body).toMatchObject({ status: 'CANCELLED', canCancel: false })
       await agent.post(api(`/orders/${order.id}/cancel`)).expect(400)
     })
+
+    it('keeps the map pins the customer set, and none when they did not', async () => {
+      const { agent } = await signup('01712000016')
+      const pin = { lat: 23.807, lng: 90.3687 }
+      const bazar = await agent
+        .post(api('/orders/bazar'))
+        .send({ address: 'বাসা ১', addressPin: pin, contactMobile: '01712000016', schedule, items: [{ name: 'চাল', quantity: '5 কেজি' }] })
+        .expect(201)
+      expect(bazar.body.addressPin).toEqual(pin)
+      const parcel = await agent
+        .post(api('/orders/parcel'))
+        .send({ product: 'ব্যাগ', pickupAddress: 'A', dropoffAddress: 'B', pickupPin: pin, receiverMobile: '01711111111', schedule })
+        .expect(201)
+      expect(parcel.body.parcel).toMatchObject({ pickupPin: pin, dropoffPin: null })
+      expect(parcel.body.addressPin).toBeNull()
+      await agent
+        .post(api('/orders/bazar'))
+        .send({ address: 'বাসা ১', addressPin: { lat: 123, lng: 90 }, contactMobile: '01712000016', schedule, items: [{ name: 'চাল', quantity: '1' }] })
+        .expect(400)
+    })
+  })
+
+  describe('saved locations', () => {
+    const home = { label: 'বাসা', address: 'বাড়ি ১২, রোড ৩, মিরপুর ১০', lat: 23.807, lng: 90.3687 }
+    const office = { label: 'অফিস', address: 'গুলশান ১', lat: 23.7806, lng: 90.4193 }
+
+    it('saves several, keeps one default first, and writes history', async () => {
+      const { agent, body } = await signup('01712000050')
+      const first = await agent.post(api('/me/locations')).send(home).expect(201)
+      expect(first.body).toMatchObject({ ...home, isDefault: true })
+      const second = await agent.post(api('/me/locations')).send(office).expect(201)
+      expect(second.body.isDefault).toBe(false)
+
+      await agent.patch(api(`/me/locations/${second.body.id}`)).send({ isDefault: true }).expect(200)
+      const list = await agent.get(api('/me/locations')).expect(200)
+      expect(list.body.map((location: { label: string; isDefault: boolean }) => [location.label, location.isDefault])).toEqual([
+        ['অফিস', true],
+        ['বাসা', false],
+      ])
+
+      // Deleting the default makes the newest remaining location the default.
+      await agent.delete(api(`/me/locations/${second.body.id}`)).expect(204)
+      const after = await agent.get(api('/me/locations')).expect(200)
+      expect(after.body).toEqual([expect.objectContaining({ id: first.body.id, isDefault: true })])
+
+      const history = await prisma.auditLog.findMany({
+        where: { entityType: 'CUSTOMER', entityId: body.user.id, action: { in: ['CUSTOMER_LOCATION_ADDED', 'CUSTOMER_LOCATION_UPDATED', 'CUSTOMER_LOCATION_DELETED'] } },
+      })
+      expect(history.map(entry => entry.action).sort()).toEqual(['CUSTOMER_LOCATION_ADDED', 'CUSTOMER_LOCATION_ADDED', 'CUSTOMER_LOCATION_DELETED', 'CUSTOMER_LOCATION_UPDATED'])
+      const updated = history.find(entry => entry.action === 'CUSTOMER_LOCATION_UPDATED')
+      expect(updated).toMatchObject({ note: 'অফিস', changes: [{ field: 'isDefault', from: false, to: true }] })
+    })
+
+    it('needs a name and address, caps the list, and keeps each customer to their own', async () => {
+      const { agent, body } = await signup('01712000051')
+      const other = await signup('01712000052')
+      await agent
+        .post(api('/me/locations'))
+        .send({ ...home, label: ' ' })
+        .expect(400)
+        .expect(res => expect(res.body.code).toBe('location.details'))
+
+      for (let index = 1; index <= 10; index++) await agent.post(api('/me/locations')).send({ ...home, label: `জায়গা ${index}` }).expect(201)
+      await agent
+        .post(api('/me/locations'))
+        .send(home)
+        .expect(400)
+        .expect(res => expect(res.body.code).toBe('location.limit'))
+
+      const [mine] = (await agent.get(api('/me/locations')).expect(200)).body as { id: string }[]
+      await other.agent.patch(api(`/me/locations/${mine.id}`)).send({ label: 'x' }).expect(404)
+      await other.agent.delete(api(`/me/locations/${mine.id}`)).expect(404)
+      await other.agent.get(api('/me/locations')).expect(200).expect(res => expect(res.body).toEqual([]))
+      await request(app.getHttpServer()).get(api('/me/locations')).expect(401)
+
+      const admin = await adminAgent()
+      const seen = await admin.get(api(`/admin/customers/${body.user.id}/locations`)).expect(200)
+      expect(seen.body).toHaveLength(10)
+      await agent.get(api(`/admin/customers/${body.user.id}/locations`)).expect(401)
+    })
+
+    it('looks addresses up for signed-in customers only', async () => {
+      await request(app.getHttpServer()).get(api('/geo/reverse')).query({ lat: 23.8, lng: 90.4 }).expect(401)
+      const { agent } = await signup('01712000053')
+      // Bad coordinates fail validation before any lookup, so this needs no network.
+      await agent.get(api('/geo/reverse')).query({ lat: 123, lng: 90.4 }).expect(400)
+    })
+  })
+
+  describe('offers', () => {
+    const png = Buffer.from('89504e470d0a1a0a0000000d49484452000000010000000108060000', 'hex')
+    const pdf = Buffer.from('%PDF-1.4 not a picture', 'latin1')
+    const today = isoDateInBd()
+    const tomorrow = isoDateInBd(new Date(Date.now() + 24 * 60 * 60 * 1000))
+    const staff = async (mobile: string, role: 'MANAGER' | 'OPERATOR') => {
+      const admin = await adminAgent()
+      await admin.post(api('/admin/staff')).send({ name: role, mobile, password: 'staffpass1', role }).expect(201)
+      const agent = request.agent(app.getHttpServer())
+      await agent.post(api('/admin/auth/login')).send({ mobile, password: 'staffpass1' }).expect(200)
+      return agent
+    }
+
+    it('lets managers post an offer with a picture that everyone sees while it runs', async () => {
+      const operator = await staff('01912000050', 'OPERATOR')
+      const manager = await staff('01912000051', 'MANAGER')
+      const offer = { titleBn: 'সব সবজিতে ১০% ছাড়', bodyBn: 'আজ রাত ৯টা পর্যন্ত', service: 'bazar', startsOn: today, endsOn: today }
+      await operator.post(api('/admin/offers')).send(offer).expect(403)
+      await manager.post(api('/admin/offers')).send({ ...offer, endsOn: '2000-01-01' }).expect(400).expect(res => expect(res.body.code).toBe('offer.dates'))
+
+      const created = await manager.post(api('/admin/offers')).send(offer).expect(201)
+      expect(created.body).toMatchObject({ status: 'running', title: { bn: offer.titleBn, en: offer.titleBn }, body: { bn: 'আজ রাত ৯টা পর্যন্ত' }, service: 'bazar', imageUrl: null })
+      await manager.put(api(`/admin/offers/${created.body.id}/image`)).attach('file', pdf, { filename: 'offer.pdf', contentType: 'application/pdf' }).expect(400).expect(res => expect(res.body.code).toBe('offer.image'))
+      const withImage = await manager.put(api(`/admin/offers/${created.body.id}/image`)).attach('file', png, { filename: 'offer.png', contentType: 'image/png' }).expect(200)
+      expect(withImage.body.imageUrl).toMatch(new RegExp(`^/${API_PREFIX}/admin/offers/${created.body.id}/image\\?v=\\d+$`))
+
+      // Public: no sign-in needed (the landing page).
+      const later = await manager.post(api('/admin/offers')).send({ ...offer, titleBn: 'আগামীকালের অফার', startsOn: tomorrow, endsOn: tomorrow }).expect(201)
+      expect(later.body.status).toBe('upcoming')
+      const running = (await request(app.getHttpServer()).get(api('/offers')).expect(200)).body as { id: string; imageUrl: string }[]
+      expect(running.map(item => item.id)).toEqual([created.body.id])
+      const picture = await request(app.getHttpServer()).get(running[0]!.imageUrl).expect(200)
+      expect(picture.headers['content-type']).toBe('image/png')
+      expect(picture.headers['cache-control']).toContain('public')
+      await request(app.getHttpServer()).get(api(`/offers/${later.body.id}/image`)).expect(404)
+
+      // Switched off: gone for customers, still listed for staff.
+      await manager.patch(api(`/admin/offers/${created.body.id}`)).send({ isActive: false }).expect(200)
+      await request(app.getHttpServer()).get(api('/offers')).expect(200).expect(res => expect(res.body).toEqual([]))
+      const all = (await operator.get(api('/admin/offers')).expect(200)).body as { id: string; status: string }[]
+      expect(all.find(item => item.id === created.body.id)?.status).toBe('off')
+
+      await manager.delete(api(`/admin/offers/${later.body.id}`)).expect(204)
+      const history = (await manager.get(api(`/admin/audit?entityType=OFFER&entityId=${created.body.id}`)).expect(200)).body.items as { action: string; changes: { field: string; to: unknown }[] }[]
+      expect(history.map(entry => entry.action)).toEqual(['OFFER_UPDATED', 'OFFER_UPDATED', 'OFFER_CREATED'])
+      expect(history[0]!.changes).toEqual([{ field: 'isActive', from: true, to: false }])
+      expect(history[1]!.changes).toEqual([{ field: 'image', from: null, to: 'added' }])
+      await manager.delete(api(`/admin/offers/${created.body.id}`)).expect(204)
+    })
+
+    it('tells every customer about a running offer when staff ask', async () => {
+      const manager = await staff('01912000052', 'MANAGER')
+      const { agent } = await signup('01712000060')
+      const upcoming = await manager.post(api('/admin/offers')).send({ titleBn: 'পরের সপ্তাহের অফার', startsOn: tomorrow, endsOn: tomorrow }).expect(201)
+      const offer = await manager.post(api('/admin/offers')).send({ titleBn: 'ঔষুধে ফ্রি ডেলিভারি', titleEn: 'Free medicine delivery', startsOn: today, endsOn: tomorrow }).expect(201)
+      const announced = await manager.post(api(`/admin/offers/${offer.body.id}/notify`)).expect(200)
+      expect(announced.body.sent).toBeGreaterThan(0)
+
+      const inbox = (await agent.get(api('/notifications')).expect(200)).body.items as { type: string; title: { bn: string; en: string }; data: { offerId?: string } }[]
+      expect(inbox[0]).toMatchObject({ type: 'OFFER', title: { en: "Today's offer: Free medicine delivery" }, data: { offerId: offer.body.id } })
+      const [entry] = (await manager.get(api(`/admin/audit?action=OFFER_ANNOUNCED&entityId=${offer.body.id}`)).expect(200)).body.items
+      expect(entry).toMatchObject({ meta: { sent: announced.body.sent } })
+
+      await manager.delete(api(`/admin/offers/${offer.body.id}`)).expect(204)
+      await manager.delete(api(`/admin/offers/${upcoming.body.id}`)).expect(204)
+    })
+  })
+
+  describe('push notifications', () => {
+    const keys = { p256dh: 'BNcRdreALRFXTkOOUHK1EtK2wtaz5Ry4YfYCA_0QTpQtUbVlUls0VJXg7A8u-Ts1XbjhazAkj7I99e8QcYP7DkM', auth: 'tBHItJI5svbpez7KI4CCXg' }
+    const pushedTo = (endpoint: string) => pushes.filter(push => push.endpoint === endpoint)
+
+    it("sends a customer's price to their phone, in their language, opening their version of the site", async () => {
+      const { agent } = await signup('01712000070')
+      const admin = await adminAgent()
+      await agent.get(api('/notifications/push')).expect(200).expect(res => expect(res.body.publicKey).toBe(process.env.VAPID_PUBLIC_KEY))
+      await agent.put(api('/notifications/push')).send({ endpoint: 'https://10.0.0.1/push', keys }).expect(400).expect(res => expect(res.body.code).toBe('push.endpoint'))
+      await request(app.getHttpServer()).put(api('/notifications/push')).send({ endpoint: 'https://fcm.googleapis.com/fcm/send/x', keys }).expect(401)
+
+      const endpoint = 'https://fcm.googleapis.com/fcm/send/e2e-customer-70'
+      await agent.put(api('/notifications/push')).send({ endpoint, keys, lang: 'en', mode: 'app' }).expect(204)
+      const order = (await agent.post(api('/orders/bazar')).send({ address: 'x', contactMobile: '01712000070', schedule, items: [{ name: 'চাল', quantity: '1' }] }).expect(201)).body as OrderDetail
+      await admin.put(api(`/admin/orders/${order.id}/quote`)).send({ items: [{ id: order.items[0]!.id, name: 'চাল', quantity: '1', price: 70 }] }).expect(200)
+      const price = await waitFor(() => pushedTo(endpoint)[0])
+      expect(price).toMatchObject({
+        payload: { title: `Order ${order.code}: price ready`, url: `/app/orders/${order.id}`, tag: `order-${order.id}`, area: 'customer', lang: 'en' },
+        options: { urgency: 'high', TTL: 86_400 },
+      })
+      expect(price.payload.body).toContain('= Tk 300')
+
+      // The same browser again (a page load in Bangla on the web version) updates the one row.
+      await agent.put(api('/notifications/push')).send({ endpoint, keys, lang: 'bn', mode: 'web' }).expect(204)
+      expect(await prisma.pushSubscription.count({ where: { endpoint } })).toBe(1)
+      await admin.patch(api(`/admin/orders/${order.id}/status`)).send({ status: 'CANCELLED' }).expect(200)
+      const cancelled = await waitFor(() => pushedTo(endpoint)[1])
+      expect(cancelled.payload).toMatchObject({ title: `অর্ডার ${order.code}: বাতিল`, url: `/orders/${order.id}`, lang: 'bn' })
+
+      // Turned off (or logged out): nothing more reaches it.
+      await agent.delete(api('/notifications/push')).send({ endpoint }).expect(204)
+      expect(await prisma.pushSubscription.count({ where: { endpoint } })).toBe(0)
+    })
+
+    it('moves a shared browser to whoever signs in, and forgets one its push service dropped', async () => {
+      const first = await signup('01712000071')
+      const second = await signup('01712000072')
+      const admin = await adminAgent()
+      const endpoint = 'https://web.push.apple.com/e2e-shared-71'
+      await first.agent.put(api('/notifications/push')).send({ endpoint, keys }).expect(204)
+      await second.agent.put(api('/notifications/push')).send({ endpoint, keys }).expect(204)
+      // The same browser can also be a staff member's: that is a separate row.
+      await admin.put(api('/admin/notifications/push')).send({ endpoint, keys, lang: 'en' }).expect(204)
+      const rows = await prisma.pushSubscription.findMany({ where: { endpoint }, orderBy: { audience: 'asc' } })
+      expect(rows.map(row => [row.audience, row.userId, row.basePath])).toEqual([
+        ['CUSTOMER', second.body.user.id, ''],
+        ['ADMIN', null, '/admin'],
+      ])
+      // Only the signed-in owner's row goes.
+      await first.agent.delete(api('/notifications/push')).send({ endpoint }).expect(204)
+      expect(await prisma.pushSubscription.count({ where: { endpoint } })).toBe(2)
+      await admin.delete(api('/admin/notifications/push')).send({ endpoint }).expect(204)
+
+      gone.add(endpoint)
+      await admin.post(api('/admin/notifications/broadcast')).send({ titleBn: 'ঘোষণা', titleEn: 'Notice', bodyBn: 'আজ ছুটি', bodyEn: 'Closed today', userIds: [second.body.user.id] }).expect(201)
+      await waitFor(async () => (await prisma.pushSubscription.count({ where: { endpoint } })) === 0)
+    })
+
+    it('tells staff about new orders on their devices', async () => {
+      const admin = await adminAgent()
+      const endpoint = 'https://updates.push.services.mozilla.com/wpush/v2/e2e-admin'
+      await admin.get(api('/admin/notifications/push')).expect(200).expect(res => expect(res.body.publicKey).toBeTruthy())
+      await admin.put(api('/admin/notifications/push')).send({ endpoint, keys, lang: 'en' }).expect(204)
+      const { agent } = await signup('01712000073')
+      const order = (await agent.post(api('/orders/parcel')).send({ product: 'a', pickupAddress: 'A', dropoffAddress: 'B', receiverMobile: '01711111111', schedule }).expect(201)).body as OrderDetail
+      const push = await waitFor(() => pushedTo(endpoint).find(item => item.payload.url === `/admin/orders/${order.id}`))
+      expect(push.payload).toMatchObject({ title: `New order ${order.code}`, area: 'admin', tag: `order-${order.id}` })
+      await admin.delete(api('/admin/notifications/push')).send({ endpoint }).expect(204)
+    })
   })
 
   describe('admin', () => {
@@ -189,7 +459,7 @@ describe('Pashe Achi API (e2e)', () => {
     it('moves orders through allowed statuses only, records the timeline and notifies the customer', async () => {
       const { agent } = await signup('01712000021')
       const admin = await adminAgent()
-      const order = (await agent.post(api('/orders/bazar')).send({ address: 'x', contactMobile: '01712000021', schedule, items: [{ name: 'a', quantity: '1', price: 100 }] })).body as OrderDetail
+      const order = (await agent.post(api('/orders/parcel')).send({ product: 'a', pickupAddress: 'A', dropoffAddress: 'B', receiverMobile: '01711111111', schedule })).body as OrderDetail
       await admin.patch(api(`/admin/orders/${order.id}/status`)).send({ status: 'COMPLETED' }).expect(400)
       await admin.patch(api(`/admin/orders/${order.id}/status`)).send({ status: 'BOOKED', note: 'রাইডার আসছে' }).expect(200)
       const done = await admin.patch(api(`/admin/orders/${order.id}/status`)).send({ status: 'COMPLETED' }).expect(200)
@@ -201,14 +471,129 @@ describe('Pashe Achi API (e2e)', () => {
       await agent.get(api('/notifications/unread-count')).expect(200).expect(res => expect(res.body.count).toBe(2))
     })
 
-    it('recomputes the bill when an admin corrects line prices, keeping the fee snapshot', async () => {
+    it('prices a quote on top of the fees the order was placed with', async () => {
       const { agent } = await signup('01712000022')
       const admin = await adminAgent()
       const order = (await agent.post(api('/orders/bazar')).send({ address: 'x', contactMobile: '01712000022', schedule, items: [{ name: 'a', quantity: '1' }] })).body as OrderDetail
       await admin.put(api('/admin/catalog/pricing')).send({ ...DEFAULT_PRICING, bazarShoppingFee: 999 }).expect(200)
-      const updated = await admin.patch(api(`/admin/orders/${order.id}/items`)).send({ items: [{ id: order.items[0]!.id, price: 300 }] }).expect(200)
-      expect(updated.body).toMatchObject({ itemsTotal: 300, serviceFee: 150, total: 530 })
+      const quoted = await admin.put(api(`/admin/orders/${order.id}/quote`)).send({ items: [{ id: order.items[0]!.id, name: 'a', quantity: '1', price: 300 }] }).expect(200)
+      expect(quoted.body).toMatchObject({ itemsTotal: 300, serviceFee: 150, total: 530, status: 'QUOTED' })
       await admin.put(api('/admin/catalog/pricing')).send(DEFAULT_PRICING).expect(200)
+    })
+
+    it('has staff price a bazar order, the customer confirm it, and then locks the price', async () => {
+      const { agent } = await signup('01712000025')
+      const admin = await adminAgent()
+      const order = (
+        await agent
+          .post(api('/orders/bazar'))
+          .send({ address: 'x', contactMobile: '01712000025', schedule, items: [{ name: 'চাল', quantity: '5 কেজি' }, { name: 'আলু', quantity: '2 কেজি', variety: 'দেশি' }] })
+          .expect(201)
+      ).body as OrderDetail
+      const [rice, potatoes] = order.items
+
+      // Only a quote moves it on: staff can't book it, and the customer has nothing to confirm yet.
+      await admin.patch(api(`/admin/orders/${order.id}/status`)).send({ status: 'BOOKED' }).expect(400).expect(res => expect(res.body.code).toBe('order.bad_transition'))
+      await agent.post(api(`/orders/${order.id}/confirm`)).send({ total: 230, quoteVersion: 0 }).expect(400).expect(res => expect(res.body.code).toBe('order.bad_transition'))
+      await admin.put(api(`/admin/orders/${order.id}/quote`)).send({ items: [{ id: rice!.id, name: 'চাল', quantity: '5 কেজি' }] }).expect(400).expect(res => expect(res.body.code).toBe('quote.items'))
+
+      // Potatoes are out, fish is in.
+      const quoted = await admin
+        .put(api(`/admin/orders/${order.id}/quote`))
+        .send({ items: [{ id: rice!.id, name: 'চাল', quantity: '5 কেজি', price: 350 }, { name: 'রুই মাছ', quantity: '1 কেজি', price: 100 }], note: 'দেশি আলু পাওয়া যায়নি' })
+        .expect(200)
+      expect(quoted.body).toMatchObject({ status: 'QUOTED', itemsTotal: 450, total: 680, quoteVersion: 1 })
+      expect(quoted.body.items.map((item: { name: string; price: number }) => [item.name, item.price])).toEqual([
+        ['চাল', 350],
+        ['রুই মাছ', 100],
+      ])
+      expect(await prisma.orderItem.findUnique({ where: { id: potatoes!.id } })).toBeNull()
+      const seen = (await agent.get(api(`/orders/${order.id}`)).expect(200)).body as OrderDetail
+      expect(seen).toMatchObject({ canConfirm: true, canCancel: true })
+      expect(seen.events.at(-1)).toMatchObject({ to: 'QUOTED', note: 'দেশি আলু পাওয়া যায়নি' })
+
+      // A new price before the customer decides: confirming the old one is refused.
+      await admin
+        .put(api(`/admin/orders/${order.id}/quote`))
+        .send({ items: [{ id: rice!.id, name: 'চাল', quantity: '5 কেজি', price: 360 }, { id: quoted.body.items[1].id, name: 'রুই মাছ', quantity: '1 কেজি', price: 100 }], note: 'চালের দাম বেড়েছে' })
+        .expect(200)
+      await agent.post(api(`/orders/${order.id}/confirm`)).send({ total: 680, quoteVersion: 1 }).expect(409).expect(res => expect(res.body.code).toBe('order.quote_changed'))
+      const confirmed = await agent.post(api(`/orders/${order.id}/confirm`)).send({ total: 690, quoteVersion: 2 }).expect(200)
+      expect(confirmed.body).toMatchObject({ status: 'BOOKED', total: 690, canConfirm: false, canCancel: false })
+
+      // Locked: no more quotes, and the customer can't cancel a booked order.
+      await admin.put(api(`/admin/orders/${order.id}/quote`)).send({ items: [{ id: rice!.id, name: 'চাল', quantity: '5 কেজি', price: 1 }] }).expect(400).expect(res => expect(res.body.code).toBe('order.bill_locked'))
+      await agent.post(api(`/orders/${order.id}/cancel`)).expect(400)
+      await admin.patch(api(`/admin/orders/${order.id}/status`)).send({ status: 'IN_PROGRESS' }).expect(200)
+
+      await new Promise(resolve => setTimeout(resolve, 200))
+      const inbox = (await agent.get(api('/notifications')).expect(200)).body.items as { type: string; title: { en: string }; body: { bn: string }; data: { status?: string } }[]
+      expect(inbox.map(item => item.title.en)).toEqual([`Order ${order.code}: In progress`, `Order ${order.code}: new price`, `Order ${order.code}: price ready`])
+      // The new price says how the total moved, the whole bill, and keeps the staff note.
+      expect(inbox[1]!.body.bn).toBe('মোট বিল 680 থেকে 690 টাকা হয়েছে। বাজার 460 + মজুরী 150 + ডেলিভারী 80 = মোট 690 টাকা। চালের দাম বেড়েছে। দেখে কনফার্ম বা বাতিল করুন।')
+      expect(inbox[2]!.body.bn).toContain('দেশি আলু পাওয়া যায়নি')
+      const staffInbox = (await admin.get(api('/admin/notifications')).expect(200)).body.items as { title: { en: string } }[]
+      expect(staffInbox.map(item => item.title.en)).toContain(`Order ${order.code} confirmed`)
+    })
+
+    it('lets staff add a prescription order\'s lines, and the customer cancel the quote', async () => {
+      const { agent } = await signup('01712000026')
+      const admin = await adminAgent()
+      const png = Buffer.from('89504e470d0a1a0a0000000d49484452000000010000000108060000', 'hex')
+      const upload = await agent.post(api('/uploads/prescription')).attach('file', png, { filename: 'rx.png', contentType: 'image/png' }).expect(201)
+      const order = (await agent.post(api('/orders/medicine')).send({ address: 'x', contactMobile: '01712000026', schedule, prescriptionUploadId: upload.body.id, items: [] }).expect(201)).body as OrderDetail
+      expect(order).toMatchObject({ items: [], total: 60 })
+
+      await admin.put(api(`/admin/orders/${order.id}/quote`)).send({ items: [{ id: 'not-a-line', name: 'Napa', quantity: '1', price: 12 }] }).expect(400)
+      const quoted = await admin.put(api(`/admin/orders/${order.id}/quote`)).send({ items: [{ name: 'Napa', quantity: '1 পাতা', price: 12 }, { name: 'Seclo', quantity: '1 পাতা', price: 88 }] }).expect(200)
+      expect(quoted.body).toMatchObject({ status: 'QUOTED', itemsTotal: 100, total: 160 })
+
+      const cancelled = await agent.post(api(`/orders/${order.id}/cancel`)).expect(200)
+      expect(cancelled.body).toMatchObject({ status: 'CANCELLED', canConfirm: false })
+      await agent.post(api(`/orders/${order.id}/confirm`)).send({ total: 160, quoteVersion: 1 }).expect(400).expect(res => expect(res.body.code).toBe('order.bad_transition'))
+
+      // Shifting and parcel keep their Catalog prices: there is nothing to quote.
+      const parcel = (await agent.post(api('/orders/parcel')).send({ product: 'a', pickupAddress: 'A', dropoffAddress: 'B', receiverMobile: '01711111111', schedule }).expect(201)).body as OrderDetail
+      await admin.put(api(`/admin/orders/${parcel.id}/quote`)).send({ items: [{ name: 'x', quantity: '1', price: 1 }] }).expect(400)
+    })
+
+    it('lets staff change the charges in a quote, and the customer confirm only the quote they saw', async () => {
+      const { agent } = await signup('01712000027')
+      const admin = await adminAgent()
+      const order = (await agent.post(api('/orders/bazar')).send({ address: 'দূরের ঠিকানা', contactMobile: '01712000027', schedule, items: [{ name: 'চাল', quantity: '5 কেজি' }] }).expect(201)).body as OrderDetail
+      expect(order).toMatchObject({ serviceFee: 150, deliveryFee: 80, total: 230, quoteVersion: 0 })
+      const line = { id: order.items[0]!.id, name: 'চাল', quantity: '5 কেজি' }
+
+      // A far address: the delivery charge goes up in the quote.
+      const quoted = await admin.put(api(`/admin/orders/${order.id}/quote`)).send({ items: [{ ...line, price: 300 }], deliveryFee: 120, note: 'দূরত্ব বেশি' }).expect(200)
+      expect(quoted.body).toMatchObject({ itemsTotal: 300, serviceFee: 150, deliveryFee: 120, total: 570, quoteVersion: 1 })
+      const [bill] = await prisma.auditLog.findMany({ where: { entityId: order.id, action: 'ORDER_BILL_UPDATED' } })
+      expect(bill!.changes).toEqual(
+        expect.arrayContaining([
+          { field: 'deliveryFee', from: 80, to: 120 },
+          { field: 'total', from: 230, to: 570 },
+        ]),
+      )
+      const [priceReady] = await waitFor(async () => {
+        const items = (await agent.get(api('/notifications')).expect(200)).body.items as { body: { bn: string; en: string } }[]
+        return items.length ? items : null
+      })
+      expect(priceReady!.body.bn).toContain('ডেলিভারী খরচ 80 → 120 টাকা')
+      expect(priceReady!.body.en).toContain('Bazar Tk 300 + shopping fee Tk 150 + delivery Tk 120 = Tk 570')
+
+      // A new quote with the same total but a different bill: the customer must see it before confirming.
+      const requoted = await admin.put(api(`/admin/orders/${order.id}/quote`)).send({ items: [{ ...line, price: 340 }], deliveryFee: 80 }).expect(200)
+      expect(requoted.body).toMatchObject({ itemsTotal: 340, deliveryFee: 80, total: 570, quoteVersion: 2 })
+      await agent.post(api(`/orders/${order.id}/confirm`)).send({ total: 570, quoteVersion: 1 }).expect(409).expect(res => expect(res.body.code).toBe('order.quote_changed'))
+      await agent.post(api(`/orders/${order.id}/confirm`)).send({ total: 570, quoteVersion: 2 }).expect(200)
+
+      // Medicine has no shopping fee; its delivery can be waived.
+      const medicine = (await agent.post(api('/orders/medicine')).send({ address: 'x', contactMobile: '01712000027', schedule, items: [{ name: 'Napa', quantity: '1', company: 'Beximco', category: 'জ্বর' }] }).expect(201)).body as OrderDetail
+      const napa = { id: medicine.items[0]!.id, name: 'Napa', quantity: '1', price: 12 }
+      await admin.put(api(`/admin/orders/${medicine.id}/quote`)).send({ items: [napa], serviceFee: 50 }).expect(400).expect(res => expect(res.body.code).toBe('quote.fees'))
+      await admin.put(api(`/admin/orders/${medicine.id}/quote`)).send({ items: [napa], deliveryFee: -1 }).expect(400).expect(res => expect(res.body.code).toBe('quote.fees'))
+      const free = await admin.put(api(`/admin/orders/${medicine.id}/quote`)).send({ items: [napa], deliveryFee: 0 }).expect(200)
+      expect(free.body).toMatchObject({ serviceFee: 0, deliveryFee: 0, total: 12 })
     })
 
     it('pushes new orders to admins in real time', async () => {
@@ -307,21 +692,27 @@ describe('Pashe Achi API (e2e)', () => {
       const admin = await adminAgent()
       const order = (await agent.post(api('/orders/bazar')).send({ address: 'x', contactMobile: '01712000030', schedule, items: [{ name: 'চাল', quantity: '5 কেজি' }] }).expect(201))
         .body as OrderDetail
-      await admin.patch(api(`/admin/orders/${order.id}/status`)).send({ status: 'BOOKED', note: 'রাইডার আসছে' }).expect(200)
-      await admin.patch(api(`/admin/orders/${order.id}/items`)).send({ items: [{ id: order.items[0]!.id, price: 400 }], note: 'দোকানের রসিদ' }).expect(200)
+      await admin.put(api(`/admin/orders/${order.id}/quote`)).send({ items: [{ id: order.items[0]!.id, name: 'চাল', quantity: '5 কেজি', price: 400 }], note: 'দোকানের রসিদ' }).expect(200)
+      await agent.post(api(`/orders/${order.id}/confirm`)).send({ total: 630, quoteVersion: 1 }).expect(200)
 
       const operator = await staffAgent({ name: 'Rafi', mobile: '01912000031', password: 'operator1', role: 'OPERATOR' })
-      const history = (await operator.agent.get(api(`/admin/orders/${order.id}/history`)).expect(200)).body
-      expect(history.map((entry: { action: string }) => entry.action)).toEqual(['ORDER_CREATED', 'ORDER_STATUS_CHANGED', 'ORDER_BILL_UPDATED'])
-      expect(history[0]).toMatchObject({ actor: { type: 'CUSTOMER', name: 'হাসান' }, entity: { type: 'ORDER', id: order.id, label: order.code }, meta: { service: 'bazar', total: 230 } })
-      expect(history[1]).toMatchObject({ actor: { type: 'ADMIN', role: 'SUPER_ADMIN' }, changes: [{ field: 'status', from: 'PENDING', to: 'BOOKED' }], note: 'রাইডার আসছে' })
-      expect(history[2]).toMatchObject({
+      const history = (await operator.agent.get(api(`/admin/orders/${order.id}/history`)).expect(200)).body as { action: string; changes: { field: string }[] }[]
+      expect(history.map(entry => entry.action).sort()).toEqual(['ORDER_BILL_UPDATED', 'ORDER_CREATED', 'ORDER_STATUS_CHANGED', 'ORDER_STATUS_CHANGED'])
+      // No total yet when it was placed: staff price it.
+      expect(history[0]).toMatchObject({ action: 'ORDER_CREATED', actor: { type: 'CUSTOMER', name: 'হাসান' }, entity: { type: 'ORDER', id: order.id, label: order.code }, meta: { service: 'bazar' } })
+      expect(history.find(entry => entry.action === 'ORDER_BILL_UPDATED')).toMatchObject({
+        actor: { type: 'ADMIN', role: 'SUPER_ADMIN' },
         changes: [
           { field: 'item.price', label: 'চাল', from: null, to: 400 },
           { field: 'total', from: 230, to: 630 },
         ],
         note: 'দোকানের রসিদ',
       })
+      const statusChanges = history.filter(entry => entry.action === 'ORDER_STATUS_CHANGED')
+      expect(statusChanges).toEqual([
+        expect.objectContaining({ actor: expect.objectContaining({ type: 'ADMIN' }), changes: [{ field: 'status', from: 'PENDING', to: 'QUOTED' }], note: 'দোকানের রসিদ' }),
+        expect.objectContaining({ actor: expect.objectContaining({ type: 'CUSTOMER', name: 'হাসান' }), changes: [{ field: 'status', from: 'QUOTED', to: 'BOOKED' }] }),
+      ])
       await operator.agent.get(api('/admin/audit')).expect(403)
     })
 

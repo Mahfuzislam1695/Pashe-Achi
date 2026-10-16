@@ -5,6 +5,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Bell, CheckCheck } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 
+import { PushSetting } from '@/customer/components/push-prompt'
 import { FormError, LoadingNote, PageCard } from '@/customer/components/ui'
 import { api } from '@/customer/lib/api'
 import { usePaths } from '@/customer/lib/paths'
@@ -29,10 +30,12 @@ export function NotificationsScreen() {
       void refresh()
     }
     if (notification.data.orderId) router.push(paths.order(notification.data.orderId))
+    else if (notification.data.offerId) router.push(paths.offers)
   }
 
   return (
-    <PageCard icon={Bell} title={t('নোটিফিকেশন', 'Notifications')} subtitle={t('অর্ডারের খবর ও ঘোষণা।', 'Order updates and announcements.')}>
+    <PageCard icon={Bell} title={t('নোটিফিকেশন', 'Notifications')} subtitle={t('অর্ডারের খবর, অফার ও ঘোষণা।', 'Order updates, offers and announcements.')}>
+      <PushSetting />
       {(unread.data?.count ?? 0) > 0 && (
         <div className="card-actions">
           <button type="button" className="link-button" onClick={() => markAll.mutate()} disabled={markAll.isPending}>

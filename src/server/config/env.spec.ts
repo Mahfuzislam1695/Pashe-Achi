@@ -27,4 +27,14 @@ describe('loadEnv', () => {
   it('refuses the example secrets in production', () => {
     expect(() => loadEnv({ ...valid, NODE_ENV: 'production', JWT_ACCESS_SECRET: 'change-me-customer-access-secret-at-least-32-chars' })).toThrow(/example value/)
   })
+
+  it('takes both VAPID keys and a subject for push, or none of them', () => {
+    const vapid = { VAPID_PUBLIC_KEY: 'B'.repeat(87), VAPID_PRIVATE_KEY: 'k'.repeat(43), VAPID_SUBJECT: 'mailto:ops@kingfisher.com.bd' }
+    expect(loadEnv({ ...valid, VAPID_PUBLIC_KEY: '', VAPID_PRIVATE_KEY: '', VAPID_SUBJECT: '' }).VAPID_PUBLIC_KEY).toBe('')
+    expect(loadEnv({ ...valid, ...vapid }).VAPID_SUBJECT).toBe(vapid.VAPID_SUBJECT)
+    expect(() => loadEnv({ ...valid, VAPID_PUBLIC_KEY: vapid.VAPID_PUBLIC_KEY })).toThrow(/VAPID_PRIVATE_KEY: set both/)
+    expect(() => loadEnv({ ...valid, ...vapid, VAPID_SUBJECT: '' })).toThrow(/VAPID_SUBJECT: required/)
+    expect(() => loadEnv({ ...valid, ...vapid, VAPID_PUBLIC_KEY: 'short' })).toThrow(/VAPID_PUBLIC_KEY/)
+    expect(() => loadEnv({ ...valid, ...vapid, NODE_ENV: 'production', VAPID_SUBJECT: 'mailto:admin@example.com' })).toThrow(/VAPID_SUBJECT: still has the example value/)
+  })
 })

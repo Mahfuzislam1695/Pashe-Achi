@@ -1,8 +1,9 @@
 'use client'
 
-import { createParcelOrderSchema, FORM_ERROR_PRIORITY, type ScheduleInput, validateForm, withDeliveryHours } from '@/shared'
+import { createParcelOrderSchema, FORM_ERROR_PRIORITY, type GeoPoint, type ScheduleInput, validateForm, withDeliveryHours } from '@/shared'
 import { useState } from 'react'
 
+import { AddressField } from '@/customer/components/address-field'
 import { DeliveryHoursNotice, DeliverySchedule, EMPTY_SCHEDULE } from '@/customer/components/delivery-schedule'
 import { ConfirmButton, CustomerInfo, InlineField, ServiceCard } from '@/customer/components/ui'
 import { api } from '@/customer/lib/api'
@@ -11,8 +12,8 @@ import { useLang } from '@/customer/lib/i18n'
 import { errorCode, usePlaceOrder, useSession } from '@/customer/lib/queries'
 
 type ParcelFields = { product: string; weight: string; pickup: string; dropoff: string; receiverMobile: string }
-type ParcelDraft = ParcelFields & { schedule: ScheduleInput }
-const EMPTY: ParcelDraft = { product: '', weight: '', pickup: '', dropoff: '', receiverMobile: '', schedule: EMPTY_SCHEDULE }
+type ParcelDraft = ParcelFields & { pickupPin: GeoPoint | null; dropoffPin: GeoPoint | null; schedule: ScheduleInput }
+const EMPTY: ParcelDraft = { product: '', weight: '', pickup: '', dropoff: '', pickupPin: null, dropoffPin: null, receiverMobile: '', schedule: EMPTY_SCHEDULE }
 const PRIORITY = FORM_ERROR_PRIORITY.parcel
 
 export function ParcelScreen() {
@@ -35,6 +36,8 @@ export function ParcelScreen() {
       weight: draft.weight || undefined,
       pickupAddress: draft.pickup,
       dropoffAddress: draft.dropoff,
+      pickupPin: draft.pickupPin ?? undefined,
+      dropoffPin: draft.dropoffPin ?? undefined,
       receiverMobile: draft.receiverMobile,
       schedule: draft.schedule,
     },
@@ -63,12 +66,20 @@ export function ParcelScreen() {
         <InlineField label={t('পণ্যের ওজন', 'Product weight')}>
           <input {...bind('weight')} placeholder={t('যেমন: ২ কেজি', 'e.g. 2 kg')} />
         </InlineField>
-        <InlineField label={t('গ্রহণের ঠিকানা', 'Pickup address')}>
-          <input {...bind('pickup')} placeholder={t('কোথা থেকে নেওয়া হবে', 'Where to collect it')} />
-        </InlineField>
-        <InlineField label={t('পৌঁছানোর ঠিকানা', 'Delivery address')}>
-          <input {...bind('dropoff')} placeholder={t('কোথায় পৌঁছাতে হবে', 'Where to deliver it')} />
-        </InlineField>
+        <AddressField
+          inline
+          label={t('গ্রহণের ঠিকানা', 'Pickup address')}
+          value={{ text: draft.pickup, pin: draft.pickupPin }}
+          onChange={next => update({ pickup: next.text, pickupPin: next.pin })}
+          placeholder={t('কোথা থেকে নেওয়া হবে', 'Where to collect it')}
+        />
+        <AddressField
+          inline
+          label={t('পৌঁছানোর ঠিকানা', 'Delivery address')}
+          value={{ text: draft.dropoff, pin: draft.dropoffPin }}
+          onChange={next => update({ dropoff: next.text, dropoffPin: next.pin })}
+          placeholder={t('কোথায় পৌঁছাতে হবে', 'Where to deliver it')}
+        />
         <InlineField label={t('গ্রহীতার মোবা', "Receiver's mobile")}>
           <input type="tel" inputMode="tel" {...bind('receiverMobile')} placeholder="01XXXXXXXXX" />
         </InlineField>

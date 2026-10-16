@@ -43,7 +43,7 @@ export default function DashboardPage() {
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
             <StatTile icon={ClipboardList} label={t('আজকের অর্ডার', "Today's orders")} value={digits(data.today.orders)} />
             <StatTile icon={Wallet} tone="success" label={t('আজকের আয়', "Today's revenue")} value={taka(data.today.revenue)} hint={t('বাতিল ছাড়া', 'Excluding cancelled')} />
-            <StatTile icon={Clock} tone="warning" label={t('অপেক্ষমাণ', 'Pending')} value={digits(data.pending)} hint={t('বুক করা বাকি', 'Waiting to be booked')} />
+            <StatTile icon={Clock} tone="warning" label={t('অপেক্ষমাণ', 'Pending')} value={digits(data.pending)} hint={t('বুক করা বা দাম কনফার্ম বাকি', 'Not booked yet, or price not confirmed')} />
             <StatTile icon={Truck} tone="violet" label={t('চলমান', 'Active')} value={digits(data.active)} hint={t('বুক করা ও চলমান', 'Booked or in progress')} />
             <StatTile icon={Users} label={t('মোট গ্রাহক', 'Customers')} value={digits(data.customers)} />
           </div>

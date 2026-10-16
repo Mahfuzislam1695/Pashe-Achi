@@ -96,6 +96,8 @@ export function PageHeader({ title, subtitle, actions }: { title: string; subtit
 
 const STATUS_STYLES: Record<OrderStatus, string> = {
   PENDING: 'bg-warning-soft text-warning-ink ring-warning/20',
+  // Waiting for the customer to confirm the price: the pending colour, outlined.
+  QUOTED: 'bg-white text-warning-ink ring-warning/50',
   BOOKED: 'bg-brand-50 text-brand-800 ring-brand-200',
   IN_PROGRESS: 'bg-violet-soft text-violet-ink ring-violet/20',
   COMPLETED: 'bg-success-soft text-success-ink ring-success/20',

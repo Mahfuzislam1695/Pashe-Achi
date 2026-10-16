@@ -24,8 +24,11 @@ enum ServiceId {
   parcel
 }
 
+/// Bazar and medicine: PENDING (no prices) → QUOTED (staff priced every line) → BOOKED once the
+/// customer confirms. Shifting and parcel are priced from the Catalog and go PENDING → BOOKED.
 enum OrderStatus {
   PENDING
+  QUOTED
   BOOKED
   IN_PROGRESS
   COMPLETED
@@ -50,6 +53,7 @@ enum NotificationType {
   ORDER_STATUS
   ORDER_BILL
   ANNOUNCEMENT
+  OFFER
 }
 
 enum AuditAction {
@@ -75,6 +79,13 @@ enum AuditAction {
   ADMIN_PASSWORD_CHANGED
   ANNOUNCEMENT_SENT
   DELIVERY_HOURS_UPDATED
+  CUSTOMER_LOCATION_ADDED
+  CUSTOMER_LOCATION_UPDATED
+  CUSTOMER_LOCATION_DELETED
+  OFFER_CREATED
+  OFFER_UPDATED
+  OFFER_DELETED
+  OFFER_ANNOUNCED
 }
 
 enum AuditEntity {
@@ -86,43 +97,65 @@ enum AuditEntity {
   SUPPORT
   ANNOUNCEMENT
   DELIVERY_HOURS
+  OFFER
 }
 
 /// A customer of the web/mobile app.
 model User {
-  id            String         @id @default(cuid())
-  name          String
-  mobile        String         @unique
-  location      String         @default("")
-  passwordHash  String
-  points        Int            @default(0)
-  lang          Lang           @default(bn)
-  isBlocked     Boolean        @default(false)
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  orders        Order[]
-  uploads       Upload[]
-  notifications Notification[]
-  refreshTokens RefreshToken[]
-  auditLogs     AuditLog[]
+  id                String             @id @default(cuid())
+  name              String
+  mobile            String             @unique
+  location          String             @default("")
+  passwordHash      String
+  points            Int                @default(0)
+  lang              Lang               @default(bn)
+  isBlocked         Boolean            @default(false)
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  orders            Order[]
+  uploads           Upload[]
+  notifications     Notification[]
+  refreshTokens     RefreshToken[]
+  auditLogs         AuditLog[]
+  savedLocations    SavedLocation[]
+  pushSubscriptions PushSubscription[]
 
   @@index([createdAt])
 }
 
+/// A place a customer saved on the map (বাসা, অফিস, …). Orders copy the address and pin, so
+/// editing or deleting a saved location never changes an old order.
+model SavedLocation {
+  id        String   @id @default(cuid())
+  userId    String
+  label     String
+  address   String
+  lat       Float
+  lng       Float
+  /// One per customer: listed first and offered first in the order forms.
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
 /// Staff who use the admin panel. Kept apart from customers so the two sessions never mix.
 model Admin {
-  id            String             @id @default(cuid())
-  name          String
-  mobile        String             @unique
-  passwordHash  String
-  role          AdminRole          @default(OPERATOR)
-  isActive      Boolean            @default(true)
-  createdAt     DateTime           @default(now())
-  updatedAt     DateTime           @updatedAt
-  notifications Notification[]
-  refreshTokens RefreshToken[]
-  orderEvents   OrderStatusEvent[]
-  auditLogs     AuditLog[]
+  id                String             @id @default(cuid())
+  name              String
+  mobile            String             @unique
+  passwordHash      String
+  role              AdminRole          @default(OPERATOR)
+  isActive          Boolean            @default(true)
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  notifications     Notification[]
+  refreshTokens     RefreshToken[]
+  orderEvents       OrderStatusEvent[]
+  auditLogs         AuditLog[]
+  pushSubscriptions PushSubscription[]
 }
 
 /// One row per issued refresh token (hashed). Rotated on every refresh; a reused token revokes its family.
@@ -133,7 +166,8 @@ model RefreshToken {
   userId     String?
   adminId    String?
   userAgent  String?
-  expiresAt  DateTime
+  /// Null for customers: their sessions never expire. Admin tokens expire after REFRESH_TOKEN_TTL_DAYS.
+  expiresAt  DateTime?
   revokedAt  DateTime?
   replacedBy String?
   createdAt  DateTime  @default(now())
@@ -156,6 +190,9 @@ model Order {
   summary       String
   contactMobile String
   address       String?
+  /// The map pin for `address` (bazar, medicine), if the customer set one.
+  addressLat    Float?
+  addressLng    Float?
   note          String?
   scheduledDate DateTime           @db.Date
   /// HH:mm, Bangladesh time.
@@ -164,6 +201,8 @@ model Order {
   serviceFee    Int
   deliveryFee   Int
   total         Int
+  /// Bazar and medicine: how many quotes staff have sent. A confirm must name the latest one.
+  quoteVersion  Int                @default(0)
   createdAt     DateTime           @default(now())
   updatedAt     DateTime           @updatedAt
   user          User               @relation(fields: [userId], references: [id], onDelete: Restrict)
@@ -199,6 +238,10 @@ model ShiftingDetail {
   orderId               String   @id
   loadingArea           String
   unloadingArea         String
+  loadingLat            Float?
+  loadingLng            Float?
+  unloadingLat          Float?
+  unloadingLng          Float?
   vehicleId             String?
   vehicleNameBn         String
   vehicleNameEn         String
@@ -219,6 +262,10 @@ model ParcelDetail {
   weight         String?
   pickupAddress  String
   dropoffAddress String
+  pickupLat      Float?
+  pickupLng      Float?
+  dropoffLat     Float?
+  dropoffLng     Float?
   receiverMobile String
   order          Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
 }
@@ -322,6 +369,30 @@ model Setting {
   updatedAt DateTime @updatedAt
 }
 
+/// আজকের অফার: a promotion staff post with an optional picture. Customers (and the public landing
+/// page) see it from startsOn to endsOn, Bangladesh days, while isActive. English falls back to Bangla.
+model Offer {
+  id             String     @id @default(cuid())
+  titleBn        String
+  titleEn        String?
+  bodyBn         String?
+  bodyEn         String?
+  /// The service its "অর্ডার করুন" button opens, if any.
+  service        ServiceId?
+  startsOn       DateTime   @db.Date
+  endsOn         DateTime   @db.Date
+  isActive       Boolean    @default(true)
+  /// The picture, through StorageService (offers/…). imageUpdatedAt versions its public URL.
+  imageKey       String?
+  imageMime      String?
+  imageSize      Int?
+  imageUpdatedAt DateTime?
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  @@index([isActive, startsOn, endsOn])
+}
+
 /// An in-app notification for exactly one customer (userId) or one admin (adminId).
 model Notification {
   id        String           @id @default(cuid())
@@ -342,4 +413,33 @@ model Notification {
   @@index([adminId, createdAt])
   @@index([userId, readAt])
   @@index([adminId, readAt])
+}
+
+enum PushAudience {
+  CUSTOMER
+  ADMIN
+}
+
+/// A browser that gets phone or desktop push notifications (Web Push). One browser has at most one
+/// customer and one admin owner: signing in as someone else on a shared phone moves it to them.
+model PushSubscription {
+  id        String       @id @default(cuid())
+  endpoint  String
+  p256dh    String
+  auth      String
+  audience  PushAudience
+  userId    String?
+  adminId   String?
+  /// Where a tap opens: "" (customer web), "/app" (customer app) or "/admin".
+  basePath  String       @default("")
+  lang      Lang         @default(bn)
+  userAgent String?
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+  user      User?        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  admin     Admin?       @relation(fields: [adminId], references: [id], onDelete: Cascade)
+
+  @@unique([endpoint, audience])
+  @@index([userId])
+  @@index([adminId])
 }

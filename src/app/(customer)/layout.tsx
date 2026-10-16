@@ -11,8 +11,9 @@ export const metadata: Metadata = {
   title: `${APP_NAME.en} — ${APP_NAME.bn}`,
   description: 'কাঁচা বাজার, বাসা বদল, জরুরী ঔষুধ ও পণ্য আদান প্রদান — এক অ্যাপে।',
   applicationName: APP_NAME.en,
-  // Label under the icon when the site is added to an iPhone home screen.
-  appleWebApp: { title: APP_NAME.bn },
+  // Label under the icon when the site is added to an iPhone home screen. Added that way it opens
+  // full screen and can get push notifications (src/app/manifest.ts).
+  appleWebApp: { title: APP_NAME.bn, capable: true },
   icons: {
     icon: [
       { url: '/icon-32x32.png', sizes: '32x32', type: 'image/png' },

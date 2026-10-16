@@ -1,5 +1,6 @@
 import type { ActorType, AdminRole, AuditAction, AuditEntity, Lang, NotificationType, OrderStatus, ServiceId, Text } from './enums'
 import type { DeliveryHours } from './delivery-hours'
+import type { GeoPoint } from './geo'
 import type { Pricing } from './pricing'
 
 // Response bodies of the API. Dates are ISO 8601 strings; amounts are whole taka.
@@ -18,6 +19,20 @@ export interface CustomerDto {
   points: number
   lang: Lang
   createdAt: string
+}
+
+/** আমার লোকেশন: GET /me/locations (and GET /admin/customers/:id/locations). The default comes first. */
+export interface SavedLocationDto extends GeoPoint {
+  id: string
+  label: string
+  address: string
+  isDefault: boolean
+  createdAt: string
+}
+
+/** GET /geo/reverse: the address for a pin, or null when the lookup found nothing or failed. */
+export interface ReverseGeocodeDto {
+  address: string | null
 }
 
 export interface AdminCustomerDto extends CustomerDto {
@@ -108,6 +123,8 @@ export interface OrderItemDto {
 export interface ShiftingDetailDto {
   loadingArea: string
   unloadingArea: string
+  loadingPin: GeoPoint | null
+  unloadingPin: GeoPoint | null
   vehicleId: string | null
   vehicleName: Text
   vehicleRate: number
@@ -124,6 +141,8 @@ export interface ParcelDetailDto {
   weight: string | null
   pickupAddress: string
   dropoffAddress: string
+  pickupPin: GeoPoint | null
+  dropoffPin: GeoPoint | null
   receiverMobile: string
 }
 
@@ -150,6 +169,8 @@ export interface OrderEventDto {
 export interface OrderDetail extends OrderSummary {
   contactMobile: string
   address: string | null
+  /** The map pin for `address`, if the customer set one. */
+  addressPin: GeoPoint | null
   note: string | null
   itemsTotal: number
   serviceFee: number
@@ -160,12 +181,47 @@ export interface OrderDetail extends OrderSummary {
   prescription: UploadDto | null
   events: OrderEventDto[]
   canCancel: boolean
+  /** Staff sent the prices (QUOTED): the customer can confirm them (or cancel). */
+  canConfirm: boolean
+  /** How many quotes staff have sent (0 before the first). A confirm names the one the customer saw. */
+  quoteVersion: number
 }
 
 export interface NotificationData {
   orderId?: string
   orderCode?: string
   status?: OrderStatus
+  /** OFFER notifications: open আজকের অফার. */
+  offerId?: string
+}
+
+/** আজকের অফার as customers (and the public landing page) see it: GET /offers. */
+export interface OfferDto {
+  id: string
+  /** English falls back to the Bangla when staff left it blank. */
+  title: Text
+  body: Text | null
+  service: ServiceId | null
+  /** Same-origin path to the picture (versioned, so a new picture is never served from cache). */
+  imageUrl: string | null
+  /** YYYY-MM-DD, Bangladesh days, inclusive. */
+  startsOn: string
+  endsOn: string
+}
+
+/** running: customers see it now; upcoming: starts later; ended: past its last day; off: switched off by staff. */
+export type OfferStatus = 'running' | 'upcoming' | 'ended' | 'off'
+
+/** An offer in the admin panel: GET /admin/offers. */
+export interface AdminOfferDto extends OfferDto {
+  titleBn: string
+  titleEn: string | null
+  bodyBn: string | null
+  bodyEn: string | null
+  isActive: boolean
+  status: OfferStatus
+  createdAt: string
+  updatedAt: string
 }
 
 export interface NotificationDto {
@@ -180,6 +236,11 @@ export interface NotificationDto {
 
 export interface UnreadCountDto {
   count: number
+}
+
+/** GET …/notifications/push: the key browsers subscribe with, or null when push is not set up on the server. */
+export interface PushKeyDto {
+  publicKey: string | null
 }
 
 export interface DashboardDto {

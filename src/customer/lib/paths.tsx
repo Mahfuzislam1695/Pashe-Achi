@@ -23,6 +23,8 @@ const makePaths = (base: string) => ({
   orders: `${base}/orders`,
   order: (id: string) => `${base}/orders/${encodeURIComponent(id)}`,
   notifications: `${base}/notifications`,
+  /** আজকের অফার */
+  offers: `${base}/offers`,
   profile: `${base}/profile`,
 })
 

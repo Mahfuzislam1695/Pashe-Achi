@@ -1,13 +1,14 @@
 'use client'
 
-import { calcMedicine, createMedicineOrderSchema, FORM_ERROR_PRIORITY, type MessageCode, type ScheduleInput, toAmount, validateForm, withDeliveryHours } from '@/shared'
+import { calcMedicine, createMedicineOrderSchema, FORM_ERROR_PRIORITY, type GeoPoint, type MessageCode, type ScheduleInput, validateForm, withDeliveryHours } from '@/shared'
 import { useMutation } from '@tanstack/react-query'
 import { Upload } from 'lucide-react'
 import { useState } from 'react'
 
+import { AddressField } from '@/customer/components/address-field'
 import { DeliveryHoursNotice, DeliverySchedule, EMPTY_SCHEDULE } from '@/customer/components/delivery-schedule'
 import { type Column, isRowStarted, LineTable, type Row } from '@/customer/components/line-table'
-import { BillSummary, ConfirmButton, CustomerInfo, Field, FormError, ServiceCard } from '@/customer/components/ui'
+import { BillSummary, ConfirmButton, CustomerInfo, Field, FormError, QuoteNotice, ServiceCard } from '@/customer/components/ui'
 import { api } from '@/customer/lib/api'
 import { useDraft } from '@/customer/lib/drafts'
 import { useLang } from '@/customer/lib/i18n'
@@ -15,6 +16,7 @@ import { errorCode, usePlaceOrder, useSession } from '@/customer/lib/queries'
 
 type MedicineDraft = {
   address: string
+  pin: GeoPoint | null
   mobile: string
   schedule: ScheduleInput
   prescription: { id: string; name: string } | null
@@ -24,9 +26,9 @@ const PRIORITY = FORM_ERROR_PRIORITY.medicine
 const MAX_UPLOAD_BYTES = 5 * 1024 * 1024
 
 export function MedicineScreen() {
-  const { t } = useLang()
+  const { t, taka } = useLang()
   const { user, catalog } = useSession()
-  const [draft, setDraft] = useDraft<MedicineDraft>('medicine', () => ({ address: '', mobile: user.mobile, schedule: EMPTY_SCHEDULE, prescription: null, rows: [{}] }))
+  const [draft, setDraft] = useDraft<MedicineDraft>('medicine', () => ({ address: '', pin: null, mobile: user.mobile, schedule: EMPTY_SCHEDULE, prescription: null, rows: [{}] }))
   const [showError, setShowError] = useState(false)
   const [uploadError, setUploadError] = useState<MessageCode | null>(null)
   const [fileInputKey, setFileInputKey] = useState(0)
@@ -55,13 +57,14 @@ export function MedicineScreen() {
     { key: 'quantity', label: t('পরিমাণ', 'Quantity'), placeholder: t('1 পাতা', '1 strip') },
     { key: 'company', label: t('কোম্পানীর নাম', 'Company'), placeholder: 'Beximco' },
     { key: 'category', label: t('ক্যাটাগরি', 'Category'), placeholder: t('জ্বর', 'Fever') },
-    { key: 'price', label: t('মূল্য', 'Price'), placeholder: '৳', numeric: true },
   ]
-  const bill = calcMedicine(catalog.pricing, draft.rows.map(row => row.price))
+  // The customer sends the list (or a prescription) only; staff send the prices (see QuoteNotice).
+  const bill = calcMedicine(catalog.pricing, [])
   const check = validateForm(
     withDeliveryHours(createMedicineOrderSchema, catalog.deliveryHours.medicine),
     {
       address: draft.address,
+      addressPin: draft.pin ?? undefined,
       contactMobile: draft.mobile,
       schedule: draft.schedule,
       prescriptionUploadId: draft.prescription?.id,
@@ -70,7 +73,6 @@ export function MedicineScreen() {
         quantity: row.quantity ?? '',
         company: row.company ?? '',
         category: row.category ?? '',
-        price: row.price?.trim() ? toAmount(row.price) : undefined,
       })),
     },
     PRIORITY,
@@ -82,7 +84,7 @@ export function MedicineScreen() {
     if (!check.success) return setShowError(true)
     placeOrder.mutate(check.data, {
       onSuccess: () => {
-        setDraft(current => ({ ...current, address: '', schedule: EMPTY_SCHEDULE, prescription: null, rows: [{}] }))
+        setDraft(current => ({ ...current, address: '', pin: null, schedule: EMPTY_SCHEDULE, prescription: null, rows: [{}] }))
         setFileInputKey(key => key + 1)
         setShowError(false)
       },
@@ -96,22 +98,26 @@ export function MedicineScreen() {
         <>
           <BillSummary
             lines={[
-              [t('ঔষুধ মূল্য', 'Medicine cost'), bill.itemsTotal],
+              [t('ঔষুধ মূল্য', 'Medicine cost'), t('পরে জানানো হবে', 'We will send it')],
               [t('ডেলিভারী চার্জ', 'Delivery charge'), bill.deliveryFee],
             ]}
             totalLabel="Total"
-            total={bill.total}
+            total={t(`${taka(bill.total)} + ঔষুধের দাম`, `${taka(bill.total)} + medicine`)}
           />
-          <ConfirmButton error={error} pending={placeOrder.isPending || upload.isPending} onConfirm={confirm} />
+          <QuoteNotice service="medicine" />
+          <ConfirmButton error={error} pending={placeOrder.isPending || upload.isPending} onConfirm={confirm} label={t('অর্ডার পাঠান', 'Send order')} />
         </>
       }
     >
       <CustomerInfo user={user} />
       <DeliveryHoursNotice service="medicine" windows={catalog.deliveryHours.medicine} />
       <div className="field-pair">
-        <Field label={t('গ্রহীতার ঠিকানা', "Receiver's address")}>
-          <input value={draft.address} onChange={e => update({ address: e.target.value })} placeholder={t('বাসা, রোড, এলাকা', 'House, road, area')} />
-        </Field>
+        <AddressField
+          label={t('গ্রহীতার ঠিকানা', "Receiver's address")}
+          value={{ text: draft.address, pin: draft.pin }}
+          onChange={next => update({ address: next.text, pin: next.pin })}
+          placeholder={t('বাসা, রোড, এলাকা', 'House, road, area')}
+        />
         <Field label={t('গ্রহীতার মোবা', "Receiver's mobile")}>
           <input type="tel" inputMode="tel" value={draft.mobile} onChange={e => update({ mobile: e.target.value })} placeholder="01XXXXXXXXX" />
         </Field>
@@ -132,7 +138,7 @@ export function MedicineScreen() {
           </div>
         )}
       </div>
-      <LineTable template="1.2fr .8fr 1fr .9fr .8fr" columns={columns} rows={draft.rows} onChange={rows => update({ rows })} addLabel={t('আরো এড করুন', 'Add more')} />
+      <LineTable template="1.2fr .8fr 1fr .9fr" columns={columns} rows={draft.rows} onChange={rows => update({ rows })} addLabel={t('আরো এড করুন', 'Add more')} />
     </ServiceCard>
   )
 }

@@ -19,7 +19,8 @@ export class DashboardService {
 
     const [today, pending, active, customers, byService, daily, recent] = await Promise.all([
       this.prisma.order.aggregate({ where: { createdAt: { gte: todayStart }, ...notCancelled }, _count: { _all: true }, _sum: { total: true } }),
-      this.prisma.order.count({ where: { status: 'PENDING' } }),
+      // Not booked yet: waiting for staff (to book or price it) or for the customer to confirm a price.
+      this.prisma.order.count({ where: { status: { in: ['PENDING', 'QUOTED'] } } }),
       this.prisma.order.count({ where: { status: { in: ['BOOKED', 'IN_PROGRESS'] } } }),
       this.prisma.user.count(),
       this.prisma.order.groupBy({ by: ['service'], where: { createdAt: { gte: periodStart }, ...notCancelled }, _count: { _all: true }, _sum: { total: true } }),

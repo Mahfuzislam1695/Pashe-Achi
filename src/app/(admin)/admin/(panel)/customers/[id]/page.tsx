@@ -1,8 +1,8 @@
 'use client'
 
-import type { AdminCustomerDto } from '@/shared'
+import { type AdminCustomerDto, mapLink } from '@/shared'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, Ban, CheckCircle2, Save } from 'lucide-react'
+import { ArrowLeft, Ban, CheckCircle2, MapPin, Save } from 'lucide-react'
 import Link from 'next/link'
 import { use, useState } from 'react'
 import { toast } from 'sonner'
@@ -12,7 +12,7 @@ import { OrderTable } from '@/admin/components/order-table'
 import { Badge, Button, Card, Empty, ErrorNote, Field, Input, Loading } from '@/admin/components/ui'
 import { api } from '@/admin/lib/api'
 import { useLang } from '@/admin/lib/i18n'
-import { queryKeys, useAuditList, useCurrentAdmin, useCustomer, useOrderList } from '@/admin/lib/queries'
+import { queryKeys, useAuditList, useCurrentAdmin, useCustomer, useCustomerLocations, useOrderList } from '@/admin/lib/queries'
 import { canManage, errorCode } from '@/admin/lib/utils'
 
 export default function CustomerPage({ params }: { params: Promise<{ id: string }> }) {
@@ -93,27 +93,30 @@ function CustomerView({ customer }: { customer: AdminCustomerDto }) {
       <ErrorNote code={update.isError ? errorCode(update.error) : null} />
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-[1fr_2fr]">
-        <Card title={t('পয়েন্ট', 'Reward points')}>
-          {canManage(admin.role) ? (
-            <form
-              className="flex items-end gap-2"
-              onSubmit={event => {
-                event.preventDefault()
-                update.mutate({ points: Math.max(0, Math.round(Number(points) || 0)) })
-              }}
-            >
-              <Field label={t('মোট পয়েন্ট', 'Total points')} className="flex-1">
-                <Input type="number" min={0} step={1} inputMode="numeric" value={points} onChange={e => setPoints(e.target.value)} />
-              </Field>
-              <Button type="submit" variant="secondary" disabled={points === String(customer.points)}>
-                <Save className="size-4" />
-                {t('সেভ', 'Save')}
-              </Button>
-            </form>
-          ) : (
-            <p className="text-2xl font-semibold tabular-nums">{digits(customer.points)}</p>
-          )}
-        </Card>
+        <div className="grid min-w-0 content-start gap-5">
+          <Card title={t('পয়েন্ট', 'Reward points')}>
+            {canManage(admin.role) ? (
+              <form
+                className="flex items-end gap-2"
+                onSubmit={event => {
+                  event.preventDefault()
+                  update.mutate({ points: Math.max(0, Math.round(Number(points) || 0)) })
+                }}
+              >
+                <Field label={t('মোট পয়েন্ট', 'Total points')} className="flex-1">
+                  <Input type="number" min={0} step={1} inputMode="numeric" value={points} onChange={e => setPoints(e.target.value)} />
+                </Field>
+                <Button type="submit" variant="secondary" disabled={points === String(customer.points)}>
+                  <Save className="size-4" />
+                  {t('সেভ', 'Save')}
+                </Button>
+              </form>
+            ) : (
+              <p className="text-2xl font-semibold tabular-nums">{digits(customer.points)}</p>
+            )}
+          </Card>
+          <SavedLocations customerId={customer.id} />
+        </div>
         <Card title={t(`অর্ডার (${digits(customer.orderCount)})`, `Orders (${customer.orderCount})`)}>
           {orders.isPending && <Loading />}
           {orders.isSuccess && !items.length && <Empty>{t('এখনো কোনো অর্ডার নেই।', 'No orders yet.')}</Empty>}
@@ -130,6 +133,37 @@ function CustomerView({ customer }: { customer: AdminCustomerDto }) {
 
       {canManage(admin.role) && <CustomerHistory customerId={customer.id} />}
     </div>
+  )
+}
+
+/** The places the customer saved on the map (আমার লোকেশন), each with a link to open it. */
+function SavedLocations({ customerId }: { customerId: string }) {
+  const { t } = useLang()
+  const locations = useCustomerLocations(customerId)
+  const items = locations.data ?? []
+  return (
+    <Card title={t('সেভ করা লোকেশন', 'Saved locations')}>
+      {locations.isPending && <Loading />}
+      <ErrorNote code={locations.isError ? errorCode(locations.error) : null} />
+      {locations.isSuccess && !items.length && <Empty>{t('কোনো লোকেশন সেভ করা নেই।', 'No saved locations.')}</Empty>}
+      {items.length > 0 && (
+        <ul className="grid gap-3">
+          {items.map(location => (
+            <li key={location.id} className="grid gap-1 text-sm">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="font-semibold">{location.label}</span>
+                {location.isDefault && <Badge tone="brand">{t('ডিফল্ট', 'Default')}</Badge>}
+              </div>
+              <p className="text-muted">{location.address}</p>
+              <a href={mapLink(location)} target="_blank" rel="noopener noreferrer" className="inline-flex w-fit items-center gap-1 text-xs font-semibold text-brand-700 hover:underline">
+                <MapPin className="size-3.5" />
+                {t('ম্যাপে দেখুন', 'Open in map')}
+              </a>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Card>
   )
 }
 

@@ -13,8 +13,10 @@ import { AllExceptionsFilter } from './common/all-exceptions.filter'
 import { ConfigModule } from './config/config.module'
 import { ENV, type Env } from './config/env'
 import { DashboardModule } from './dashboard/dashboard.module'
+import { GeoModule } from './geo/geo.module'
 import { HealthModule } from './health/health.module'
 import { NotificationsModule } from './notifications/notifications.module'
+import { OffersModule } from './offers/offers.module'
 import { OrdersModule } from './orders/orders.module'
 import { PrismaModule } from './prisma/prisma.module'
 import { UploadsModule } from './uploads/uploads.module'
@@ -48,7 +50,9 @@ import { UsersModule } from './users/users.module'
     UploadsModule,
     OrdersModule,
     NotificationsModule,
+    OffersModule,
     DashboardModule,
+    GeoModule,
     HealthModule,
   ],
   providers: [

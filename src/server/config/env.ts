@@ -17,14 +17,27 @@ export const envSchema = z
     LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
     THROTTLE_LIMIT: z.coerce.number().int().min(1).default(120),
     AUTH_THROTTLE_LIMIT: z.coerce.number().int().min(1).default(10),
+    // Web Push (phone and desktop notifications). All empty: push is off.
+    VAPID_PUBLIC_KEY: z.string().trim().regex(/^[A-Za-z0-9_-]{87}$/, 'must be the public key from `npx web-push generate-vapid-keys`').optional().or(z.literal('')),
+    VAPID_PRIVATE_KEY: z.string().trim().regex(/^[A-Za-z0-9_-]{43}$/, 'must be the private key from `npx web-push generate-vapid-keys`').optional().or(z.literal('')),
+    VAPID_SUBJECT: z.string().trim().regex(/^(mailto:\S+@\S+|https:\/\/\S+)$/, 'must be mailto:you@yourdomain or an https:// URL').optional().or(z.literal('')),
   })
   .superRefine((env, ctx) => {
     if (env.JWT_ACCESS_SECRET === env.ADMIN_JWT_ACCESS_SECRET) {
       ctx.addIssue({ code: 'custom', path: ['ADMIN_JWT_ACCESS_SECRET'], message: 'must differ from JWT_ACCESS_SECRET' })
     }
+    if (!!env.VAPID_PUBLIC_KEY !== !!env.VAPID_PRIVATE_KEY) {
+      ctx.addIssue({ code: 'custom', path: [env.VAPID_PUBLIC_KEY ? 'VAPID_PRIVATE_KEY' : 'VAPID_PUBLIC_KEY'], message: 'set both VAPID keys, or neither' })
+    }
+    if (env.VAPID_PUBLIC_KEY && !env.VAPID_SUBJECT) {
+      ctx.addIssue({ code: 'custom', path: ['VAPID_SUBJECT'], message: 'required with the VAPID keys (mailto:you@yourdomain)' })
+    }
     if (env.NODE_ENV === 'production') {
       for (const key of ['JWT_ACCESS_SECRET', 'ADMIN_JWT_ACCESS_SECRET'] as const) {
         if (env[key].startsWith('change-me')) ctx.addIssue({ code: 'custom', path: [key], message: 'still has the example value' })
+      }
+      if (env.VAPID_PUBLIC_KEY && env.VAPID_SUBJECT?.includes('example.com')) {
+        ctx.addIssue({ code: 'custom', path: ['VAPID_SUBJECT'], message: 'still has the example value' })
       }
     }
   })

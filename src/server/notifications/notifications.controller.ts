@@ -1,13 +1,15 @@
-import { Body, Controller, Get, HttpCode, Param, Patch, Post, Query, UseGuards } from '@nestjs/common'
+import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Put, Query, Req, UseGuards } from '@nestjs/common'
 import { ApiBearerAuth, ApiCookieAuth, ApiOperation, ApiTags } from '@nestjs/swagger'
-import type { NotificationDto, Paginated, UnreadCountDto } from '@/shared'
+import type { NotificationDto, Paginated, PushKeyDto, UnreadCountDto } from '@/shared'
+import type { Request } from 'express'
 
-import { Actor, type AuditActor } from '../audit/actor'
+import { Actor, type AuditActor, clientInfo } from '../audit/actor'
 import { AuditService } from '../audit/audit.service'
 import type { AdminPrincipal, CustomerPrincipal } from '../auth/auth.types'
 import { AdminGuard, CurrentAdmin, CurrentCustomer, CustomerGuard, Roles } from '../auth/guards'
-import { BroadcastDto, IdParamDto, ListNotificationsQueryDto } from '../common/dto'
+import { BroadcastDto, IdParamDto, ListNotificationsQueryDto, PushRemoveDto, PushSubscriptionDto } from '../common/dto'
 import { NotificationsService } from './notifications.service'
+import { PushService } from './push.service'
 
 @ApiTags('Notifications')
 @ApiBearerAuth()
@@ -15,7 +17,10 @@ import { NotificationsService } from './notifications.service'
 @UseGuards(CustomerGuard)
 @Controller('notifications')
 export class NotificationsController {
-  constructor(private readonly notifications: NotificationsService) {}
+  constructor(
+    private readonly notifications: NotificationsService,
+    private readonly push: PushService,
+  ) {}
 
   @Get()
   list(@CurrentCustomer() customer: CustomerPrincipal, @Query() query: ListNotificationsQueryDto): Promise<Paginated<NotificationDto>> {
@@ -37,6 +42,26 @@ export class NotificationsController {
   markAllRead(@CurrentCustomer() customer: CustomerPrincipal): Promise<UnreadCountDto> {
     return this.notifications.markAllRead({ userId: customer.id })
   }
+
+  @Get('push')
+  @ApiOperation({ summary: 'The key a browser subscribes to phone/desktop notifications with (null: push is not set up)' })
+  pushKey(): PushKeyDto {
+    return this.push.publicKey()
+  }
+
+  @Put('push')
+  @HttpCode(204)
+  @ApiOperation({ summary: "Send this browser the customer's notifications (Web Push)" })
+  async subscribePush(@CurrentCustomer() customer: CustomerPrincipal, @Body() body: PushSubscriptionDto, @Req() request: Request): Promise<void> {
+    await this.push.subscribe({ userId: customer.id }, body, clientInfo(request).userAgent)
+  }
+
+  @Delete('push')
+  @HttpCode(204)
+  @ApiOperation({ summary: 'Stop sending this browser notifications (also called before logging out)' })
+  async unsubscribePush(@CurrentCustomer() customer: CustomerPrincipal, @Body() body: PushRemoveDto): Promise<void> {
+    await this.push.unsubscribe({ userId: customer.id }, body.endpoint)
+  }
 }
 
 @ApiTags('Admin: notifications')
@@ -46,6 +71,7 @@ export class NotificationsController {
 export class AdminNotificationsController {
   constructor(
     private readonly notifications: NotificationsService,
+    private readonly push: PushService,
     private readonly audit: AuditService,
   ) {}
 
@@ -68,6 +94,24 @@ export class AdminNotificationsController {
   @HttpCode(200)
   markAllRead(@CurrentAdmin() admin: AdminPrincipal): Promise<UnreadCountDto> {
     return this.notifications.markAllRead({ adminId: admin.id })
+  }
+
+  @Get('push')
+  pushKey(): PushKeyDto {
+    return this.push.publicKey()
+  }
+
+  @Put('push')
+  @HttpCode(204)
+  @ApiOperation({ summary: "Send this browser the staff member's notifications (Web Push)" })
+  async subscribePush(@CurrentAdmin() admin: AdminPrincipal, @Body() body: PushSubscriptionDto, @Req() request: Request): Promise<void> {
+    await this.push.subscribe({ adminId: admin.id }, body, clientInfo(request).userAgent)
+  }
+
+  @Delete('push')
+  @HttpCode(204)
+  async unsubscribePush(@CurrentAdmin() admin: AdminPrincipal, @Body() body: PushRemoveDto): Promise<void> {
+    await this.push.unsubscribe({ adminId: admin.id }, body.endpoint)
   }
 
   @Post('broadcast')

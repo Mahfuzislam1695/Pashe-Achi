@@ -3,19 +3,21 @@ import { z } from 'zod'
 import { ORDER_STATUSES, SERVICE_IDS } from '../enums'
 import type { MessageCode } from '../messages'
 import { amount, count, cursorQuery, mobile, optionalText, requiredText, scheduleSchema } from './common'
+import { geoPointSchema } from './locations'
 
-// The customer sends what they typed; the API computes every fee and total itself.
+// The customer sends what they typed; the API computes every fee and total itself. Customers never
+// send a price: staff price bazar and medicine lines in a quote, and the rest comes from the Catalog.
 
-/** কাঁচা বাজার: item and quantity are required, variety and price (দর) are optional. */
+/** কাঁচা বাজার: item and quantity are required, variety is optional. */
 export const bazarItemSchema = z.object({
   name: requiredText('bazar.rows', 120),
   quantity: requiredText('bazar.rows', 40),
   variety: optionalText(80),
-  price: amount('bazar.rows').optional(),
 })
 
 export const createBazarOrderSchema = z.object({
   address: requiredText('bazar.details', 300),
+  addressPin: geoPointSchema.optional(),
   contactMobile: mobile('bazar.details'),
   schedule: scheduleSchema,
   items: z.array(bazarItemSchema).min(1, { error: 'bazar.details' }).max(60, { error: 'field.invalid' }),
@@ -27,6 +29,8 @@ export type CreateBazarOrderInput = z.infer<typeof createBazarOrderSchema>
 export const createShiftingOrderSchema = z.object({
   loadingArea: requiredText('shifting.areas', 200),
   unloadingArea: requiredText('shifting.areas', 200),
+  loadingPin: geoPointSchema.optional(),
+  unloadingPin: geoPointSchema.optional(),
   schedule: scheduleSchema,
   vehicleId: z.string({ error: 'shifting.vehicle' }).min(1, { error: 'shifting.vehicle' }).max(64),
   labourers: count('shifting.numbers', 50),
@@ -36,18 +40,18 @@ export const createShiftingOrderSchema = z.object({
 })
 export type CreateShiftingOrderInput = z.infer<typeof createShiftingOrderSchema>
 
-/** জরুরী ঔষুধ: all five columns are required in every row. */
+/** জরুরী ঔষুধ: all four columns are required in every row (the price comes in the quote). */
 export const medicineItemSchema = z.object({
   name: requiredText('medicine.rows', 120),
   quantity: requiredText('medicine.rows', 40),
   company: requiredText('medicine.rows', 80),
   category: requiredText('medicine.rows', 80),
-  price: amount('medicine.rows'),
 })
 
 export const createMedicineOrderSchema = z
   .object({
     address: requiredText('medicine.details', 300),
+    addressPin: geoPointSchema.optional(),
     contactMobile: mobile('medicine.details'),
     schedule: scheduleSchema,
     prescriptionUploadId: z.string().min(1).max(64).optional(),
@@ -69,6 +73,8 @@ export const createParcelOrderSchema = z.object({
   weight: optionalText(40),
   pickupAddress: requiredText('parcel.details', 300),
   dropoffAddress: requiredText('parcel.details', 300),
+  pickupPin: geoPointSchema.optional(),
+  dropoffPin: geoPointSchema.optional(),
   receiverMobile: mobile('parcel.details'),
   schedule: scheduleSchema,
   note: optionalText(500),
@@ -84,6 +90,9 @@ export const FORM_ERROR_PRIORITY = {
   signup: ['auth.signup', 'mobile.invalid', 'password.short'],
   login: ['auth.login', 'mobile.invalid'],
   profile: ['profile.name', 'profile.mobile', 'mobile.invalid'],
+  location: ['location.details'],
+  quote: ['quote.items', 'quote.fees'],
+  offer: ['offer.title', 'offer.dates'],
 } as const satisfies Record<string, readonly MessageCode[]>
 
 export const listMyOrdersQuerySchema = z.object({
@@ -113,12 +122,36 @@ export const updateOrderStatusSchema = z.object({
 })
 export type UpdateOrderStatusInput = z.infer<typeof updateOrderStatusSchema>
 
-/** Admin correction of bazar/medicine line prices once the actual cost is known. */
-export const updateOrderItemsSchema = z.object({
-  items: z
-    .array(z.object({ id: z.string().min(1).max(64), price: amount() }))
-    .min(1)
-    .max(60),
+/** One priced line of a quote: an existing line (`id`) or a new one staff added (no `id`). */
+export const quoteItemSchema = z.object({
+  id: z.string().min(1).max(64).optional(),
+  name: requiredText('quote.items', 120),
+  quantity: requiredText('quote.items', 40),
+  variety: optionalText(80),
+  company: optionalText(80),
+  category: optionalText(80),
+  price: amount('quote.items'),
+})
+
+/**
+ * Staff price a bazar or medicine order (PUT /admin/orders/:id/quote). `items` is the whole list:
+ * lines left out are removed (e.g. not available), lines without an id are added (e.g. from a
+ * prescription). The fees start as the Catalog's and staff may change them (a long way, a big
+ * bazar); a fee left out keeps its current value. Medicine has no shopping fee. The note is shown
+ * to the customer.
+ */
+export const quoteOrderSchema = z.object({
+  items: z.array(quoteItemSchema).min(1, { error: 'quote.items' }).max(60, { error: 'field.invalid' }),
+  serviceFee: amount('quote.fees').optional(),
+  deliveryFee: amount('quote.fees').optional(),
   note: optionalText(500),
 })
-export type UpdateOrderItemsInput = z.infer<typeof updateOrderItemsSchema>
+export type QuoteOrderInput = z.infer<typeof quoteOrderSchema>
+export type QuoteItemInput = z.infer<typeof quoteItemSchema>
+
+/**
+ * The customer confirms a quote (POST /orders/:id/confirm) with the quote they saw: its version
+ * (every quote adds one) and total. A newer quote, even with the same total, can't be confirmed unseen.
+ */
+export const confirmOrderSchema = z.object({ total: amount(), quoteVersion: z.number().int().min(0).max(1_000_000) })
+export type ConfirmOrderInput = z.infer<typeof confirmOrderSchema>

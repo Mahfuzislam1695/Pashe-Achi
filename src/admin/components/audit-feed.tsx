@@ -22,6 +22,7 @@ import {
 } from '@/shared'
 import {
   ArrowRightLeft,
+  BadgePercent,
   Ban,
   CircleCheck,
   ClipboardList,
@@ -30,6 +31,8 @@ import {
   LogIn,
   LogOut,
   type LucideIcon,
+  MapPin,
+  MapPinOff,
   Megaphone,
   Phone,
   Receipt,
@@ -61,6 +64,9 @@ const ACTION_ICONS: Record<AuditAction, [LucideIcon, Tone]> = {
   CUSTOMER_SIGNED_UP: [UserPlus, 'success'],
   CUSTOMER_PROFILE_UPDATED: [UserPen, 'neutral'],
   CUSTOMER_PASSWORD_CHANGED: [KeyRound, 'neutral'],
+  CUSTOMER_LOCATION_ADDED: [MapPin, 'success'],
+  CUSTOMER_LOCATION_UPDATED: [MapPin, 'neutral'],
+  CUSTOMER_LOCATION_DELETED: [MapPinOff, 'neutral'],
   CUSTOMER_BLOCKED: [Ban, 'danger'],
   CUSTOMER_UNBLOCKED: [CircleCheck, 'success'],
   CUSTOMER_POINTS_CHANGED: [Star, 'brand'],
@@ -80,6 +86,10 @@ const ACTION_ICONS: Record<AuditAction, [LucideIcon, Tone]> = {
   ADMIN_PASSWORD_CHANGED: [KeyRound, 'neutral'],
   ANNOUNCEMENT_SENT: [Megaphone, 'brand'],
   DELIVERY_HOURS_UPDATED: [Clock, 'brand'],
+  OFFER_CREATED: [BadgePercent, 'success'],
+  OFFER_UPDATED: [BadgePercent, 'brand'],
+  OFFER_DELETED: [BadgePercent, 'danger'],
+  OFFER_ANNOUNCED: [Megaphone, 'brand'],
 }
 
 const MONEY_FIELDS = new Set([
@@ -92,6 +102,10 @@ const MONEY_FIELDS = new Set([
   'unloadingRatePerFloor',
   'rate',
   'item.price',
+  'item.added',
+  'item.removed',
+  'serviceFee',
+  'deliveryFee',
   'total',
 ])
 
@@ -240,7 +254,9 @@ function EntityRef({ entry }: { entry: AuditLogDto }) {
           ? '/admin/staff'
           : type === 'PRICING' || type === 'VEHICLE' || type === 'SUPPORT' || type === 'DELIVERY_HOURS'
             ? '/admin/catalog'
-            : null
+            : type === 'OFFER'
+              ? '/admin/offers'
+              : null
   return (
     <>
       <span className="text-muted"> · </span>
@@ -324,6 +340,14 @@ function Value({ change, value, muted = false }: { change: AuditChange; value: A
       ? '—'
       : MONEY_FIELDS.has(change.field) && typeof value === 'number'
         ? taka(value)
+        : change.field === 'service' && isService(value)
+          ? text(SERVICE_LABELS[value])
+          : change.field === 'image'
+            ? value === 'removed'
+              ? t('মুছে ফেলা হয়েছে', 'Removed')
+              : value === 'replaced'
+                ? t('বদলানো হয়েছে', 'Replaced')
+                : t('যোগ করা হয়েছে', 'Added')
         : change.field === 'isBlocked'
           ? value
             ? t('বন্ধ', 'Blocked')
@@ -355,7 +379,7 @@ function MetaLine({ entry }: { entry: AuditLogDto }) {
   let line: string | null = null
   if (entry.action === 'ORDER_CREATED' && isService(meta.service ?? null)) {
     line = [text(SERVICE_LABELS[meta.service as ServiceId]), typeof meta.total === 'number' ? taka(meta.total) : null].filter(Boolean).join(' · ')
-  } else if (entry.action === 'ANNOUNCEMENT_SENT' && typeof meta.sent === 'number') {
+  } else if ((entry.action === 'ANNOUNCEMENT_SENT' || entry.action === 'OFFER_ANNOUNCED') && typeof meta.sent === 'number') {
     line = t(`${digits(meta.sent)} জন গ্রাহক পেয়েছেন`, `Sent to ${meta.sent} customer${meta.sent === 1 ? '' : 's'}`)
   } else if (entry.action === 'ADMIN_SIGN_IN_FAILED') {
     line =

@@ -670,6 +670,122 @@ input::placeholder { color: var(--muted-3); }
 .welcome-services div { border: 0; border-radius: 14px; background: var(--svc-soft, var(--blue-soft)); color: var(--svc, var(--blue)); }
 .welcome-services span { color: var(--svc-ink, var(--navy)); }
 
+/* Locations and map: the address chips in the order forms, the map sheet (Leaflet + OpenStreetMap),
+   আমার লোকেশন in Profile and the map links in an order. Both versions; the web tweaks are in "Web version". */
+.chip-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { display: inline-flex; align-items: center; gap: 5px; min-height: 32px; padding: 0 11px; border: 1px solid var(--line-strong); border-radius: 999px; background: var(--surface); color: var(--ink-2); font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; transition: border-color var(--ease), background-color var(--ease), color var(--ease); }
+.chip:hover { border-color: var(--blue-line); color: var(--blue); }
+.chip.active { border-color: var(--blue); background: var(--blue-soft); color: var(--blue); }
+.chip.locate { color: var(--blue); }
+.chip svg { flex-shrink: 0; }
+.address-field > .field-label { display: block; margin-bottom: 7px; }
+.address-tools { margin-top: 8px; }
+.field-row.address-field { align-items: start; }
+.field-row.address-field > .field-label { margin: 0; padding-top: 15px; }
+.address-control { min-width: 0; }
+.pin-badge { display: inline-flex; align-items: center; gap: 4px; min-height: 32px; padding: 0 4px 0 10px; border-radius: 999px; background: var(--green-soft); color: var(--green-ink); font-size: 12px; font-weight: 600; }
+.pin-badge button { display: grid; place-items: center; width: 24px; height: 24px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: inherit; cursor: pointer; }
+.pin-badge button:hover { background: var(--green-line); }
+
+.sheet-layer { position: fixed; inset: 0; z-index: 40; display: flex; align-items: stretch; justify-content: center; background: #10213a66; overscroll-behavior: contain; }
+.sheet { display: flex; flex-direction: column; width: min(100%, 430px); height: 100dvh; overflow: hidden; background: var(--surface); outline: none; }
+.sheet-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 12px 12px 16px; border-bottom: 1px solid var(--line); }
+.sheet-head h2 { margin: 0; color: var(--navy); font-size: 16px; font-weight: 700; }
+.sheet-close { display: grid; place-items: center; width: 40px; height: 40px; flex-shrink: 0; border: 0; border-radius: 12px; background: transparent; color: var(--ink-2); cursor: pointer; transition: background-color var(--ease), color var(--ease); }
+.sheet-close:hover { background: var(--surface-3); color: var(--navy); }
+.sheet-body { flex: 1; overflow-y: auto; }
+.sheet-fields { padding: 14px 16px 4px; }
+.sheet-fields .field { margin-bottom: 12px; }
+.sheet-foot { display: grid; grid-template-columns: 1fr 1.6fr; gap: 10px; padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); border-top: 1px solid var(--line); background: var(--surface); }
+.sheet-foot .primary-button, .sheet-foot .secondary-button { width: 100%; }
+
+.map-frame { position: relative; isolation: isolate; height: 44dvh; min-height: 240px; background: var(--surface-3); }
+.map-canvas, .map-frame .leaflet-container { width: 100%; height: 100%; font-family: inherit; }
+.map-loading { animation: map-pulse 1.2s ease-in-out infinite alternate; }
+@keyframes map-pulse { from { background: var(--surface-3); } to { background: var(--backdrop); } }
+.map-pin { position: absolute; top: 50%; left: 50%; z-index: 450; display: grid; color: var(--blue); transform: translate(-50%, -100%); pointer-events: none; filter: drop-shadow(0 4px 6px #10213a4d); }
+.map-pin svg { fill: var(--surface); }
+.map-pin::after { content: ''; position: absolute; bottom: -3px; left: 50%; width: 8px; height: 8px; border-radius: 50%; background: var(--blue); box-shadow: 0 0 0 3px #1265d840; transform: translateX(-50%); }
+.map-locate { position: absolute; top: 12px; right: 12px; z-index: 460; display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 0 14px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--blue); font: inherit; font-size: 12px; font-weight: 600; box-shadow: var(--shadow-raised); cursor: pointer; }
+.map-locate:hover { border-color: var(--blue-line); }
+.map-locate:disabled { color: var(--muted); cursor: progress; }
+.map-hint { margin: 0; padding: 8px 16px; border-bottom: 1px solid var(--line); background: var(--blue-tint); color: var(--blue-ink); font-size: 12px; }
+.map-status { min-height: 18px; margin: 6px 0 0; color: var(--muted); font-size: 12px; font-weight: 500; line-height: 1.5; }
+.map-status span { color: var(--ink-2); }
+.map-status .link-button { padding: 0; font-size: 12px; cursor: pointer; }
+.save-toggle { display: flex; align-items: center; gap: 8px; margin: 0 0 12px; color: var(--ink-2); font-size: 13px; font-weight: 600; }
+.save-toggle input { width: 18px; height: 18px; }
+.label-picker .field { margin-bottom: 8px; }
+.label-picker .chip-row { margin-bottom: 12px; }
+
+.section-title { margin: 0 0 4px; color: var(--navy); font-size: 15px; }
+.section-note { margin: 0 0 12px; color: var(--muted); font-size: 12px; line-height: 1.5; }
+.saved-locations { display: grid; gap: 10px; margin: 0 0 14px; padding: 0; list-style: none; }
+.saved-location { display: grid; grid-template-columns: 36px minmax(0, 1fr); gap: 2px 12px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
+.saved-location.default { border-color: var(--blue-line); background: var(--blue-tint); }
+.saved-location-icon { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 10px; background: var(--blue-soft); color: var(--blue); }
+.saved-location-text strong { color: var(--navy); font-size: 13px; }
+.saved-location-text p { margin: 3px 0 0; color: var(--muted); font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
+.default-badge { display: inline-flex; margin-left: 8px; padding: 2px 8px; border-radius: 999px; background: var(--blue); color: #fff; font-size: 10px; font-weight: 600; vertical-align: 1px; }
+.saved-location-actions { grid-column: 2; display: flex; flex-wrap: wrap; gap: 2px 16px; margin-top: 6px; }
+.saved-location-actions .link-button { display: inline-flex; align-items: center; gap: 4px; min-height: 30px; padding: 0; font-size: 12px; text-decoration: none; cursor: pointer; }
+.saved-location-actions .link-button:disabled { color: var(--muted-3); cursor: default; }
+.link-button.danger-link { color: var(--danger-ink); }
+.map-link { display: inline-flex; align-items: center; gap: 3px; margin-left: 8px; color: var(--blue); font-size: 11px; font-weight: 600; text-decoration: none; white-space: nowrap; }
+.map-link:hover { text-decoration: underline; }
+
+/* Quotes and offers: bazar and medicine are priced by staff (the customer confirms or cancels on the
+   order page), and আজকের অফার (the offers page, the landing section). Both versions; tokens only. */
+.status-pill.quoted { background: var(--orange-soft); color: var(--orange-ink); box-shadow: inset 0 0 0 1px var(--orange-line); }
+.bill-line strong.bill-pending, .price-coming { color: var(--orange-ink); font-weight: 600; }
+.price-coming { font-size: 12px; }
+.quote-notice { margin: 12px 0 0; padding: 10px 12px; border: 1px solid var(--blue-soft-2); border-radius: 12px; background: var(--blue-tint); color: var(--blue-ink); font-size: 12px; line-height: 1.55; }
+.service-summary .quote-notice { margin: 0 0 12px; }
+.quote-card { margin-top: 14px; padding: 16px; border: 1px solid var(--orange-line); border-radius: var(--radius-card); background: var(--orange-soft); }
+.quote-card h3 { margin: 0 0 4px; color: var(--navy); font-size: 16px; }
+.quote-card > p { margin: 0 0 10px; color: var(--ink-2); font-size: 12px; line-height: 1.55; }
+.quote-card .quote-note { padding: 8px 10px; border-radius: 10px; background: var(--surface); color: var(--ink); font-weight: 500; }
+.quote-total { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 4px 0 12px; padding-top: 10px; border-top: 1px solid var(--orange-line); color: var(--navy); font-weight: 700; }
+.quote-total strong { color: var(--blue); font-size: 22px; font-variant-numeric: tabular-nums; }
+.quote-card .form-error { margin-bottom: 10px; }
+.quote-actions { display: grid; grid-template-columns: 1.4fr 1fr; gap: 10px; }
+.quote-actions button { width: 100%; }
+
+.offers-nav { position: relative; }
+.nav-count { display: inline-grid; min-width: 20px; height: 20px; margin-left: auto; padding: 0 6px; place-items: center; border-radius: 999px; background: var(--orange); color: #fff; font-size: 11px; font-weight: 700; }
+.offer-grid { display: grid; gap: 14px; }
+.offer-card { display: flex; flex-direction: column; overflow: hidden; border: 1px solid var(--line); border-radius: var(--radius-card); background: var(--surface); box-shadow: var(--shadow-card); }
+.offer-media { position: relative; aspect-ratio: 16 / 9; background: var(--svc-soft, var(--orange-soft)); }
+.offer-media img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.offer-placeholder { display: grid; width: 100%; height: 100%; place-items: center; color: var(--svc, var(--orange-icon)); }
+.offer-service { position: absolute; top: 10px; left: 10px; padding: 4px 10px; border-radius: 999px; background: var(--surface); color: var(--svc-ink, var(--navy)); font-size: 11px; font-weight: 600; box-shadow: 0 2px 6px #10213a1f; }
+.offer-body { display: flex; flex: 1; flex-direction: column; gap: 8px; padding: 14px 16px 16px; }
+.offer-body h3 { margin: 0; color: var(--navy); font-size: 16px; line-height: 1.35; }
+.offer-body p { margin: 0; color: var(--ink-2); font-size: 13px; line-height: 1.6; white-space: pre-line; }
+.offer-dates { display: inline-flex; align-items: center; gap: 5px; color: var(--muted); font-size: 12px; }
+.offer-cta { align-self: flex-start; width: auto; min-height: 40px; margin-top: auto; padding: 0 16px; text-decoration: none; }
+.landing-offers .offer-grid { grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 20px; }
+
+/* The quote card's bill (goods, the fees staff set, total) and the "new price" flag; phone
+   notifications (the order page prompt, the Notifications screen switch); the price toast's link. */
+.quote-lines { display: grid; gap: 6px; margin: 4px 0 0; font-size: 13px; }
+.quote-lines div { display: flex; justify-content: space-between; gap: 12px; }
+.quote-lines dt { color: var(--ink-2); }
+.quote-lines dd { margin: 0; color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
+.quote-fresh { margin: 0 0 10px; padding: 8px 10px; border-radius: 10px; background: var(--blue); color: #fff; font-size: 12px; font-weight: 600; }
+.push-prompt, .push-setting { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 10px; border-radius: 12px; }
+.push-prompt { margin-top: 12px; padding: 10px 12px; border: 1px dashed var(--blue-line); background: var(--surface); }
+.push-prompt > svg, .push-setting > svg { color: var(--blue); }
+.push-prompt p { margin: 0; color: var(--ink); font-size: 12px; line-height: 1.5; }
+.push-prompt .secondary-button, .push-setting .secondary-button { width: auto; min-height: 36px; padding: 0 14px; font-size: 12px; white-space: nowrap; }
+.push-prompt small, .push-setting small { grid-column: 2 / -1; color: var(--danger-ink); font-size: 11px; }
+.push-setting { margin-bottom: 14px; padding: 12px 14px; border: 1px solid var(--line); background: var(--surface-2); }
+.push-setting.on { border-color: var(--blue-line); background: var(--blue-tint); }
+.push-setting > span { display: grid; gap: 2px; }
+.push-setting strong { color: var(--navy); font-size: 13px; }
+.push-setting > span > span { color: var(--muted); font-size: 12px; line-height: 1.5; }
+.toast-body .toast-cta { color: var(--blue); font-size: 11px; font-weight: 700; }
+
 /* Web version (/login, /bazar, /orders/…): every rule below is scoped to .mode-web, so the app version
    (/app/…, .mode-app) keeps the phone design above at every width. Last in the file so it wins.
    - Phones (≤800px): the same phone layout as the app version.
@@ -751,6 +867,23 @@ input::placeholder { color: var(--muted-3); }
 }
 @media (min-width: 1024px) { .landing .contact-dock { right: 28px; bottom: 24px; left: auto; transform: none; } }
 @media (min-width: 1280px) { .mode-web .order-list { grid-template-columns: 1fr 1fr; } }
+/* The map sheet: a centred dialog on a wide screen (the app version keeps its full-height phone sheet). */
+@media (min-width: 1024px) {
+  .sheet-layer.mode-web { align-items: center; padding: 32px; }
+  .sheet-layer.mode-web .sheet { width: min(100%, 640px); height: auto; max-height: calc(100dvh - 64px); border-radius: var(--radius-card); box-shadow: var(--shadow-raised); }
+  .sheet-layer.mode-web .map-frame { height: 380px; }
+  .sheet-layer.mode-web .sheet-head h2 { font-size: 18px; }
+  .sheet-layer.mode-web .sheet-foot { grid-template-columns: auto auto; justify-content: end; }
+  .sheet-layer.mode-web .sheet-foot .primary-button, .sheet-layer.mode-web .sheet-foot .secondary-button { width: auto; min-width: 140px; }
+  .mode-web .saved-location-text strong { font-size: 14px; }
+  .mode-web .saved-location-text p, .mode-web .section-note { font-size: 13px; }
+  .mode-web .section-title { font-size: 17px; }
+  .mode-web .offer-grid { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; }
+  .mode-web .offer-body h3 { font-size: 18px; }
+  .mode-web .offer-body p { font-size: 14px; }
+  .mode-web .quote-card { padding: 20px; }
+  .mode-web .quote-card > p, .mode-web .quote-notice { font-size: 13px; }
+}
 @keyframes toast-in-web { from { opacity: 0; transform: translateY(-8px); } }
 html[lang='bn'] .auth-message h1, html[lang='bn'] .landing h1, html[lang='bn'] .landing h2, html[lang='bn'] .topbar-title { letter-spacing: 0; }
 

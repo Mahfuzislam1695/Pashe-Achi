@@ -1,15 +1,16 @@
 'use client'
 
-import { changePasswordSchema, FORM_ERROR_PRIORITY, type MessageCode, updateProfileSchema, validateForm } from '@/shared'
+import { changePasswordSchema, FORM_ERROR_PRIORITY, mapLink, MAX_SAVED_LOCATIONS, type MessageCode, type SavedLocationDto, updateProfileSchema, validateForm } from '@/shared'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { Award, Check, KeyRound, UserRound } from 'lucide-react'
+import { Award, Check, ExternalLink, KeyRound, MapPin, Pencil, Plus, Star, Trash2, UserRound } from 'lucide-react'
 import { useState } from 'react'
 
-import { Field, FormError, PageCard } from '@/customer/components/ui'
+import { LocationSheet } from '@/customer/components/location-sheet'
+import { Field, FormError, LoadingNote, PageCard } from '@/customer/components/ui'
 import { api } from '@/customer/lib/api'
 import { useLang } from '@/customer/lib/i18n'
 import { usePaths } from '@/customer/lib/paths'
-import { errorCode, queryKeys, useSession } from '@/customer/lib/queries'
+import { errorCode, queryKeys, useLocations, useSaveLocation, useSession } from '@/customer/lib/queries'
 
 const PRIORITY = FORM_ERROR_PRIORITY.profile
 
@@ -73,8 +74,109 @@ export function ProfileScreen() {
           {t('প্রোফাইল সেভ করুন', 'Save profile')}
         </button>
       </div>
+      <SavedLocations />
       <ChangePassword />
     </PageCard>
+  )
+}
+
+/** আমার লোকেশন: places saved on the map, offered as one-tap chips in every order form. */
+function SavedLocations() {
+  const { t, digits } = useLang()
+  const queryClient = useQueryClient()
+  const locations = useLocations()
+  const save = useSaveLocation()
+  const [sheet, setSheet] = useState<{ location?: SavedLocationDto } | null>(null)
+  const [error, setError] = useState<MessageCode | null>(null)
+  const refresh = () => queryClient.invalidateQueries({ queryKey: queryKeys.locations })
+  const makeDefault = useMutation({ mutationFn: (id: string) => api.me.locations.update(id, { isDefault: true }), onSuccess: refresh, onError: failure => setError(errorCode(failure)) })
+  const remove = useMutation({ mutationFn: api.me.locations.remove, onSuccess: refresh, onError: failure => setError(errorCode(failure)) })
+  const items = locations.data ?? []
+  const full = items.length >= MAX_SAVED_LOCATIONS
+  const busy = makeDefault.isPending || remove.isPending
+
+  return (
+    <section className="detail-section section-gap">
+      <h3 className="section-title">{t('আমার লোকেশন', 'My locations')}</h3>
+      <p className="section-note">
+        {t('বাসা, অফিস বা যেকোনো জায়গা ম্যাপে সেভ করুন; অর্ডারের সময় এক ট্যাপে ঠিকানা বসবে।', 'Save home, office or any place on the map, then add it to an order in one tap.')}
+      </p>
+      {locations.isPending && <LoadingNote />}
+      {locations.isError && <FormError code={errorCode(locations.error)} />}
+      {locations.isSuccess && !items.length && <p className="empty-note">{t('এখনো কোনো লোকেশন সেভ করা হয়নি।', 'No saved locations yet.')}</p>}
+      {items.length > 0 && (
+        <ul className="saved-locations">
+          {items.map(location => (
+            <li key={location.id} className={`saved-location ${location.isDefault ? 'default' : ''}`}>
+              <span className="saved-location-icon" aria-hidden="true">
+                <MapPin size={17} />
+              </span>
+              <div className="saved-location-text">
+                <strong>
+                  {location.label}
+                  {location.isDefault && <span className="default-badge">{t('ডিফল্ট', 'Default')}</span>}
+                </strong>
+                <p>{location.address}</p>
+              </div>
+              <div className="saved-location-actions">
+                <button type="button" className="link-button" onClick={() => setSheet({ location })}>
+                  <Pencil size={13} />
+                  {t('এডিট', 'Edit')}
+                </button>
+                {!location.isDefault && (
+                  <button type="button" className="link-button" disabled={busy} onClick={() => makeDefault.mutate(location.id)}>
+                    <Star size={13} />
+                    {t('ডিফল্ট করুন', 'Make default')}
+                  </button>
+                )}
+                <a className="link-button" href={mapLink(location)} target="_blank" rel="noopener noreferrer">
+                  <ExternalLink size={13} />
+                  {t('ম্যাপে দেখুন', 'Open map')}
+                </a>
+                <button
+                  type="button"
+                  className="link-button danger-link"
+                  disabled={busy}
+                  onClick={() => {
+                    setError(null)
+                    if (window.confirm(t(`"${location.label}" মুছে ফেলবেন?`, `Delete "${location.label}"?`))) remove.mutate(location.id)
+                  }}
+                >
+                  <Trash2 size={13} />
+                  {t('মুছুন', 'Delete')}
+                </button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+      <FormError code={error} />
+      <div className="confirm">
+        <button
+          type="button"
+          className="secondary-button"
+          disabled={full || !locations.isSuccess}
+          onClick={() => {
+            setError(null)
+            setSheet({})
+          }}
+        >
+          <Plus size={16} />
+          {t('নতুন লোকেশন যোগ করুন', 'Add a location')}
+        </button>
+        {full && <p className="section-note">{t(`সর্বোচ্চ ${digits(MAX_SAVED_LOCATIONS)}টি লোকেশন সেভ করা যায়।`, `You can save up to ${MAX_SAVED_LOCATIONS} locations.`)}</p>}
+      </div>
+      {sheet && (
+        <LocationSheet
+          purpose="save"
+          title={sheet.location ? t('লোকেশন এডিট', 'Edit location') : t('নতুন লোকেশন', 'New location')}
+          initial={sheet.location ? { label: sheet.location.label, address: sheet.location.address, pin: { lat: sheet.location.lat, lng: sheet.location.lng } } : undefined}
+          locate={!sheet.location}
+          onSubmit={value => save.mutateAsync({ id: sheet.location?.id, label: value.label, address: value.address, ...value.pin })}
+          onClose={() => setSheet(null)}
+        />
+      )}
+    </section>
   )
 }
 

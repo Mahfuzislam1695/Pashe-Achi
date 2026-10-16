@@ -18,7 +18,9 @@ export const queryKeys = {
   customers: ['customers'] as const,
   customerList: (filters: Partial<ListCustomersQuery>) => ['customers', 'list', filters] as const,
   customer: (id: string) => ['customers', 'detail', id] as const,
+  customerLocations: (id: string) => ['customers', 'locations', id] as const,
   catalog: ['catalog'] as const,
+  offers: ['offers'] as const,
   staff: ['staff'] as const,
   notifications: ['notifications'] as const,
   notificationList: ['notifications', 'list'] as const,
@@ -74,7 +76,13 @@ export const useCustomerList = (filters: Partial<ListCustomersQuery>) =>
 
 export const useCustomer = (id: string) => useQuery({ queryKey: queryKeys.customer(id), queryFn: () => api.customers.get(id) })
 
+/** The customer's saved map locations, the default first. */
+export const useCustomerLocations = (id: string) => useQuery({ queryKey: queryKeys.customerLocations(id), queryFn: () => api.customers.locations(id) })
+
 export const useCatalog = () => useQuery({ queryKey: queryKeys.catalog, queryFn: api.catalog.get })
+
+/** Every offer, running and upcoming first. */
+export const useOffers = () => useQuery({ queryKey: queryKeys.offers, queryFn: api.offers.list })
 
 export const useStaff = () => useQuery({ queryKey: queryKeys.staff, queryFn: api.staff.list })
 

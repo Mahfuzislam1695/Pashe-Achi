@@ -1,23 +1,24 @@
 'use client'
 
-import { calcBazar, createBazarOrderSchema, FORM_ERROR_PRIORITY, type ScheduleInput, toAmount, validateForm, withDeliveryHours } from '@/shared'
+import { calcBazar, createBazarOrderSchema, FORM_ERROR_PRIORITY, type GeoPoint, type ScheduleInput, validateForm, withDeliveryHours } from '@/shared'
 import { useState } from 'react'
 
+import { AddressField } from '@/customer/components/address-field'
 import { DeliveryHoursNotice, DeliverySchedule, EMPTY_SCHEDULE } from '@/customer/components/delivery-schedule'
 import { type Column, isRowStarted, LineTable, type Row } from '@/customer/components/line-table'
-import { BillSummary, ConfirmButton, CustomerInfo, Field, ServiceCard } from '@/customer/components/ui'
+import { BillSummary, ConfirmButton, CustomerInfo, Field, QuoteNotice, ServiceCard } from '@/customer/components/ui'
 import { api } from '@/customer/lib/api'
 import { useDraft } from '@/customer/lib/drafts'
 import { useLang } from '@/customer/lib/i18n'
 import { errorCode, usePlaceOrder, useSession } from '@/customer/lib/queries'
 
-type BazarDraft = { address: string; mobile: string; schedule: ScheduleInput; rows: Row[] }
+type BazarDraft = { address: string; pin: GeoPoint | null; mobile: string; schedule: ScheduleInput; rows: Row[] }
 const PRIORITY = FORM_ERROR_PRIORITY.bazar
 
 export function BazarScreen() {
-  const { t } = useLang()
+  const { t, taka } = useLang()
   const { user, catalog } = useSession()
-  const [draft, setDraft] = useDraft<BazarDraft>('bazar', () => ({ address: '', mobile: user.mobile, schedule: EMPTY_SCHEDULE, rows: [{}] }))
+  const [draft, setDraft] = useDraft<BazarDraft>('bazar', () => ({ address: '', pin: null, mobile: user.mobile, schedule: EMPTY_SCHEDULE, rows: [{}] }))
   const [showError, setShowError] = useState(false)
   const placeOrder = usePlaceOrder(api.orders.createBazar)
 
@@ -30,20 +31,20 @@ export function BazarScreen() {
     { key: 'name', label: t('কাঁচা বাজারের লিস্ট লিখুন', 'Bazar list item'), placeholder: t('আলু', 'Potatoes') },
     { key: 'quantity', label: t('পরিমাণ', 'Quantity'), placeholder: t('1 কেজি', '1 kg') },
     { key: 'variety', label: t('জাত বা ধরণ', 'Variety / type'), placeholder: t('দেশি', 'Local'), optional: true },
-    { key: 'price', label: t('দর', 'Price'), placeholder: '৳', numeric: true, optional: true },
   ]
-  const bill = calcBazar(catalog.pricing, draft.rows.map(row => row.price))
+  // The customer sends the list only; staff send the prices (see QuoteNotice).
+  const bill = calcBazar(catalog.pricing, [])
   const check = validateForm(
     withDeliveryHours(createBazarOrderSchema, catalog.deliveryHours.bazar),
     {
       address: draft.address,
+      addressPin: draft.pin ?? undefined,
       contactMobile: draft.mobile,
       schedule: draft.schedule,
       items: draft.rows.filter(isRowStarted).map(row => ({
         name: row.name ?? '',
         quantity: row.quantity ?? '',
         variety: row.variety || undefined,
-        price: row.price?.trim() ? toAmount(row.price) : undefined,
       })),
     },
     PRIORITY,
@@ -54,7 +55,7 @@ export function BazarScreen() {
     if (!check.success) return setShowError(true)
     placeOrder.mutate(check.data, {
       onSuccess: () => {
-        setDraft(current => ({ ...current, address: '', schedule: EMPTY_SCHEDULE, rows: [{}] }))
+        setDraft(current => ({ ...current, address: '', pin: null, schedule: EMPTY_SCHEDULE, rows: [{}] }))
         setShowError(false)
       },
     })
@@ -67,29 +68,33 @@ export function BazarScreen() {
         <>
           <BillSummary
             lines={[
-              [t('সর্বমোট বাজারের দাম', 'Total bazar cost'), bill.itemsTotal],
+              [t('সর্বমোট বাজারের দাম', 'Total bazar cost'), t('পরে জানানো হবে', 'We will send it')],
               [t('বাজার ক্রয় বাবদ মজুরী', 'Shopping fee'), bill.serviceFee],
               [t('ডেলিভারী খরচ', 'Delivery charge'), bill.deliveryFee],
             ]}
             totalLabel={t('Total Bill', 'Total bill')}
-            total={bill.total}
+            total={t(`${taka(bill.total)} + বাজারের দাম`, `${taka(bill.total)} + goods`)}
           />
-          <ConfirmButton error={error} pending={placeOrder.isPending} onConfirm={confirm} />
+          <QuoteNotice service="bazar" />
+          <ConfirmButton error={error} pending={placeOrder.isPending} onConfirm={confirm} label={t('অর্ডার পাঠান', 'Send order')} />
         </>
       }
     >
       <CustomerInfo user={user} />
       <DeliveryHoursNotice service="bazar" windows={catalog.deliveryHours.bazar} />
       <div className="field-pair">
-        <Field label={t('ঠিকানা', 'Address')}>
-          <input value={draft.address} onChange={e => update({ address: e.target.value })} placeholder={t('বাসা, রোড, এলাকা', 'House, road, area')} />
-        </Field>
+        <AddressField
+          label={t('ঠিকানা', 'Address')}
+          value={{ text: draft.address, pin: draft.pin }}
+          onChange={next => update({ address: next.text, pin: next.pin })}
+          placeholder={t('বাসা, রোড, এলাকা', 'House, road, area')}
+        />
         <Field label={t('মোবা', 'Mobile')}>
           <input type="tel" inputMode="tel" value={draft.mobile} onChange={e => update({ mobile: e.target.value })} placeholder="01XXXXXXXXX" />
         </Field>
       </div>
       <DeliverySchedule value={draft.schedule} onChange={schedule => update({ schedule })} />
-      <LineTable template="1.7fr .8fr .9fr .8fr" columns={columns} rows={draft.rows} onChange={rows => update({ rows })} addLabel={t('আরো যোগ করতে ক্লিক করুন', 'Click to add more')} />
+      <LineTable template="1.7fr .8fr .9fr" columns={columns} rows={draft.rows} onChange={rows => update({ rows })} addLabel={t('আরো যোগ করতে ক্লিক করুন', 'Click to add more')} />
     </ServiceCard>
   )
 }

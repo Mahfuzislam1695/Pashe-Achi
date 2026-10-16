@@ -25,10 +25,11 @@ import { BillPreviewCard, OrderTrackerCard, SplitHeadline } from '@/customer/com
 import { ContactDock, LangToggle, Logo } from '@/customer/components/ui'
 import { useLang } from '@/customer/lib/i18n'
 import { webPaths as paths } from '@/customer/lib/paths'
-import { useCatalog } from '@/customer/lib/queries'
+import { useCatalog, useOffers } from '@/customer/lib/queries'
+import { OfferCard } from './offers'
 import { SERVICE_ICONS } from './orders'
 
-const SECTIONS = ['services', 'how', 'pricing', 'faq', 'contact'] as const
+const SECTIONS = ['offers', 'services', 'how', 'pricing', 'faq', 'contact'] as const
 
 /** The public home page: what the service is, what it costs, how to reach us. Phone and web. */
 export function LandingScreen({ signedIn }: { signedIn: boolean }) {
@@ -36,6 +37,9 @@ export function LandingScreen({ signedIn }: { signedIn: boolean }) {
   const [menuOpen, setMenuOpen] = useState(false)
   const [scrolled, setScrolled] = useState(false)
   const catalog = useCatalog().data
+  // আজকের অফার: the section (and its menu link) only appears while an offer is running.
+  const offers = useOffers().data ?? []
+  const sections = SECTIONS.filter(id => id !== 'offers' || offers.length > 0)
 
   // The header is transparent over the hero and turns solid once the page scrolls.
   useEffect(() => {
@@ -46,6 +50,7 @@ export function LandingScreen({ signedIn }: { signedIn: boolean }) {
   }, [])
 
   const sectionLabel: Record<(typeof SECTIONS)[number], string> = {
+    offers: t('আজকের অফার', "Today's offers"),
     services: t('সেবাসমূহ', 'Services'),
     how: t('যেভাবে কাজ করে', 'How it works'),
     pricing: t('খরচ', 'Pricing'),
@@ -79,7 +84,7 @@ export function LandingScreen({ signedIn }: { signedIn: boolean }) {
             <Logo />
           </Link>
           <nav className={`landing-nav ${menuOpen ? 'open' : ''}`} aria-label={t('পেজের অংশ', 'Page sections')}>
-            {SECTIONS.map(id => (
+            {sections.map(id => (
               <a key={id} href={`#${id}`} onClick={() => setMenuOpen(false)}>
                 {sectionLabel[id]}
               </a>
@@ -113,8 +118,8 @@ export function LandingScreen({ signedIn }: { signedIn: boolean }) {
               <SplitHeadline text={APP_TAGLINE[lang]} />
               <p className="landing-lead">
                 {t(
-                  'কাঁচা বাজার, বাসা বদল, জরুরী ঔষুধ ও পণ্য আদান প্রদান — একটি অ্যাকাউন্টে চারটি সেবা। অর্ডার করার আগেই পুরো বিল দেখে নিন।',
-                  'Fresh market, house shifting, emergency medicine and parcel delivery: four services, one account. See the full bill before you order.',
+                  'কাঁচা বাজার, বাসা বদল, জরুরী ঔষুধ ও পণ্য আদান প্রদান — একটি অ্যাকাউন্টে চারটি সেবা। পুরো বিল দেখে আপনি কনফার্ম না করা পর্যন্ত কোনো অর্ডার বুক হয় না।',
+                  'Fresh market, house shifting, emergency medicine and parcel delivery: four services, one account. Nothing is booked until you have seen the full bill.',
                 )}
               </p>
               <div className="landing-cta">
@@ -153,7 +158,7 @@ export function LandingScreen({ signedIn }: { signedIn: boolean }) {
               <ul className="landing-points">
                 <li>
                   <ReceiptText size={16} />
-                  {t('অর্ডারের আগেই বিল', 'Bill before you order')}
+                  {t('কনফার্মের আগেই পুরো বিল', 'The full bill before you confirm')}
                 </li>
                 <li>
                   <BellRing size={16} />
@@ -174,6 +179,23 @@ export function LandingScreen({ signedIn }: { signedIn: boolean }) {
             </div>
           </div>
         </section>
+
+        {offers.length > 0 && (
+          <section id="offers" className="landing-section landing-offers">
+            <div className="landing-container">
+              <SectionHead
+                kicker={sectionLabel.offers}
+                title={t('চলমান অফার, আজই নিন', 'Running offers, grab them today')}
+                subtitle={t('সীমিত সময়ের অফার। অর্ডার করতে লগইন বা সাইন আপ করুন।', 'Offers for a limited time. Log in or sign up to order.')}
+              />
+              <div className="offer-grid">
+                {offers.map(offer => (
+                  <OfferCard key={offer.id} offer={offer} paths={paths} />
+                ))}
+              </div>
+            </div>
+          </section>
+        )}
 
         <section id="services" className="landing-section">
           <div className="landing-container">
@@ -375,8 +397,11 @@ function Steps() {
     { icon: PencilLine, title: t('লিস্ট বা তথ্য দিন', 'Fill in your list'), body: t('ঠিকানা, সময় আর লিস্ট লিখুন।', 'Add the address, the time and your list.') },
     {
       icon: ReceiptText,
-      title: t('বিল দেখে নিশ্চিত করুন', 'Check the bill and confirm'),
-      body: t('লিখতে লিখতেই পুরো বিল হিসাব হয়ে যায়। দেখে নিয়ে অর্ডার নিশ্চিত করুন।', 'The full bill is worked out as you type. Check it, then confirm.'),
+      title: t('দাম জেনে কনফার্ম করুন', 'Get the price, then confirm'),
+      body: t(
+        'বাজার ও ঔষুধের দাম আমরা যাচাই করে পাঠাই; বাসা বদল ও পার্সেলের বিল সাথে সাথেই দেখা যায়। দেখে নিয়ে কনফার্ম করুন।',
+        'We check and send bazar and medicine prices; shifting and parcel bills show as you fill in the form. Check the bill, then confirm.',
+      ),
     },
     { icon: BellRing, title: t('অর্ডার ট্র্যাক করুন', 'Track your order'), body: t('অর্ডারের প্রতিটি ধাপ নোটিফিকেশনে জানতে পারবেন।', 'You get a notification at every step of the order.') },
   ]
@@ -423,8 +448,11 @@ function Benefits() {
     {
       tone: 'tone-blue',
       icon: ReceiptText,
-      title: t('অর্ডারের আগেই পুরো বিল', 'The full bill up front'),
-      body: t('সেবা ও ডেলিভারি খরচসহ পুরো হিসাব অর্ডার নিশ্চিত করার আগেই দেখতে পাবেন।', 'See every charge, including service and delivery, before you confirm.'),
+      title: t('কনফার্মের আগেই পুরো বিল', 'The full bill before you confirm'),
+      body: t(
+        'সেবা ও ডেলিভারি খরচসহ পুরো বিল দেখে আপনি কনফার্ম করলে তবেই অর্ডার বুক হয়; তারপর দাম আর বদলায় না।',
+        'An order is booked only after you see the whole bill, service and delivery included, and confirm it. Then the price stays fixed.',
+      ),
     },
     {
       tone: 'tone-green',
@@ -564,15 +592,15 @@ function Faq() {
     [
       t('কীভাবে অর্ডার করব?', 'How do I place an order?'),
       t(
-        'অ্যাকাউন্ট খুলে সেবা বেছে নিন, ফর্মে তথ্য দিন, তারপর বিল দেখে “অর্ডার নিশ্চিত করুন” চাপুন।',
-        'Create an account, pick a service and fill in the form. Then check the bill and tap “Confirm order”.',
+        'অ্যাকাউন্ট খুলে সেবা বেছে নিন ও ফর্মে তথ্য দিন। বাসা বদল ও পার্সেলে বিল দেখে “অর্ডার নিশ্চিত করুন” চাপুন। বাজার ও ঔষুধে লিস্ট পাঠান; আমরা দাম জানালে অর্ডারের পাতায় “কনফার্ম করুন” চাপুন।',
+        'Create an account, pick a service and fill in the form. For shifting and parcels, check the bill and tap “Confirm order”. For bazar and medicine, send your list; when we send the price, tap “Confirm” on the order’s page.',
       ),
     ],
     [
       t('বিল কীভাবে হিসাব হয়?', 'How is the bill worked out?'),
       t(
-        'বিলে আমাদের সেবা ও ডেলিভারি খরচ যোগ হয়, যা খরচ অংশে দেওয়া আছে। বাজার ও ঔষুধের দাম আলাদা।',
-        'The bill adds our service and delivery charges, listed under Pricing. Goods and medicine are paid at their price.',
+        'বিলে আমাদের সেবা ও ডেলিভারি খরচ যোগ হয়, যা খরচ অংশে দেওয়া আছে। বাজার ও ঔষুধের দাম আমরা যাচাই করে জানাই; দূরত্ব বা বাজারের পরিমাণ অনুযায়ী মজুরী ও ডেলিভারি খরচ বদলালে সেটাও বিলে দেখাই। আপনি কনফার্ম করলে সেই বিলই চূড়ান্ত।',
+        'The bill adds our service and delivery charges, listed under Pricing. We check and send the price of the goods or medicine, and if the distance or the size of the bazar changes the shopping fee or delivery charge, the bill shows that too. Once you confirm it, that bill is final.',
       ),
     ],
     [
@@ -589,8 +617,8 @@ function Faq() {
     [
       t('অর্ডার কি বাতিল করা যায়?', 'Can I cancel an order?'),
       t(
-        `অর্ডার “${ORDER_STATUS_LABELS.PENDING.bn}” থাকা পর্যন্ত, অর্থাৎ বুক হওয়ার আগে, অর্ডারের পাতা থেকেই বাতিল করতে পারবেন।`,
-        `Yes, while it is still “${ORDER_STATUS_LABELS.PENDING.en}”, before it is booked. Cancel it from the order’s page.`,
+        `অর্ডার বুক হওয়ার আগে, অর্থাৎ “${ORDER_STATUS_LABELS.PENDING.bn}” বা “${ORDER_STATUS_LABELS.QUOTED.bn}” থাকা অবস্থায়, অর্ডারের পাতা থেকেই বাতিল করতে পারবেন।`,
+        `Yes, before it is booked: while it is “${ORDER_STATUS_LABELS.PENDING.en}” or “${ORDER_STATUS_LABELS.QUOTED.en}”. Cancel it from the order’s page.`,
       ),
     ],
     [

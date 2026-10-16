@@ -1,0 +1,26 @@
+import { APP_LOGO_HERO, APP_NAME, APP_TAGLINE } from '@/shared'
+import type { MetadataRoute } from 'next'
+
+/**
+ * The web app manifest (/manifest.webmanifest). "Add to Home Screen" opens the app version, and on
+ * an iPhone or iPad push notifications work only once the site is added this way.
+ */
+export default function manifest(): MetadataRoute.Manifest {
+  return {
+    name: `${APP_NAME.bn} · ${APP_NAME.en}`,
+    short_name: APP_NAME.bn,
+    description: APP_TAGLINE.bn,
+    lang: 'bn',
+    start_url: '/app',
+    scope: '/',
+    display: 'standalone',
+    background_color: '#ffffff',
+    // --blue in the customer site's Kingfisher palette.
+    theme_color: '#1265d8',
+    icons: [
+      { src: '/icon-192x192.png', sizes: '192x192', type: 'image/png' },
+      { src: APP_LOGO_HERO, sizes: '512x512', type: 'image/webp' },
+      { src: '/apple-icon.png', sizes: '180x180', type: 'image/png' },
+    ],
+  }
+}

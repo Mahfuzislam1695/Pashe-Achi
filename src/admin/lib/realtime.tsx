@@ -1,7 +1,7 @@
 'use client'
 
 import { connectRealtime } from '@/api-client'
-import { type NotificationDto, type OrderSummary, SERVICE_LABELS, SOCKET_EVENTS, type UnreadCountDto } from '@/shared'
+import { isAwaitingPrice, type NotificationDto, type OrderSummary, SERVICE_LABELS, SOCKET_EVENTS, type UnreadCountDto } from '@/shared'
 import { useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
 import { createContext, useContext, useEffect, useRef, useState } from 'react'
@@ -73,7 +73,7 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
       const { t, text, taka, soundEnabled, router } = latest.current
       if (soundEnabled) chime()
       toast.success(t(`নতুন অর্ডার ${order.code}`, `New order ${order.code}`), {
-        description: `${text(SERVICE_LABELS[order.service])} · ${order.customer?.name ?? ''} · ${taka(order.total)}`,
+        description: `${text(SERVICE_LABELS[order.service])} · ${order.customer?.name ?? ''} · ${isAwaitingPrice(order.service, order.status) ? t('দাম দিতে হবে', 'needs pricing') : taka(order.total)}`,
         action: { label: t('দেখুন', 'Open'), onClick: () => router.push(`/admin/orders/${order.id}`) },
         duration: 10_000,
       })
@@ -83,7 +83,22 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
       queryClient.setQueryData<UnreadCountDto>(queryKeys.unread, current => ({ count: (current?.count ?? 0) + 1 }))
       void queryClient.invalidateQueries({ queryKey: queryKeys.notificationList })
       // New orders already got their own toast above.
-      if (notification.type !== 'ORDER_CREATED') toast(latest.current.text(notification.title), { description: latest.current.text(notification.body) })
+      if (notification.type === 'ORDER_CREATED') return
+      const { t, text, soundEnabled, router } = latest.current
+      const { orderId, status } = notification.data
+      const options = {
+        description: text(notification.body),
+        ...(orderId ? { action: { label: t('দেখুন', 'Open'), onClick: () => router.push(`/admin/orders/${orderId}`) } } : {}),
+      }
+      // A customer confirmed a price: the order is booked and someone has to go and buy it.
+      if (notification.type === 'ORDER_STATUS' && status === 'BOOKED') {
+        if (soundEnabled) chime()
+        toast.success(text(notification.title), { ...options, duration: 10_000 })
+      } else if (notification.type === 'ORDER_STATUS' && status === 'CANCELLED') {
+        toast.warning(text(notification.title), options)
+      } else {
+        toast(text(notification.title), options)
+      }
     })
     return () => {
       socket.close()

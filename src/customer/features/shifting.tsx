@@ -1,8 +1,9 @@
 'use client'
 
-import { calcShifting, createShiftingOrderSchema, FORM_ERROR_PRIORITY, type ScheduleInput, toAmount, validateForm, withDeliveryHours } from '@/shared'
+import { calcShifting, createShiftingOrderSchema, FORM_ERROR_PRIORITY, type GeoPoint, type ScheduleInput, toAmount, validateForm, withDeliveryHours } from '@/shared'
 import { useState } from 'react'
 
+import { AddressField } from '@/customer/components/address-field'
 import { DeliveryHoursNotice, DeliverySchedule, EMPTY_SCHEDULE } from '@/customer/components/delivery-schedule'
 import { BillSummary, ConfirmButton, CustomerInfo, Field, ServiceCard } from '@/customer/components/ui'
 import { api } from '@/customer/lib/api'
@@ -13,6 +14,8 @@ import { errorCode, usePlaceOrder, useSession } from '@/customer/lib/queries'
 type ShiftingDraft = {
   loadingArea: string
   unloadingArea: string
+  loadingPin: GeoPoint | null
+  unloadingPin: GeoPoint | null
   schedule: ScheduleInput
   vehicleId: string
   labourers: string
@@ -42,6 +45,8 @@ export function ShiftingScreen() {
   const [draft, setDraft] = useDraft<ShiftingDraft>('shifting', () => ({
     loadingArea: '',
     unloadingArea: '',
+    loadingPin: null,
+    unloadingPin: null,
     schedule: EMPTY_SCHEDULE,
     vehicleId: vehicles[0]?.id ?? '',
     labourers: '1',
@@ -64,6 +69,8 @@ export function ShiftingScreen() {
     {
       loadingArea: draft.loadingArea,
       unloadingArea: draft.unloadingArea,
+      loadingPin: draft.loadingPin ?? undefined,
+      unloadingPin: draft.unloadingPin ?? undefined,
       schedule: draft.schedule,
       vehicleId: vehicle?.id ?? '',
       labourers: toAmount(draft.labourers),
@@ -78,7 +85,7 @@ export function ShiftingScreen() {
     if (!check.success) return setShowError(true)
     placeOrder.mutate(check.data, {
       onSuccess: () => {
-        setDraft(current => ({ ...current, loadingArea: '', unloadingArea: '', schedule: EMPTY_SCHEDULE }))
+        setDraft(current => ({ ...current, loadingArea: '', unloadingArea: '', loadingPin: null, unloadingPin: null, schedule: EMPTY_SCHEDULE }))
         setShowError(false)
       },
     })
@@ -97,12 +104,18 @@ export function ShiftingScreen() {
       <CustomerInfo user={user} showPoints={false} />
       <DeliveryHoursNotice service="shifting" windows={catalog.deliveryHours.shifting} />
       <div className="field-pair even">
-        <Field label={t('Loading Area', 'Loading area')}>
-          <input value={draft.loadingArea} onChange={e => update({ loadingArea: e.target.value })} placeholder={t('যেমন: মিরপুর ১০', 'e.g. Mirpur 10')} />
-        </Field>
-        <Field label={t('Unloading Area', 'Unloading area')}>
-          <input value={draft.unloadingArea} onChange={e => update({ unloadingArea: e.target.value })} placeholder={t('যেমন: উত্তরা', 'e.g. Uttara')} />
-        </Field>
+        <AddressField
+          label={t('Loading Area', 'Loading area')}
+          value={{ text: draft.loadingArea, pin: draft.loadingPin }}
+          onChange={next => update({ loadingArea: next.text, loadingPin: next.pin })}
+          placeholder={t('যেমন: মিরপুর ১০', 'e.g. Mirpur 10')}
+        />
+        <AddressField
+          label={t('Unloading Area', 'Unloading area')}
+          value={{ text: draft.unloadingArea, pin: draft.unloadingPin }}
+          onChange={next => update({ unloadingArea: next.text, unloadingPin: next.pin })}
+          placeholder={t('যেমন: উত্তরা', 'e.g. Uttara')}
+        />
       </div>
       <DeliverySchedule value={draft.schedule} onChange={schedule => update({ schedule })} />
       <div className="steps">

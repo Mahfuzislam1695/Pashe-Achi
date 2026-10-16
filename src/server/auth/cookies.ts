@@ -14,6 +14,13 @@ export const COOKIE_NAMES: Record<Audience, { access: string; refresh: string }>
   admin: { access: 'pa_admin_at', refresh: 'pa_admin_rt' },
 }
 
+const DAY_MS = 24 * 60 * 60 * 1000
+/**
+ * Customer sessions never expire, but browsers cap a cookie's lifetime at 400 days. Every refresh
+ * sets the cookie again, so a customer who opens the site at least once in that time stays signed in.
+ */
+export const CUSTOMER_REFRESH_COOKIE_MS = 400 * DAY_MS
+
 const baseOptions = (env: Env): CookieOptions => ({
   httpOnly: true,
   sameSite: 'lax',
@@ -24,7 +31,8 @@ const baseOptions = (env: Env): CookieOptions => ({
 export function setAuthCookies(response: Response, env: Env, audience: Audience, tokens: AuthTokens) {
   const names = COOKIE_NAMES[audience]
   response.cookie(names.access, tokens.accessToken, { ...baseOptions(env), maxAge: env.ACCESS_TOKEN_TTL_MINUTES * 60 * 1000 })
-  response.cookie(names.refresh, tokens.refreshToken, { ...baseOptions(env), maxAge: env.REFRESH_TOKEN_TTL_DAYS * 24 * 60 * 60 * 1000 })
+  const refreshMaxAge = audience === 'customer' ? CUSTOMER_REFRESH_COOKIE_MS : env.REFRESH_TOKEN_TTL_DAYS * DAY_MS
+  response.cookie(names.refresh, tokens.refreshToken, { ...baseOptions(env), maxAge: refreshMaxAge })
 }
 
 export function clearAuthCookies(response: Response, env: Env, audience: Audience) {

@@ -2,7 +2,7 @@
 
 import { SERVICE_IDS, SERVICE_LABELS } from '@/shared'
 import { useQueryClient } from '@tanstack/react-query'
-import { Bell, ChevronRight, ClipboardList, Menu, RotateCw, UserRound, X } from 'lucide-react'
+import { BadgePercent, Bell, ChevronRight, ClipboardList, Menu, RotateCw, UserRound, X } from 'lucide-react'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 
@@ -11,7 +11,8 @@ import { api } from '@/customer/lib/api'
 import { DraftsProvider } from '@/customer/lib/drafts'
 import { useLang } from '@/customer/lib/i18n'
 import { type Mode, ModeProvider, usePaths } from '@/customer/lib/paths'
-import { useCatalog, useMe, useUnreadCount } from '@/customer/lib/queries'
+import { forgetCustomerPush, PushProvider } from '@/customer/lib/push'
+import { useCatalog, useMe, useOffers, useUnreadCount } from '@/customer/lib/queries'
 import { RealtimeProvider } from '@/customer/lib/realtime'
 import { ContactDock, FormError, LangToggle, Logo } from './ui'
 
@@ -40,7 +41,9 @@ function SessionGate({ mode, children }: { mode: Mode; children: React.ReactNode
     return (
       <DraftsProvider>
         <RealtimeProvider>
-          <Frame mode={mode}>{children}</Frame>
+          <PushProvider mode={mode}>
+            <Frame mode={mode}>{children}</Frame>
+          </PushProvider>
         </RealtimeProvider>
       </DraftsProvider>
     )
@@ -78,6 +81,7 @@ function Frame({ mode, children }: { mode: Mode; children: React.ReactNode }) {
   const queryClient = useQueryClient()
   const user = useMe().data!
   const unread = useUnreadCount().data?.count ?? 0
+  const offerCount = useOffers().data?.length ?? 0
   const [menuOpen, setMenuOpen] = useState(false)
 
   // Service tabs switch instantly: their routes are prefetched once.
@@ -94,7 +98,9 @@ function Frame({ mode, children }: { mode: Mode; children: React.ReactNode }) {
       ? t('অর্ডার হিস্ট্রি', 'Order history')
       : isActive(paths.notifications)
         ? t('নোটিফিকেশন', 'Notifications')
-        : t('প্রোফাইল', 'Profile')
+        : isActive(paths.offers)
+          ? t('আজকের অফার', "Today's offers")
+          : t('প্রোফাইল', 'Profile')
   const go = (path: string) => {
     setMenuOpen(false)
     router.push(path)
@@ -102,6 +108,7 @@ function Frame({ mode, children }: { mode: Mode; children: React.ReactNode }) {
   }
   const signOut = async () => {
     setMenuOpen(false)
+    await forgetCustomerPush()
     await api.auth.logout().catch(() => undefined)
     queryClient.clear()
     router.replace(paths.entry)
@@ -137,6 +144,11 @@ function Frame({ mode, children }: { mode: Mode; children: React.ReactNode }) {
               </button>
             )
           })}
+          <button className={`nav-item offers-nav ${isActive(paths.offers) ? 'active' : ''}`} onClick={() => go(paths.offers)}>
+            <BadgePercent size={19} />
+            <span>{t('আজকের অফার', "Today's offers")}</span>
+            {offerCount > 0 && <span className="nav-count">{digits(offerCount)}</span>}
+          </button>
           <p className="nav-label account-label">{t('অ্যাকাউন্ট', 'ACCOUNT')}</p>
           <button className={`nav-item ${isActive(paths.orders) ? 'active' : ''}`} onClick={() => go(paths.orders)}>
             <ClipboardList size={19} />

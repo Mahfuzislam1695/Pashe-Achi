@@ -1,6 +1,6 @@
 'use client'
 
-import { type OrderSummary, SERVICE_LABELS } from '@/shared'
+import { isAwaitingPrice, type OrderSummary, SERVICE_LABELS } from '@/shared'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 
@@ -47,7 +47,9 @@ export function OrderTable({ orders, showCustomer = true }: { orders: OrderSumma
               {formatDate(order.scheduledDate)}
               <div className="text-xs text-muted">{order.scheduledTime}</div>
             </Td>
-            <Td className="text-right font-semibold whitespace-nowrap tabular-nums">{taka(order.total)}</Td>
+            <Td className="text-right font-semibold whitespace-nowrap tabular-nums">
+              {isAwaitingPrice(order.service, order.status) ? <span className="text-xs font-semibold text-warning-ink">{t('দাম দিতে হবে', 'Needs price')}</span> : taka(order.total)}
+            </Td>
             <Td>
               <StatusBadge status={order.status} />
             </Td>

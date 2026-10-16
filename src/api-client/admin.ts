@@ -1,6 +1,7 @@
 import type {
   AdminCustomerDto,
   AdminDto,
+  AdminOfferDto,
   AuditLogDto,
   AuthResponse,
   BroadcastInput,
@@ -16,17 +17,22 @@ import type {
   ListOrdersQuery,
   LoginInput,
   NotificationDto,
+  OfferInput,
   OrderDetail,
   OrderSummary,
   Paginated,
   Pricing,
   PricingInput,
+  PushKeyDto,
+  PushSubscriptionInput,
+  QuoteOrderInput,
+  SavedLocationDto,
   SupportSettings,
   SupportSettingsInput,
   UnreadCountDto,
   UpdateAdminInput,
   UpdateCustomerInput,
-  UpdateOrderItemsInput,
+  UpdateOfferInput,
   UpdateOrderStatusInput,
   UpdateVehicleInput,
   VehicleDto,
@@ -56,11 +62,13 @@ export function createAdminApi(options: Omit<HttpClientOptions, 'audience'>) {
       get: (orderId: string) => http.get<OrderDetail>(`/admin/orders/${id(orderId)}`),
       history: (orderId: string) => http.get<AuditLogDto[]>(`/admin/orders/${id(orderId)}/history`),
       updateStatus: (orderId: string, body: UpdateOrderStatusInput) => http.patch<OrderDetail>(`/admin/orders/${id(orderId)}/status`, body),
-      updateItems: (orderId: string, body: UpdateOrderItemsInput) => http.patch<OrderDetail>(`/admin/orders/${id(orderId)}/items`, body),
+      /** Price a bazar or medicine order (the whole list of lines); the customer is asked to confirm. */
+      quote: (orderId: string, body: QuoteOrderInput) => http.put<OrderDetail>(`/admin/orders/${id(orderId)}/quote`, body),
     },
     customers: {
       list: (query: Partial<ListCustomersQuery> = {}) => http.get<Paginated<AdminCustomerDto>>('/admin/customers', query),
       get: (customerId: string) => http.get<AdminCustomerDto>(`/admin/customers/${id(customerId)}`),
+      locations: (customerId: string) => http.get<SavedLocationDto[]>(`/admin/customers/${id(customerId)}/locations`),
       update: (customerId: string, body: UpdateCustomerInput) => http.patch<AdminCustomerDto>(`/admin/customers/${id(customerId)}`, body),
     },
     catalog: {
@@ -81,7 +89,25 @@ export function createAdminApi(options: Omit<HttpClientOptions, 'audience'>) {
       unreadCount: () => http.get<UnreadCountDto>('/admin/notifications/unread-count'),
       markRead: (notificationId: string) => http.patch<NotificationDto>(`/admin/notifications/${id(notificationId)}/read`),
       markAllRead: () => http.post<UnreadCountDto>('/admin/notifications/read-all'),
+      push: {
+        key: () => http.get<PushKeyDto>('/admin/notifications/push'),
+        subscribe: (body: PushSubscriptionInput) => http.put<void>('/admin/notifications/push', body),
+        remove: (endpoint: string) => http.request<void>('DELETE', '/admin/notifications/push', { body: { endpoint } }),
+      },
       broadcast: (body: BroadcastInput) => http.post<{ sent: number }>('/admin/notifications/broadcast', body),
+    },
+    offers: {
+      list: () => http.get<AdminOfferDto[]>('/admin/offers'),
+      create: (body: OfferInput) => http.post<AdminOfferDto>('/admin/offers', body),
+      update: (offerId: string, body: UpdateOfferInput) => http.patch<AdminOfferDto>(`/admin/offers/${id(offerId)}`, body),
+      remove: (offerId: string) => http.request<void>('DELETE', `/admin/offers/${id(offerId)}`),
+      setImage: (offerId: string, file: File) => {
+        const form = new FormData()
+        form.append('file', file)
+        return http.request<AdminOfferDto>('PUT', `/admin/offers/${id(offerId)}/image`, { body: form })
+      },
+      removeImage: (offerId: string) => http.request<AdminOfferDto>('DELETE', `/admin/offers/${id(offerId)}/image`),
+      notify: (offerId: string) => http.post<{ sent: number }>(`/admin/offers/${id(offerId)}/notify`),
     },
     audit: {
       list: (query: Partial<ListAuditQuery> = {}) => http.get<Paginated<AuditLogDto>>('/admin/audit', query),

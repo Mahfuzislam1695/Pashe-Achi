@@ -43,7 +43,7 @@ npm run db:deploy | db:seed | db:seed:demo | db:studio | db:generate
 - **Single test file.** `npx vitest run src/shared/pricing.test.ts`, or `npx jest src/server/auth/cookies.spec.ts`.
 - **Dev vs production.** `npm run dev` runs `nest start --watch -- --dev`. That `--dev` flag, not `NODE_ENV`, puts Next.js in dev mode. `src/server/load-env.ts` then sets `NODE_ENV` to development or production to match, unless the environment already sets it.
 - **e2e database.** `test:e2e` uses `TEST_DATABASE_URL`, or `DATABASE_URL` with `_test` appended. It creates that database (UTF8), migrates it, and truncates it on every run. It runs Jest through `node --experimental-vm-modules`, because the Prisma 7 client loads its query engine with dynamic `import()`. The e2e tests boot the API alone, through `configureApp`, without the pages.
-- **Seed.** `prisma/seed.ts` is idempotent: catalog defaults and the first super admin (from `SEED_ADMIN_*` in `.env`), each with a SYSTEM history row. `npm run db:seed:demo` adds `prisma/seed-demo.ts`: a deterministic month of data relative to today. It has a demo manager (01822222222), an operator (01833333333) and 8 customers, among them 01811111111 with the prototype's three orders. Every demo password is demo1234. Alongside about 65 orders in every status, it writes timelines, history entries and notifications. It runs in one transaction and skips if the demo customer exists.
+- **Seed.** `prisma/seed.ts` is idempotent: catalog defaults and the first super admin (from `SEED_ADMIN_*` in `.env`), each with a SYSTEM history row. `npm run db:seed:demo` adds `prisma/seed-demo.ts`: a deterministic month of data relative to today. It has a demo manager (01822222222), an operator (01833333333) and 8 customers, among them 01811111111 with the prototype's three orders. Every demo password is demo1234. Alongside about 65 orders in every status (bazar and medicine through the quote → confirm flow, some with a higher delivery charge for a far address; the demo customer's medicine order waits for their confirm), it writes timelines, history entries and notifications, two running offers, plus the demo customer's two saved map locations (their orders carry the same pins). It runs in one transaction and skips if the demo customer exists.
 - **Lint.** There is no lint script.
 
 ## Layout and request flow
@@ -87,23 +87,27 @@ prisma/  schema, migrations, seed.ts        test/  API e2e tests        public/ 
   - Add new error text here, never inline.
 - `pricing.ts`: `calcBazar`, `calcShifting` and the other calculators. The customer bill preview and the API use the same functions. The API never trusts client totals. Each order stores a snapshot (`itemsTotal`, `serviceFee`, `deliveryFee`, `total`), so price changes never alter old bills.
 - `delivery-hours.ts`: the ডেলিভারি টাইম windows per service, set by managers in Catalog and stored as `Setting` rows (`delivery.bazar` = `08:00-10:00,18:00-21:00`; empty means any time). `deliveryHoursNotice` builds each screen's "… ডেলিভারির সময় সূচী" notice from them (the defaults reproduce the sketch sentence). Forms wrap their schema in `withDeliveryHours`, and `OrdersService` checks the same windows, so a time outside them fails with `schedule.hours` on both sides.
-- `enums.ts`: services, statuses, `ORDER_TRANSITIONS` (the allowed status moves), roles, `API_PREFIX` (`api/v1`), `SOCKET_NAMESPACE` and `SOCKET_EVENTS`.
+- `enums.ts`: services, statuses, `ORDER_TRANSITIONS` and `adminNextStatuses` (the moves staff may make), `QUOTED_SERVICES` / `isAwaitingPrice` (bazar and medicine are priced by staff), `CUSTOMER_CANCELLABLE`, `QUOTE_EDITABLE`, roles, `API_PREFIX` (`api/v1`), `SOCKET_NAMESPACE` and `SOCKET_EVENTS`.
 - `labels.ts`: bilingual service and status labels.
 - `brand.ts`: app name, logo paths (resized from `public/logo/logo.jpeg`), `PA-` order prefix.
+- `geo.ts`: `GeoPoint`, `DHAKA_CENTER`, `MAX_SAVED_LOCATIONS` (10), the label presets and `mapLink` (a Google Maps URL, no key, for staff and riders to open a pin). `schemas/locations.ts` validates saved locations and the optional order pins (`addressPin`, `loadingPin`/`unloadingPin`, `pickupPin`/`dropoffPin`).
+- `schemas/offers.ts`: আজকের অফার (`offerSchema`, `updateOfferSchema`); `OfferDto` / `AdminOfferDto` are in `types.ts`.
 - `types.ts`: response DTOs.
 
 ### src/server (the API)
 
 - **Modules:**
   - `auth` (customer and admin)
-  - `users` (`/me`, `/admin/customers`)
+  - `users` (`/me`, `/me/locations`, `/admin/customers`)
   - `admins` (`/admin/staff`)
   - `catalog` (pricing, vehicles, support line, delivery hours)
   - `uploads`
   - `orders`
   - `notifications`
+  - `offers` (আজকের অফার: public `/offers`, `/admin/offers`)
   - `dashboard`
   - `audit` (the history log, `/admin/audit`)
+  - `geo` (`/geo/reverse`: address text for a map pin)
   - `health`
 - **Request DTOs.** All of them are in `common/dto.ts`, wrapping the shared schemas.
 - **Errors.** Throw `AppException.badRequest('code')` and similar. `common/all-exceptions.filter.ts` shapes every error, including Prisma P2002/P2025.
@@ -111,12 +115,19 @@ prisma/  schema, migrations, seed.ts        test/  API e2e tests        public/ 
   - Customers (`User`) and staff (`Admin`) are separate tables, with separate JWT secrets and separate cookies. Customers get `pa_at` / `pa_rt`; admins get `pa_admin_at` / `pa_admin_rt`. Both live on the one origin with path `/`.
   - Access tokens are 15-minute JWTs.
   - Refresh tokens are random strings stored as SHA-256 hashes. They rotate on every use. A replayed token, outside a 30-second grace window, revokes its whole family (`auth/token.service.ts`).
+  - Customer sessions never expire. Their refresh tokens have a null `expiresAt`, and the `pa_rt` cookie lasts 400 days (the browser maximum) and is renewed on every refresh. They end only on logout, a password change, a block or a replay. Admin sessions end after `REFRESH_TOKEN_TTL_DAYS`.
   - `CustomerGuard` and `AdminGuard` re-read the account on every request, so blocking or deactivating someone takes effect immediately. Use `@Roles('MANAGER')` for manager-only routes; `SUPER_ADMIN` always passes.
   - Roles: OPERATOR handles orders. MANAGER also handles catalog, customer blocking and points, and broadcasts. SUPER_ADMIN also manages staff.
 - **Orders:**
   - `orders.service.ts` writes the order, its children and its first timeline event in one transaction.
   - Status changes use `updateMany where status = from`, so concurrent changes can't both win. Every change writes an `OrderStatusEvent`.
-  - After commit it emits domain events (`common/domain-events.ts`) through `@nestjs/event-emitter`.
+  - **Customers never send prices.** Shifting and parcel are priced from the Catalog when placed. Bazar and medicine (`QUOTED_SERVICES`) are placed with no line prices (the bill is the fees only):
+    1. Staff send a quote, `PUT /admin/orders/:id/quote`, with the whole list of lines: they price every line, can remove lines and can add new ones (a prescription's medicines). They may also change the order's `serviceFee` (bazar's shopping fee) and `deliveryFee` from the Catalog's, e.g. for a far address; a fee left out stays as it is, and medicine has no shopping fee (`quote.fees`). The order goes PENDING → **QUOTED**, `quoteVersion` goes up by one, and the customer is notified with the whole bill, the charges that changed (80 → 120) and the staff note.
+    2. The customer confirms (`POST /orders/:id/confirm` with the `quoteVersion` and total they saw), which moves it QUOTED → BOOKED, or cancels.
+    3. Staff may re-quote while QUOTED; after BOOKED the bill is locked (`order.bill_locked`).
+    4. The quote locks the order row, and the confirm only applies while `quoteVersion` and the total are unchanged (`order.quote_changed`), so a customer never confirms a bill they have not seen, even a new one with the same total.
+    5. Staff can't move a bazar or medicine order out of PENDING by status (`adminNextStatuses`).
+  - After commit it emits domain events (`common/domain-events.ts`) through `@nestjs/event-emitter`: `orderCreated`, `orderStatusChanged`, and `orderQuoted` (with the bill before the quote and the note).
 - **History log (`AuditLog`):**
   - Every change writes one row in the same transaction: `AuditService.record(entry, tx)`. Changes come from orders, bills, catalog, customers, staff, broadcasts, signups, profiles, and admin sign-ins and failed sign-ins.
   - Each row stores who did it, as snapshots: actor name and role, entity label, IP and user agent. It also stores only the changed fields (`diffChanges` in `audit/diff.ts`), plus a note and meta. No-op updates write nothing, and passwords are never stored.
@@ -126,7 +137,14 @@ prisma/  schema, migrations, seed.ts        test/  API e2e tests        public/ 
 - **Notifications:**
   - `notifications.listener.ts` turns those domain events into stored bilingual `Notification` rows, plus Socket.IO pushes.
   - The gateway is at namespace `/ws`. It authenticates in Socket.IO middleware, and rejected handshakes get `connect_error` "unauthorized". Sockets join the rooms `user:<id>`, `admin:<id>` and `admins`.
-  - Delivery goes through the `NOTIFICATION_CHANNELS` list in `channels.ts`. Add FCM push or SMS there.
+  - The wording is in `notification.content.ts` (plain functions, also used by the demo seed). Quote notifications carry the whole bill (`billBreakdown`) and the changed charges (`feeChanges`).
+  - Delivery goes through the `NOTIFICATION_CHANNELS` list in `notifications.module.ts`: `RealtimeChannel` (Socket.IO) and `WebPushChannel`. Add FCM (the Flutter app) or SMS there.
+  - **Phone and desktop push (Web Push):**
+    - On only when `.env` has `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` and `VAPID_SUBJECT` (generate the keys with `npx web-push generate-vapid-keys`); otherwise `GET …/push` answers `{ publicKey: null }` and the switches are hidden.
+    - `PushSubscription` rows, at most one customer and one admin owner per browser endpoint (`@@unique([endpoint, audience])`), so a shared phone follows whoever signs in. Routes: `GET/PUT/DELETE /notifications/push` and `/admin/notifications/push`. Endpoints must be on a known push service (`isPushEndpoint` in `schemas/push.ts`), so the server never posts to an arbitrary address.
+    - `web-push.channel.ts` sends in the background (8 at a time, finished before shutdown), in the language the browser subscribed with, opening the customer's own version (`basePath` `''` or `/app`) or `/admin`. A 404/410 from the push service deletes the row. `PUSH_SENDER` (`push.service.ts`) is the `web-push` call; the e2e tests replace it with a recorder.
+    - The browser side: `public/sw.js` (scope `/`, no fetch handler; skips the system notification when a tab of that side is focused, since the toast shows it; a tap focuses or opens the URL), `src/api-client/push.ts` (`enablePush`, `syncPush` on every load and language change, `disablePush`, `forgetPush` before logout), and `PushProvider`/`usePush` in `src/customer/lib/push.tsx` and `src/admin/lib/push.tsx`. Each side remembers its own choice in localStorage (`pa_push`, `pa_admin_push`).
+    - Browsers allow push only on HTTPS (localhost works without it). iPhones and iPads get it only after Add to Home Screen, which `src/app/manifest.ts` (start URL `/app`) and the customer layout's `appleWebApp` make possible.
 - **Prisma 7:**
   - `prisma.config.ts` (root) holds the datasource URL and loads `.env`.
   - The `prisma-client` generator writes to `src/server/generated/prisma`, which is gitignored. It uses `moduleFormat = "cjs"` and `importFileExtension = "js"`.
@@ -134,8 +152,13 @@ prisma/  schema, migrations, seed.ts        test/  API e2e tests        public/ 
   - `migrate dev` does not regenerate the client, so run `db:generate`.
   - The first migration restarts the order-number sequence at 1001.
   - The database must be **UTF8**, or Bangla writes fail, and `PrismaService` refuses to start otherwise. On Windows, create it with `CREATE DATABASE … ENCODING 'UTF8' TEMPLATE template0`.
+- **Offers (আজকের অফার):** the `Offer` table, running from `startsOn` to `endsOn` (Bangladesh days) while `isActive`. Pictures (JPG, PNG or WebP, ≤5 MB, checked by magic bytes) go through the `StorageService` exported by `UploadsModule`, under `offers/…`. `GET /offers` and `GET /offers/:id/image` are public (the landing page), and `imageUrl` carries `?v=` so a replaced picture is never cached. Writes are for managers; `POST /admin/offers/:id/notify` sends an `OFFER` notification to every customer. History: `OFFER_*` on entity `OFFER`.
+- **Saved locations and map pins:**
+  - `SavedLocation` rows (আমার লোকেশন): up to 10 per customer, one default (the first saved, or the one picked; deleting it promotes the newest). Writes lock the customer row, and each writes a `CUSTOMER_LOCATION_*` history entry on the customer.
+  - Orders copy the address text and its optional pin into nullable `*Lat`/`*Lng` columns (`Order.address*`, `ShiftingDetail.loading*`/`unloading*`, `ParcelDetail.pickup*`/`dropoff*`), so editing a saved location never changes an old order.
+  - `GET /geo/reverse` (customers only) asks OpenStreetMap's Nominatim, through the server so the whole app keeps to its policy: one lookup a second, an identifying User-Agent, a 500-entry cache. Any failure answers `{ address: null }` and the customer types the address. Busy production use should move to a paid geocoder.
 - **Uploads.** Prescriptions are checked by their magic bytes (`uploads/file-signature.ts`), not by MIME type. They are stored through the `StorageService` abstraction, currently `LocalDiskStorage` under `UPLOAD_DIR`. Customers can read only their own files; admins use `/admin/uploads/:id`.
-- **Env.** In production, `config/env.ts` refuses the example secrets from `.env.example`.
+- **Env.** In production, `config/env.ts` refuses the example secrets from `.env.example` (and an `example.com` `VAPID_SUBJECT`).
 - **Dependency pins.** Stay on the NestJS 11 line: Nest 12 and `@nestjs/event-emitter` 12 are ESM-only. `nestjs-zod` needs Nest 11, and Jest can't load ESM-only packages. Keep `@nestjs/event-emitter` at 3.x.
 
 ### Pages: one Next.js app with two root layouts
@@ -155,16 +178,18 @@ prisma/  schema, migrations, seed.ts        test/  API e2e tests        public/ 
 
   | Version | Entry and auth | Signed-in screens | Look |
   |---|---|---|---|
-  | Web | `/` (landing, `features/landing.tsx`), `/login`, `/signup` | `(web)/…`: `/bazar`, `/shifting`, `/medicine`, `/parcel`, `/orders`, `/orders/[id]`, `/notifications`, `/profile` | Desktop layout from 1024px, phone layout below |
+  | Web | `/` (landing, `features/landing.tsx`), `/login`, `/signup` | `(web)/…`: `/bazar`, `/shifting`, `/medicine`, `/parcel`, `/orders`, `/orders/[id]`, `/notifications`, `/offers`, `/profile` | Desktop layout from 1024px, phone layout below |
   | App | `app/(entry)/…`: `/app` (welcome screen), `/app/login`, `/app/signup` | `app/(main)/…`: `/app/bazar` … `/app/profile` | The original phone design at every width |
 
-  - The landing page shows live pricing from `GET /catalog`. Signed-in visitors see "Open app" in place of Sign up / Login.
+  - The landing page shows live pricing from `GET /catalog`, and an আজকের অফার section from the public `GET /offers` while an offer runs. Signed-in visitors see "Open app" in place of Sign up / Login.
   - Each layout renders `<AppShell mode="web|app">`. `AuthScreen` and `AuthShell` take `version`.
   - Build every customer URL with `usePaths()` from `lib/paths.tsx` (inside a shell) or `webPaths` / `appPaths`, never a string literal. That way a link never leaves its version.
   - `src/proxy.ts` keeps each version separate:
     - Signed out: a screen goes to its version's login with `?next=`.
     - Signed in: a login, signup or `/app` welcome screen goes to `next` or that version's home (`HOME_PATH` `/bazar` or `APP_HOME_PATH` `/app/bazar`).
 - **Shell.** `components/app-shell.tsx` (sidebar or drawer, top bar with bell, bottom nav, Chat/Call dock) renders only after the customer and catalog queries load. Below it, screens call `useSession()`.
+- **Locations and map.** `components/address-field.tsx` is every order form's address box, with chips for the saved locations, Current location and Pick on map. `components/location-sheet.tsx` is the map sheet (a portal, full height in the phone column, a dialog on the web from 1024px), used by the forms and by Profile's আমার লোকেশন. The Leaflet map (`components/map-picker.tsx`, OpenStreetMap tiles, a fixed centre pin) needs the browser, so it loads through `next/dynamic` with `ssr: false`. `navigator.geolocation` works only on HTTPS or localhost.
+- **Prices and quotes.** Bazar and medicine forms have no price column: their bill shows the Catalog fees plus "we will send the price" (`QuoteNotice`, which says the charges may change with the distance) and the button sends the order. On the order page a QUOTED order shows a price card with the whole bill, Confirm (sending the `quoteVersion` and total it shows) and Cancel; a price that arrives while the page is open is flagged. While a price is coming, `components/push-prompt.tsx` offers phone notifications; the Notifications screen has the on/off switch. `features/offers.tsx` is আজকের অফার (also used by the landing page), linked from the sidebar with a count of running offers.
 - **Drafts.** Form input survives switching services because `lib/drafts.tsx`'s `useDraft` stores it in the version's layout, which stays mounted.
 - **Screens and data.**
   - Screens live in `features/*.tsx`; the pieces they share live in `components/ui.tsx`, `line-table.tsx` and `delivery-schedule.tsx`.
@@ -174,7 +199,7 @@ prisma/  schema, migrations, seed.ts        test/  API e2e tests        public/ 
   - `lib/i18n.tsx` provides `useLang()` with `t('বাংলা', 'English')`, `text()`, `taka()`, `digits()`, `rowNumber()` and `formatDate()`. Every visible string is written as `t(…)` where it's used.
   - The language is kept in the `pa_lang` cookie, and the root layout reads it on the server.
   - Amounts use Latin digits in both languages; row numbers use Bengali digits in Bangla mode.
-- **Line tables.** A table starts with one row, and "add more" appears once the last row's required boxes are filled. Bazar requires item and quantity; medicine requires all five columns. Fully empty rows are ignored.
+- **Line tables.** A table starts with one row, and "add more" appears once the last row's required boxes are filled. Bazar requires item and quantity; medicine requires all four columns. Neither has a price column: staff price the lines. Fully empty rows are ignored.
 - **Styling:**
   - Screens use the hand-written classes in `globals.css` (`.page-card`, `.field`, `.line-table`, `.bill` and so on), not Tailwind utilities.
   - The file is minified old v0 CSS, then "Screens from the paper sketches", then "Live data screens (API)", then "Landing page", then "Kingfisher theme", then "Web version". Later rules win.
@@ -192,11 +217,12 @@ prisma/  schema, migrations, seed.ts        test/  API e2e tests        public/ 
 ### Admin panel (src/admin, src/app/(admin)/admin)
 
 - **Stack.** Tailwind v4 utilities, with brand tokens in the `@theme` block of its `globals.css` (`brand-*` blue, `navy`, `ink`, `muted`, `line`, `canvas`, `chart`, the `success`/`warning`/`violet`/`danger` tones with `-soft` and `-ink`, and `shadow-card`/`shadow-raised`). UI primitives are in `components/ui.tsx` (cva and tailwind-merge) and toasts use `sonner`.
-- **Routes.** `/admin/login`, then `(panel)/…` for `/admin` (dashboard), orders, customers, catalog, notifications, history, staff and profile. Every link and redirect in the panel starts with `/admin`.
+- **Routes.** `/admin/login`, then `(panel)/…` for `/admin` (dashboard), orders, customers, catalog, offers (আজকের অফার), notifications, history, staff and profile. Every link and redirect in the panel starts with `/admin`.
 - **History.** `components/audit-feed.tsx` renders history entries everywhere. That means `/admin/history` (managers and up, filters in the URL), the order page's History card, the customer page's History card and the dashboard's Recent activity.
+- **Quotes.** On a bazar or medicine order, the Items card is the quote editor while PENDING or QUOTED (price every line, remove lines, add lines, change the shopping fee and delivery charge, a note for the customer, Send price). Once the customer confirms, it is read-only.
 - **Filters.** Order filters live in the URL query.
 - **Permissions.** `lib/utils.ts` `canManage` / `isSuperAdmin` mirror the API's role checks to hide controls. The API still enforces them.
-- **Realtime.** `lib/realtime.tsx` shows a toast and plays a WebAudio chime on `order:new`, and refreshes the lists on any order change. The sound toggle is stored in localStorage.
+- **Realtime.** `lib/realtime.tsx` shows a toast and plays a WebAudio chime on `order:new` and when a customer confirms a price, gives order notifications an Open button, and refreshes the lists on any order change. The sound toggle is stored in localStorage. The bell-ring button beside it turns push notifications on for this device (`lib/push.tsx`).
 - **Language.** The panel defaults to English, using the same `t()` convention; the cookie is `pa_admin_lang`.
 - **Charts.** `components/charts.tsx` follows the data-viz rules: single series, one hue, ≤24px columns with 4px rounded ends, 2px gaps, hover/focus tooltips and a table view.
 

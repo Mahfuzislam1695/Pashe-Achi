@@ -9,7 +9,7 @@ import type { OrderWithRelations } from '../orders/order.mapper'
 export const DOMAIN_EVENTS = {
   orderCreated: 'order.created',
   orderStatusChanged: 'order.status_changed',
-  orderBillUpdated: 'order.bill_updated',
+  orderQuoted: 'order.quoted',
   customerBlocked: 'customer.blocked',
 } as const
 
@@ -25,9 +25,20 @@ export interface OrderStatusChangedEvent {
   by: ActorType
 }
 
-export interface OrderBillUpdatedEvent {
+/** The bill before a quote: the fees the customer saw when ordering, or the last quote's. */
+export interface QuotedBill {
+  itemsTotal: number
+  serviceFee: number
+  deliveryFee: number
+  total: number
+}
+
+/** Staff sent a bazar or medicine order's price (from PENDING) or a new one (from QUOTED). */
+export interface OrderQuotedEvent {
   order: OrderWithRelations
-  previousTotal: number
+  from: OrderStatus
+  previous: QuotedBill
+  note: string | null
 }
 
 export interface CustomerBlockedEvent {

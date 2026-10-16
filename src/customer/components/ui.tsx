@@ -140,20 +140,20 @@ export function CustomerInfo({ user, showPoints = true }: { user: CustomerDto; s
   )
 }
 
-/** Bill lines, a rule, then the total. */
-export function BillSummary({ lines, totalLabel, total }: { lines: [string, number][]; totalLabel: string; total: number }) {
+/** Bill lines, a rule, then the total. A text value (e.g. "price to follow") is shown as it is. */
+export function BillSummary({ lines, totalLabel, total }: { lines: [string, number | string][]; totalLabel: string; total: number | string }) {
   const { taka } = useLang()
   return (
     <div className="bill">
       {lines.map(([label, amount]) => (
         <div className="bill-line" key={label}>
           <span>{label}</span>
-          <strong>{amount}</strong>
+          <strong className={typeof amount === 'string' ? 'bill-pending' : undefined}>{amount}</strong>
         </div>
       ))}
       <div className="bill-total">
         <span>{totalLabel}</span>
-        <strong>{taka(total)}</strong>
+        <strong>{typeof total === 'string' ? total : taka(total)}</strong>
       </div>
     </div>
   )
@@ -169,16 +169,35 @@ export function FormError({ code }: { code: MessageCode | null }) {
   )
 }
 
-export function ConfirmButton({ error, pending, onConfirm }: { error: MessageCode | null; pending?: boolean; onConfirm: () => void }) {
+export function ConfirmButton({ error, pending, onConfirm, label }: { error: MessageCode | null; pending?: boolean; onConfirm: () => void; label?: string }) {
   const { t } = useLang()
   return (
     <div className="confirm">
       <FormError code={error} />
       <button type="button" className="primary-button wide" onClick={onConfirm} disabled={pending} aria-busy={pending}>
         <Check size={17} />
-        {pending ? t('অপেক্ষা করুন…', 'Please wait…') : t('অর্ডার নিশ্চিত করুন', 'Confirm order')}
+        {pending ? t('অপেক্ষা করুন…', 'Please wait…') : (label ?? t('অর্ডার নিশ্চিত করুন', 'Confirm order'))}
       </button>
     </div>
+  )
+}
+
+/**
+ * Under a bazar or medicine bill: the customer sends the list, staff send the price (and may adjust
+ * the charges shown, e.g. for a long way), and the order is booked only once the customer confirms it.
+ */
+export function QuoteNotice({ service }: { service: 'bazar' | 'medicine' }) {
+  const { t } = useLang()
+  return (
+    <p className="quote-notice">
+      {t(
+        'অর্ডার পাঠালে আমরা দাম যাচাই করে পুরো বিল জানাব। দাম দেখে আপনি কনফার্ম করলে তবেই অর্ডার বুক হবে।',
+        'Send the order and we will check the prices and send you the full bill. It is booked only after you confirm it.',
+      )}{' '}
+      {service === 'bazar'
+        ? t('দূরত্ব বা বাজারের পরিমাণ অনুযায়ী মজুরী ও ডেলিভারী খরচ বদলাতে পারে; বিলে তা দেখতে পাবেন।', 'The shopping fee and delivery charge may change with the distance or the size of the bazar; the bill shows it.')
+        : t('দূরত্ব অনুযায়ী ডেলিভারী চার্জ বদলাতে পারে; বিলে তা দেখতে পাবেন।', 'The delivery charge may change with the distance; the bill shows it.')}
+    </p>
   )
 }
 

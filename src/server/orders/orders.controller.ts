@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, Param, Patch, Post, Query, UseGuards } from '@nestjs/common'
+import { Body, Controller, Get, HttpCode, Param, Patch, Post, Put, Query, UseGuards } from '@nestjs/common'
 import { ApiBearerAuth, ApiCookieAuth, ApiOperation, ApiTags } from '@nestjs/swagger'
 import type { AuditLogDto, OrderDetail, OrderSummary, Paginated } from '@/shared'
 
@@ -7,6 +7,7 @@ import { AuditService } from '../audit/audit.service'
 import type { CustomerPrincipal } from '../auth/auth.types'
 import { AdminGuard, CurrentCustomer, CustomerGuard } from '../auth/guards'
 import {
+  ConfirmOrderDto,
   CreateBazarOrderDto,
   CreateMedicineOrderDto,
   CreateParcelOrderDto,
@@ -14,7 +15,7 @@ import {
   IdParamDto,
   ListMyOrdersQueryDto,
   ListOrdersQueryDto,
-  UpdateOrderItemsDto,
+  QuoteOrderDto,
   UpdateOrderStatusDto,
 } from '../common/dto'
 import { OrdersService } from './orders.service'
@@ -64,9 +65,16 @@ export class OrdersController {
 
   @Post(':id/cancel')
   @HttpCode(200)
-  @ApiOperation({ summary: 'Cancel your order while it is still pending' })
+  @ApiOperation({ summary: 'Cancel your order before it is booked (also while deciding on a quote)' })
   cancel(@CurrentCustomer() customer: CustomerPrincipal, @Param() { id }: IdParamDto, @Actor() actor: AuditActor): Promise<OrderDetail> {
     return this.orders.cancelMine(customer.id, id, actor)
+  }
+
+  @Post(':id/confirm')
+  @HttpCode(200)
+  @ApiOperation({ summary: "Accept the staff's prices for a bazar or medicine order (send the total you saw); the order is booked" })
+  confirm(@CurrentCustomer() customer: CustomerPrincipal, @Param() { id }: IdParamDto, @Body() body: ConfirmOrderDto, @Actor() actor: AuditActor): Promise<OrderDetail> {
+    return this.orders.confirmMine(customer.id, id, body, actor)
   }
 }
 
@@ -103,9 +111,9 @@ export class AdminOrdersController {
     return this.orders.updateStatus(actor, id, body)
   }
 
-  @Patch(':id/items')
-  @ApiOperation({ summary: 'Correct bazar/medicine line prices; the total is recomputed and the customer notified' })
-  updateItems(@Actor() actor: AuditActor, @Param() { id }: IdParamDto, @Body() body: UpdateOrderItemsDto): Promise<OrderDetail> {
-    return this.orders.updateItems(actor, id, body)
+  @Put(':id/quote')
+  @ApiOperation({ summary: 'Price a bazar or medicine order (the whole list of lines); the customer is asked to confirm or cancel' })
+  quote(@Actor() actor: AuditActor, @Param() { id }: IdParamDto, @Body() body: QuoteOrderDto): Promise<OrderDetail> {
+    return this.orders.quote(actor, id, body)
   }
 }

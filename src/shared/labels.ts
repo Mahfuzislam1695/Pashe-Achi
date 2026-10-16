@@ -9,6 +9,7 @@ export const SERVICE_LABELS: Record<ServiceId, Text> = {
 
 export const ORDER_STATUS_LABELS: Record<OrderStatus, Text> = {
   PENDING: { bn: 'অপেক্ষমাণ', en: 'Pending' },
+  QUOTED: { bn: 'দাম জানানো হয়েছে', en: 'Price sent' },
   BOOKED: { bn: 'বুক করা হয়েছে', en: 'Booked' },
   IN_PROGRESS: { bn: 'চলমান', en: 'In progress' },
   COMPLETED: { bn: 'সম্পন্ন', en: 'Completed' },
@@ -26,6 +27,7 @@ export const NOTIFICATION_TYPE_LABELS: Record<NotificationType, Text> = {
   ORDER_STATUS: { bn: 'অর্ডারের অবস্থা', en: 'Order status' },
   ORDER_BILL: { bn: 'বিল আপডেট', en: 'Bill update' },
   ANNOUNCEMENT: { bn: 'ঘোষণা', en: 'Announcement' },
+  OFFER: { bn: 'আজকের অফার', en: "Today's offer" },
 }
 
 export const ACTOR_TYPE_LABELS: Record<ActorType, Text> = {
@@ -43,6 +45,7 @@ export const AUDIT_ENTITY_LABELS: Record<AuditEntity, Text> = {
   SUPPORT: { bn: 'সাপোর্ট লাইন', en: 'Support line' },
   ANNOUNCEMENT: { bn: 'ঘোষণা', en: 'Announcements' },
   DELIVERY_HOURS: { bn: 'ডেলিভারির সময় সূচী', en: 'Delivery hours' },
+  OFFER: { bn: 'অফার', en: 'Offers' },
 }
 
 export const AUDIT_ACTION_LABELS: Record<AuditAction, Text> = {
@@ -68,6 +71,13 @@ export const AUDIT_ACTION_LABELS: Record<AuditAction, Text> = {
   ADMIN_PASSWORD_CHANGED: { bn: 'নিজের পাসওয়ার্ড বদল', en: 'Own password changed' },
   ANNOUNCEMENT_SENT: { bn: 'ঘোষণা পাঠানো', en: 'Announcement sent' },
   DELIVERY_HOURS_UPDATED: { bn: 'ডেলিভারির সময় আপডেট', en: 'Delivery hours updated' },
+  CUSTOMER_LOCATION_ADDED: { bn: 'লোকেশন সেভ', en: 'Location saved' },
+  CUSTOMER_LOCATION_UPDATED: { bn: 'লোকেশন আপডেট', en: 'Location updated' },
+  CUSTOMER_LOCATION_DELETED: { bn: 'লোকেশন মুছে ফেলা', en: 'Location deleted' },
+  OFFER_CREATED: { bn: 'নতুন অফার', en: 'Offer added' },
+  OFFER_UPDATED: { bn: 'অফার আপডেট', en: 'Offer updated' },
+  OFFER_DELETED: { bn: 'অফার মুছে ফেলা', en: 'Offer deleted' },
+  OFFER_ANNOUNCED: { bn: 'অফারের নোটিফিকেশন', en: 'Offer announced' },
 }
 
 /** Names of the fields a history entry can show as "before → after". Pricing names match the Catalog page. */
@@ -93,11 +103,28 @@ export const AUDIT_FIELD_LABELS: Record<string, Text> = {
   name: { bn: 'নাম', en: 'Name' },
   mobile: { bn: 'মোবাইল', en: 'Mobile' },
   location: { bn: 'এলাকা', en: 'Location' },
+  label: { bn: 'লোকেশনের নাম', en: 'Location name' },
+  address: { bn: 'ঠিকানা', en: 'Address' },
+  lat: { bn: 'অক্ষাংশ', en: 'Latitude' },
+  lng: { bn: 'দ্রাঘিমাংশ', en: 'Longitude' },
+  isDefault: { bn: 'ডিফল্ট', en: 'Default' },
   lang: { bn: 'ভাষা', en: 'Language' },
   isBlocked: { bn: 'বন্ধ', en: 'Blocked' },
   points: { bn: 'পয়েন্ট', en: 'Points' },
   role: { bn: 'রোল', en: 'Role' },
   status: { bn: 'অবস্থা', en: 'Status' },
   'item.price': { bn: 'দাম', en: 'Price' },
+  'item.added': { bn: 'নতুন লাইন', en: 'Line added' },
+  'item.removed': { bn: 'লাইন বাদ', en: 'Line removed' },
+  serviceFee: { bn: 'বাজার ক্রয় বাবদ মজুরী', en: 'Shopping fee' },
+  deliveryFee: { bn: 'ডেলিভারী খরচ', en: 'Delivery charge' },
+  titleBn: { bn: 'শিরোনাম (বাংলা)', en: 'Title (Bangla)' },
+  titleEn: { bn: 'শিরোনাম (ইংরেজি)', en: 'Title (English)' },
+  bodyBn: { bn: 'বিবরণ (বাংলা)', en: 'Details (Bangla)' },
+  bodyEn: { bn: 'বিবরণ (ইংরেজি)', en: 'Details (English)' },
+  service: { bn: 'সেবা', en: 'Service' },
+  startsOn: { bn: 'শুরু', en: 'Starts' },
+  endsOn: { bn: 'শেষ', en: 'Ends' },
+  image: { bn: 'ছবি', en: 'Picture' },
   total: { bn: 'মোট বিল', en: 'Total' },
 }

@@ -2,13 +2,15 @@
 
 import { ADMIN_ROLE_LABELS, APP_LOGO, APP_NAME } from '@/shared'
 import { useQueryClient } from '@tanstack/react-query'
-import { Bell, ClipboardList, History, LayoutDashboard, LogOut, Megaphone, Menu, RotateCw, Settings2, ShieldCheck, UserRound, Users, Volume2, VolumeX, X } from 'lucide-react'
+import { BadgePercent, Bell, BellOff, BellRing, ClipboardList, History, LayoutDashboard, LogOut, Megaphone, Menu, RotateCw, Settings2, ShieldCheck, UserRound, Users, Volume2, VolumeX, X } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
+import { toast } from 'sonner'
 
 import { api } from '@/admin/lib/api'
 import { useLang } from '@/admin/lib/i18n'
+import { forgetAdminPush, PushProvider, usePush } from '@/admin/lib/push'
 import { useAdmin, useUnreadCount } from '@/admin/lib/queries'
 import { RealtimeProvider, useOrderSound } from '@/admin/lib/realtime'
 import { canManage, cn, isSuperAdmin } from '@/admin/lib/utils'
@@ -21,7 +23,9 @@ export function PanelShell({ children }: { children: React.ReactNode }) {
   if (admin.isSuccess) {
     return (
       <RealtimeProvider>
-        <Frame>{children}</Frame>
+        <PushProvider>
+          <Frame>{children}</Frame>
+        </PushProvider>
       </RealtimeProvider>
     )
   }
@@ -62,6 +66,7 @@ function Frame({ children }: { children: React.ReactNode }) {
   const queryClient = useQueryClient()
   const unread = useUnreadCount().data?.count ?? 0
   const sound = useOrderSound()
+  const push = usePush()
   const [menuOpen, setMenuOpen] = useState(false)
 
   useEffect(() => setMenuOpen(false), [pathname])
@@ -71,6 +76,7 @@ function Frame({ children }: { children: React.ReactNode }) {
     { href: '/admin/orders', label: t('অর্ডার', 'Orders'), icon: ClipboardList },
     { href: '/admin/customers', label: t('গ্রাহক', 'Customers'), icon: Users },
     { href: '/admin/catalog', label: t('দাম ও গাড়ী', 'Pricing & vehicles'), icon: Settings2 },
+    { href: '/admin/offers', label: t('আজকের অফার', "Today's offers"), icon: BadgePercent },
     { href: '/admin/notifications', label: t('নোটিফিকেশন', 'Notifications'), icon: Megaphone },
     ...(canManage(admin.role) ? [{ href: '/admin/history', label: t('ইতিহাস', 'History'), icon: History }] : []),
     ...(isSuperAdmin(admin.role) ? [{ href: '/admin/staff', label: t('স্টাফ', 'Staff'), icon: ShieldCheck }] : []),
@@ -78,6 +84,7 @@ function Frame({ children }: { children: React.ReactNode }) {
   const isActive = (href: string) => (href === '/admin' ? pathname === '/admin' : pathname === href || pathname.startsWith(`${href}/`))
 
   const signOut = async () => {
+    await forgetAdminPush()
     await api.auth.logout().catch(() => undefined)
     queryClient.clear()
     router.replace('/admin/login')
@@ -154,6 +161,7 @@ function Frame({ children }: { children: React.ReactNode }) {
             >
               {sound.enabled ? <Volume2 className="size-4.5" /> : <VolumeX className="size-4.5" />}
             </Button>
+            <PushToggle push={push} />
             <Link
               href="/admin/notifications"
               className="relative grid size-9 place-items-center rounded-xl text-muted transition-colors hover:bg-canvas hover:text-brand-700"
@@ -174,5 +182,38 @@ function Frame({ children }: { children: React.ReactNode }) {
         <main className="mx-auto w-full max-w-7xl p-4 sm:p-6">{children}</main>
       </div>
     </div>
+  )
+}
+
+/**
+ * Desktop or phone notifications on this device (Web Push): new orders, confirms and cancels reach
+ * staff even with the panel closed. Hidden where the browser or the server can't do it.
+ */
+function PushToggle({ push }: { push: ReturnType<typeof usePush> }) {
+  const { t } = useLang()
+  if (!push.status || push.status === 'unavailable' || push.status === 'unsupported') return null
+  const on = push.status === 'on'
+  const help =
+    push.status === 'blocked'
+      ? t('এই ব্রাউজারে নোটিফিকেশন বন্ধ করা আছে। ঠিকানার বারের আইকন থেকে Allow করে পেজটি রিফ্রেশ করুন।', 'Notifications are blocked in this browser. Allow them from the address bar icon, then refresh.')
+      : push.status === 'ios-install'
+        ? t('iPhone/iPad-এ: Share → Add to Home Screen, তারপর সেখান থেকে খুলে চালু করুন।', 'On iPhone/iPad: Share → Add to Home Screen, then open it from there and turn them on.')
+        : null
+  return (
+    <Button
+      variant="ghost"
+      size="icon"
+      aria-pressed={on}
+      aria-label={on ? t('এই ডিভাইসে নোটিফিকেশন বন্ধ করুন', 'Turn off notifications on this device') : t('এই ডিভাইসে নোটিফিকেশন চালু করুন', 'Turn on notifications on this device')}
+      title={help ?? (on ? t('এই ডিভাইসে নোটিফিকেশন চালু', 'Notifications on this device: on') : t('এই ডিভাইসে নোটিফিকেশন বন্ধ', 'Notifications on this device: off'))}
+      loading={push.busy}
+      onClick={() => {
+        if (help) return void toast(help)
+        if (on) push.disable()
+        else push.enable()
+      }}
+    >
+      {push.busy ? null : on ? <BellRing className="size-4.5 text-brand-700" /> : <BellOff className="size-4.5" />}
+    </Button>
   )
 }

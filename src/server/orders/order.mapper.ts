@@ -1,4 +1,4 @@
-import { CUSTOMER_CANCELLABLE, type OrderDetail, type OrderSummary, orderCode } from '@/shared'
+import { CUSTOMER_CANCELLABLE, type OrderDetail, type OrderSummary, orderCode, toGeoPoint } from '@/shared'
 
 import type { Prisma } from '../generated/prisma/client'
 import { toUploadDto } from '../uploads/uploads.service'
@@ -45,6 +45,7 @@ export function toOrderDetail(order: OrderWithRelations, withCustomer = false): 
     ...toOrderSummary(order, withCustomer),
     contactMobile: order.contactMobile,
     address: order.address,
+    addressPin: toGeoPoint(order.addressLat, order.addressLng),
     note: order.note,
     itemsTotal: order.itemsTotal,
     serviceFee: order.serviceFee,
@@ -63,6 +64,8 @@ export function toOrderDetail(order: OrderWithRelations, withCustomer = false): 
       ? {
           loadingArea: order.shifting.loadingArea,
           unloadingArea: order.shifting.unloadingArea,
+          loadingPin: toGeoPoint(order.shifting.loadingLat, order.shifting.loadingLng),
+          unloadingPin: toGeoPoint(order.shifting.unloadingLat, order.shifting.unloadingLng),
           vehicleId: order.shifting.vehicleId,
           vehicleName: { bn: order.shifting.vehicleNameBn, en: order.shifting.vehicleNameEn },
           vehicleRate: order.shifting.vehicleRate,
@@ -80,6 +83,8 @@ export function toOrderDetail(order: OrderWithRelations, withCustomer = false): 
           weight: order.parcel.weight,
           pickupAddress: order.parcel.pickupAddress,
           dropoffAddress: order.parcel.dropoffAddress,
+          pickupPin: toGeoPoint(order.parcel.pickupLat, order.parcel.pickupLng),
+          dropoffPin: toGeoPoint(order.parcel.dropoffLat, order.parcel.dropoffLng),
           receiverMobile: order.parcel.receiverMobile,
         }
       : null,
@@ -94,5 +99,7 @@ export function toOrderDetail(order: OrderWithRelations, withCustomer = false): 
       createdAt: event.createdAt.toISOString(),
     })),
     canCancel: CUSTOMER_CANCELLABLE.includes(order.status),
+    canConfirm: order.status === 'QUOTED',
+    quoteVersion: order.quoteVersion,
   }
 }

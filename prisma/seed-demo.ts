@@ -7,8 +7,12 @@
  * - About 60 orders over the last 30 days across all four services and every status. Totals come
  *   from the shared calculators and the current pricing row; every step has a sensible later time,
  *   the right admin, a timeline event, a history entry and the notifications the app would send.
- * - Admin sign-ins (and two failed ones), points, a blocked customer, a profile change and an
- *   announcement, all in the history log.
+ * - Bazar and medicine orders follow the quote flow: placed without prices, priced by staff
+ *   (QUOTED, sometimes with a higher delivery charge for a far address), then confirmed by the
+ *   customer (BOOKED); some still wait for a price or a confirm.
+ * - Admin sign-ins (and two failed ones), points, a blocked customer, a profile change, the demo
+ *   customer's two saved map locations (with pins on his orders), an announcement and two running
+ *   offers (আজকের অফার), all in the history log.
  * The data is the same on every run (seeded randomness), relative to today. It is written in one
  * transaction and skipped if the demo customer already exists. The demo business "opened" 45 days
  * ago, so a super admin and the setup history created by the base seed are dated back to then.
@@ -20,7 +24,9 @@ import {
   calcParcel,
   calcShifting,
   DEFAULT_PRICING,
+  type GeoPoint,
   isoDateInBd,
+  isQuotedService,
   type OrderStatus,
   type Pricing,
   type ServiceId,
@@ -30,7 +36,7 @@ import bcrypt from 'bcryptjs'
 import type { AuditActor } from '../src/server/audit/actor'
 import { type AuditEntry, toAuditRow } from '../src/server/audit/audit.mapper'
 import type { Admin, Prisma, PrismaClient, Vehicle } from '../src/server/generated/prisma/client'
-import { billUpdatedContent, customerCancelledContent, orderCreatedContent, statusChangedContent } from '../src/server/notifications/notification.content'
+import { customerCancelledContent, customerConfirmedContent, offerContent, orderCreatedContent, quotedContent, statusChangedContent } from '../src/server/notifications/notification.content'
 import { type NotificationContent, toNotificationRow } from '../src/server/notifications/notification.mapper'
 
 const DEMO_PASSWORD = 'demo1234'
@@ -104,6 +110,14 @@ const CUSTOMERS = [
   { name: 'Jahid Hasan', mobile: '01411000007', area: 'বসুন্ধরা আ/এ', joined: 33, weight: 1, lang: 'bn' as const, device: { userAgent: DEVICES.androidChrome, ip: '203.0.113.17' } },
   { name: 'Sumaiya Islam', mobile: '01711000008', area: 'মতিঝিল', joined: 32, weight: 1, lang: 'en' as const, device: { userAgent: DEVICES.macFirefox, ip: '203.0.113.18' } },
 ]
+/** The demo customer's saved places (আমার লোকেশন); his orders carry the same pins. */
+const RAHIM_HOME: GeoPoint = { lat: 23.8069, lng: 90.3687 }
+const RAHIM_PLACES = [
+  { label: 'বাসা', address: 'বাসা ১২, রোড ৩, মিরপুর ১০', ...RAHIM_HOME },
+  { label: 'অফিস', address: 'মতিঝিল বাণিজ্যিক এলাকা, ঢাকা', lat: 23.733, lng: 90.4172 },
+]
+const UTTARA: GeoPoint = { lat: 23.8759, lng: 90.3795 }
+
 /** Jahid is blocked by the manager this many days ago, and orders nothing after that. */
 const BLOCKED_DAYS_AGO = 12
 
@@ -146,19 +160,18 @@ const STATUS_NOTES: Partial<Record<OrderStatus, string[]>> = {
   IN_PROGRESS: ['রাইডার পথে আছে', 'বাজার করা হচ্ছে'],
 }
 const CANCEL_NOTES = ['গ্রাহক ফোন ধরেননি', 'এই এলাকায় আজ সেবা দেওয়া যাচ্ছে না', 'গ্রাহক নিজে বাতিল করতে বলেছেন']
-const BILL_NOTES = ['বাজারে দাম বেশি ছিল', 'দোকানের রসিদ অনুযায়ী দাম বসানো হয়েছে', 'মাছের দাম বেড়েছে']
+const QUOTE_NOTES = ['আজকের বাজারদর অনুযায়ী', 'দেশি পাওয়া যায়নি, কাছাকাছি জাত দেওয়া হলো', 'দোকানের দাম যাচাই করা হয়েছে']
 
 type DemoCustomer = (typeof CUSTOMERS)[number] & { id: string; actor: AuditActor; location: string }
 
+/** A bazar or medicine line as the customer wrote it, and the price staff later quote for it. */
 interface PlannedItem {
   name: string
   quantity: string
   variety?: string
   company?: string
   category?: string
-  price: number | null
-  /** After the bill correction (same as price when there is none). */
-  finalPrice: number | null
+  price: number
 }
 
 interface Step {
@@ -175,12 +188,15 @@ interface PlannedOrder {
   scheduledDate: string
   scheduledTime: string
   address: string | null
+  addressPin?: GeoPoint
   note: string | null
   items: PlannedItem[]
-  shifting?: { loadingArea: string; unloadingArea: string; vehicle: Vehicle; labourers: number; loadingFloor: number; unloadingFloor: number }
+  shifting?: { loadingArea: string; unloadingArea: string; loadingPin?: GeoPoint; unloadingPin?: GeoPoint; vehicle: Vehicle; labourers: number; loadingFloor: number; unloadingFloor: number }
   parcel?: { product: string; weight: string | null; pickupAddress: string; dropoffAddress: string; receiverMobile: string }
+  /** Bazar and medicine: a QUOTED step (staff send the prices), then BOOKED by the customer (their confirm). */
   steps: Step[]
-  bill?: { at: Date; by: AuditActor; note: string }
+  /** Bazar and medicine: extra delivery charge staff added in the quote (a far address). */
+  deliveryExtra?: number
 }
 
 const actorFor = (row: { id: string; name: string; role?: Admin['role'] }, device: Device): AuditActor => ({
@@ -193,17 +209,22 @@ const actorFor = (row: { id: string; name: string; role?: Admin['role'] }, devic
 
 const homeAddress = (area: string) => `বাসা ${int(2, 98)}, রোড ${int(1, 18)}, ${area}`
 
-function billFor(plan: PlannedOrder, pricing: Pricing, price: (item: PlannedItem) => number | null) {
-  switch (plan.service) {
-    case 'bazar':
-      return calcBazar(pricing, plan.items.map(price))
-    case 'medicine':
-      return calcMedicine(pricing, plan.items.map(price))
-    case 'shifting':
-      return calcShifting(pricing, { vehicleRate: plan.shifting!.vehicle.rate, ...plan.shifting! })
-    case 'parcel':
-      return calcParcel(pricing)
-  }
+/**
+ * The bill: for bazar and medicine, `priced` false gives the fees only (before staff send the
+ * quote); priced, it has the lines' prices and any delivery charge staff added in the quote.
+ */
+function billFor(plan: PlannedOrder, pricing: Pricing, priced: boolean) {
+  const prices = priced ? plan.items.map(item => item.price) : []
+  const bill =
+    plan.service === 'bazar'
+      ? calcBazar(pricing, prices)
+      : plan.service === 'medicine'
+        ? calcMedicine(pricing, prices)
+        : plan.service === 'shifting'
+          ? calcShifting(pricing, { vehicleRate: plan.shifting!.vehicle.rate, ...plan.shifting! })
+          : calcParcel(pricing)
+  if (!priced || !plan.deliveryExtra) return bill
+  return { ...bill, deliveryFee: bill.deliveryFee + plan.deliveryExtra, total: bill.total + plan.deliveryExtra }
 }
 
 const summaryOf = (plan: PlannedOrder) => {
@@ -218,8 +239,8 @@ const summaryOf = (plan: PlannedOrder) => {
 
 const bdHour = (date: Date) => Number(date.toLocaleString('en-GB', { hour: '2-digit', hour12: false, timeZone: 'Asia/Dhaka' }))
 
-/** What was ordered: lines, addresses, the shifting or parcel details. `priced` false leaves some bazar prices for staff to fill in. */
-function planContent(customer: DemoCustomer, service: ServiceId, placedAt: Date, schedule: { date: string; time: string }, vehicles: Vehicle[], priced = true): PlannedOrder {
+/** What was ordered: lines (with the price staff will quote), addresses, the shifting or parcel details. */
+function planContent(customer: DemoCustomer, service: ServiceId, placedAt: Date, schedule: { date: string; time: string }, vehicles: Vehicle[]): PlannedOrder {
   const plan: PlannedOrder = {
     customer,
     service,
@@ -233,21 +254,17 @@ function planContent(customer: DemoCustomer, service: ServiceId, placedAt: Date,
   }
   if (service === 'bazar') {
     plan.address = homeAddress(customer.area)
-    plan.items = sample(BAZAR_ITEMS, int(2, 5)).map(item => {
-      const price = roundTo(int(item.price[0]!, item.price[1]!), 10)
-      return {
-        name: item.name,
-        quantity: pick(item.quantities),
-        variety: item.varieties.length && chance(0.7) ? pick(item.varieties) : undefined,
-        price: !priced && chance(0.6) ? null : price,
-        finalPrice: price,
-      }
-    })
+    plan.items = sample(BAZAR_ITEMS, int(2, 5)).map(item => ({
+      name: item.name,
+      quantity: pick(item.quantities),
+      variety: item.varieties.length && chance(0.7) ? pick(item.varieties) : undefined,
+      price: roundTo(int(item.price[0]!, item.price[1]!), 10),
+    }))
   } else if (service === 'medicine') {
     plan.address = homeAddress(customer.area)
     plan.items = sample(MEDICINES, int(1, 3)).map(medicine => {
       const strips = int(1, 3)
-      return { ...medicine, quantity: `${strips} পাতা`, price: medicine.price * strips, finalPrice: medicine.price * strips }
+      return { ...medicine, quantity: `${strips} পাতা`, price: medicine.price * strips }
     })
   } else if (service === 'shifting') {
     plan.shifting = {
@@ -305,7 +322,7 @@ function planRandomOrder(
   if (closes <= opens) return null
   const placedAt = new Date(opens.getTime() + Math.floor(random() * (closes.getTime() - opens.getTime())))
   const service = randomService()
-  const plan = planContent(customer, service, placedAt, scheduleAfter(placedAt), vehicles, !chance(0.3))
+  const plan = planContent(customer, service, placedAt, scheduleAfter(placedAt), vehicles)
 
   // How far it got: older orders are finished (or cancelled); yesterday's and today's are still moving.
   const handler = chance(0.7) ? staff.operator : staff.manager
@@ -325,21 +342,36 @@ function planRandomOrder(
           ? 'PENDING'
           : 'BOOKED'
 
-  const booked = later(placedAt, 5, 45)
+  // Bazar and medicine: staff send the price first (QUOTED) and the customer's confirm, a few minutes
+  // later, is the booking. Shifting and parcel are booked by staff.
+  const quoted = isQuotedService(service)
+  const quotedAt = later(placedAt, 4, 25)
+  // Now and then the address is far, so staff charge more delivery in the quote (and say why).
+  if (quoted && chance(0.15)) plan.deliveryExtra = 40
+  const quoteNote = () => (plan.deliveryExtra ? 'দূরত্ব বেশি, তাই ডেলিভারী খরচ 40 টাকা বেশি' : chance(0.3) ? pick(QUOTE_NOTES) : undefined)
+  const quote = (at: Date): Step => ({ to: 'QUOTED', at, by: handler, note: quoteNote() })
+  const booked = quoted ? later(quotedAt, 3, 40) : later(placedAt, 5, 45)
   const scheduledAt = bdAt(plan.scheduledDate, Number(plan.scheduledTime.slice(0, 2)), Number(plan.scheduledTime.slice(3)))
   const started = maxDate(later(booked, 20, 90), new Date(scheduledAt.getTime() - int(0, 45) * MINUTE))
   const finished = service === 'shifting' ? later(started, 120, 300) : later(started, 30, 120)
   const bookedNote = chance(0.35) ? pick(STATUS_NOTES.BOOKED!) : undefined
 
-  if (outcome === 'customer_cancel') plan.steps = [{ to: 'CANCELLED', at: later(placedAt, 3, 30), by: customer.actor }]
-  else if (outcome === 'cancel_pending') plan.steps = [{ to: 'CANCELLED', at: later(placedAt, 10, 60), by: handler, note: pick(CANCEL_NOTES) }]
+  if (outcome === 'customer_cancel') {
+    // Bazar and medicine: the customer saw the price and said no.
+    plan.steps = quoted ? [quote(quotedAt), { to: 'CANCELLED', at: later(quotedAt, 3, 40), by: customer.actor }] : [{ to: 'CANCELLED', at: later(placedAt, 3, 30), by: customer.actor }]
+  } else if (outcome === 'cancel_pending') plan.steps = [{ to: 'CANCELLED', at: later(placedAt, 10, 60), by: handler, note: pick(CANCEL_NOTES) }]
   else if (outcome === 'cancel_booked') {
     plan.steps = [
-      { to: 'BOOKED', at: booked, by: handler, note: bookedNote },
+      ...(quoted ? [quote(quotedAt)] : []),
+      { to: 'BOOKED', at: booked, by: quoted ? customer.actor : handler, note: quoted ? undefined : bookedNote },
       { to: 'CANCELLED', at: later(booked, 30, 180), by: handler, note: pick(CANCEL_NOTES) },
     ]
-  } else if (outcome !== 'PENDING') {
-    plan.steps.push({ to: 'BOOKED', at: booked, by: handler, note: bookedNote })
+  } else if (outcome === 'PENDING') {
+    // Today's waiting orders: half the bazar and medicine ones are already priced, waiting for the customer.
+    if (quoted && chance(0.5)) plan.steps = [quote(quotedAt)]
+  } else {
+    if (quoted) plan.steps.push(quote(quotedAt))
+    plan.steps.push({ to: 'BOOKED', at: booked, by: quoted ? customer.actor : handler, note: quoted ? undefined : bookedNote })
     const skipInProgress = outcome === 'COMPLETED' && chance(0.15)
     if (outcome !== 'BOOKED' && !skipInProgress) plan.steps.push({ to: 'IN_PROGRESS', at: started, by: handler, note: chance(0.2) ? pick(STATUS_NOTES.IN_PROGRESS!) : undefined })
     if (outcome === 'COMPLETED') plan.steps.push({ to: 'COMPLETED', at: finished, by: handler })
@@ -348,21 +380,6 @@ function planRandomOrder(
   const cutoff = now.getTime() - 2 * MINUTE
   const firstFuture = plan.steps.findIndex(step => step.at.getTime() > cutoff)
   if (firstFuture >= 0) plan.steps = plan.steps.slice(0, firstFuture)
-
-  // Bazar lines bought without a price get their real price once booked, and sometimes a price was wrong.
-  const bookedStep = plan.steps.find(step => step.to === 'BOOKED')
-  const cancelled = plan.steps.some(step => step.to === 'CANCELLED')
-  const needsPrices = plan.items.some(item => item.price === null)
-  if (bookedStep && !cancelled && (service === 'bazar' || service === 'medicine') && (needsPrices || chance(0.15))) {
-    if (!needsPrices) {
-      const item = pick(plan.items)
-      item.finalPrice = roundTo((item.price ?? 0) * (1 + int(10, 30) / 100), 5)
-    }
-    const next = plan.steps[plan.steps.indexOf(bookedStep) + 1]
-    const at = later(bookedStep.at, 10, 40)
-    if ((!next || at < next.at) && at.getTime() <= cutoff) plan.bill = { at, by: bookedStep.by, note: pick(BILL_NOTES) }
-  }
-  if (!plan.bill) for (const item of plan.items) item.finalPrice = item.price
   return plan
 }
 
@@ -373,7 +390,8 @@ function liveOrders(pickCustomer: () => DemoCustomer, now: Date, vehicles: Vehic
 
   const shopping = planContent(pickCustomer(), 'bazar', ago(170), { date: isoDateInBd(soon), time: `${pad(bdHour(soon))}:00` }, vehicles)
   shopping.steps = [
-    { to: 'BOOKED', at: ago(158), by: staff.operator, note: 'রাইডার ৩০ মিনিটে পৌঁছাবে' },
+    { to: 'QUOTED', at: ago(162), by: staff.operator },
+    { to: 'BOOKED', at: ago(151), by: shopping.customer.actor },
     { to: 'IN_PROGRESS', at: ago(50), by: staff.operator, note: 'বাজার করা হচ্ছে' },
   ]
   const booked = planContent(pickCustomer(), 'parcel', ago(95), scheduleAfter(ago(95)), vehicles)
@@ -382,7 +400,11 @@ function liveOrders(pickCustomer: () => DemoCustomer, now: Date, vehicles: Vehic
   return [shopping, booked, placed]
 }
 
-/** The three orders of the original prototype, for the demo customer: 760, 1420 and 160 taka with the sketch prices. */
+/**
+ * The three orders of the original prototype, for the demo customer: 760, 1420 and 160 taka with the
+ * sketch prices. The bazar order was priced, confirmed and delivered; the medicine order has just been
+ * priced and waits for him to confirm or cancel it.
+ */
 function prototypeOrders(rahim: DemoCustomer, now: Date, today: string, vehicles: Vehicle[], staff: { operator: AuditActor; manager: AuditActor }): PlannedOrder[] {
   const threeDaysAgo = addDays(today, -3)
   const yesterday = addDays(today, -1)
@@ -391,7 +413,7 @@ function prototypeOrders(rahim: DemoCustomer, now: Date, today: string, vehicles
   const medicinePlaced = new Date(now.getTime() - 25 * MINUTE)
   const lateToday = bdHour(now) >= 19
   const address = 'বাসা ১২, রোড ৩, মিরপুর ১০'
-  const priced = (name: string, quantity: string, price: number, extra: Partial<PlannedItem> = {}): PlannedItem => ({ name, quantity, price, finalPrice: price, ...extra })
+  const priced = (name: string, quantity: string, price: number, extra: Partial<PlannedItem> = {}): PlannedItem => ({ name, quantity, price, ...extra })
   const vehicle = vehicles.find(row => row.slug === 'covered-van') ?? vehicles[0]!
 
   return [
@@ -402,11 +424,13 @@ function prototypeOrders(rahim: DemoCustomer, now: Date, today: string, vehicles
       scheduledDate: threeDaysAgo,
       scheduledTime: '10:00',
       address,
+      addressPin: RAHIM_HOME,
       note: null,
       items: [priced('চাল', '5 কেজি', 350, { variety: 'মিনিকেট' }), priced('আলু', '2 কেজি', 80, { variety: 'দেশি' }), priced('রুই মাছ', '1 কেজি', 100)],
       steps: [
-        { to: 'BOOKED', at: bdAt(threeDaysAgo, 8, 52), by: staff.operator, note: 'রাইডার ৩০ মিনিটে পৌঁছাবে' },
-        { to: 'IN_PROGRESS', at: bdAt(threeDaysAgo, 9, 25), by: staff.operator },
+        { to: 'QUOTED', at: bdAt(threeDaysAgo, 8, 48), by: staff.operator, note: 'আজকের বাজারদর অনুযায়ী' },
+        { to: 'BOOKED', at: bdAt(threeDaysAgo, 8, 55), by: rahim.actor },
+        { to: 'IN_PROGRESS', at: bdAt(threeDaysAgo, 9, 25), by: staff.operator, note: 'রাইডার ৩০ মিনিটে পৌঁছাবে' },
         { to: 'COMPLETED', at: bdAt(threeDaysAgo, 10, 35), by: staff.operator },
       ],
     },
@@ -419,7 +443,7 @@ function prototypeOrders(rahim: DemoCustomer, now: Date, today: string, vehicles
       address: null,
       note: null,
       items: [],
-      shifting: { loadingArea: 'মিরপুর ১০', unloadingArea: 'উত্তরা', vehicle: { ...vehicle, rate: 1200 }, labourers: 1, loadingFloor: 1, unloadingFloor: 1 },
+      shifting: { loadingArea: 'মিরপুর ১০', unloadingArea: 'উত্তরা', loadingPin: RAHIM_HOME, unloadingPin: UTTARA, vehicle: { ...vehicle, rate: 1200 }, labourers: 1, loadingFloor: 1, unloadingFloor: 1 },
       steps: [{ to: 'BOOKED', at: bdAt(yesterday, 19, 40), by: staff.manager, note: 'গাড়ী ঠিক করা হয়েছে' }],
     },
     {
@@ -429,12 +453,13 @@ function prototypeOrders(rahim: DemoCustomer, now: Date, today: string, vehicles
       scheduledDate: lateToday ? addDays(today, 1) : today,
       scheduledTime: '20:00',
       address,
+      addressPin: RAHIM_HOME,
       note: null,
       items: [
         priced('Napa', '1 পাতা', 12, { company: 'Beximco', category: 'জ্বর' }),
         priced('Seclo', '1 পাতা', 88, { company: 'Square', category: 'গ্যাস্ট্রিক' }),
       ],
-      steps: [],
+      steps: [{ to: 'QUOTED', at: new Date(now.getTime() - 14 * MINUTE), by: staff.operator }],
     },
   ]
 }
@@ -515,6 +540,23 @@ export async function seedDemo(prisma: PrismaClient) {
       }
       const byMobile = (mobile: string) => customers.find(customer => customer.mobile === mobile)!
 
+      // The demo customer saves his home and office on the map the evening after joining.
+      const rahim = byMobile(DEMO_CUSTOMER_MOBILE)
+      for (const [index, place] of RAHIM_PLACES.entries()) {
+        const at = bdAt(dayAgo(rahim.joined - 1), 21, 5 + index * 4)
+        await tx.savedLocation.create({ data: { userId: rahim.id, ...place, isDefault: index === 0, createdAt: at, updatedAt: at } })
+        audit.push({
+          action: 'CUSTOMER_LOCATION_ADDED',
+          actor: rahim.actor,
+          entity: { type: 'CUSTOMER', id: rahim.id, label: rahim.name },
+          changes: [
+            { field: 'label', from: null, to: place.label },
+            { field: 'address', from: null, to: place.address },
+          ],
+          at,
+        })
+      }
+
       // A month of orders, placed in time order so the order numbers rise with the dates.
       const regulars = (daysAgo: number) => customers.filter(customer => customer.weight > 0 && (customer.mobile !== '01411000007' || daysAgo > BLOCKED_DAYS_AGO))
       const plans = [
@@ -531,10 +573,12 @@ export async function seedDemo(prisma: PrismaClient) {
       plans.sort((a, b) => a.placedAt.getTime() - b.placedAt.getTime())
 
       for (const plan of plans) {
-        const placed = billFor(plan, pricing, item => item.price)
-        const final = plan.bill ? billFor(plan, pricing, item => item.finalPrice) : placed
+        // Bazar and medicine are placed without prices (the fees only); the quote adds the lines' prices.
+        const quoted = plan.steps.some(step => step.to === 'QUOTED')
+        const placed = billFor(plan, pricing, !isQuotedService(plan.service))
+        const final = billFor(plan, pricing, !isQuotedService(plan.service) || quoted)
         const status = plan.steps.at(-1)?.to ?? 'PENDING'
-        const lastAt = maxDate(plan.placedAt, ...plan.steps.map(step => step.at), ...(plan.bill ? [plan.bill.at] : []))
+        const lastAt = maxDate(plan.placedAt, ...plan.steps.map(step => step.at))
         let from: OrderStatus = 'PENDING'
         const events = [
           { to: 'PENDING' as OrderStatus, from: null as OrderStatus | null, actor: 'CUSTOMER' as const, createdAt: plan.placedAt },
@@ -552,10 +596,13 @@ export async function seedDemo(prisma: PrismaClient) {
             summary: summaryOf(plan),
             contactMobile: plan.customer.mobile,
             address: plan.address,
+            addressLat: plan.addressPin?.lat ?? null,
+            addressLng: plan.addressPin?.lng ?? null,
             note: plan.note,
             scheduledDate: new Date(`${plan.scheduledDate}T00:00:00.000Z`),
             scheduledTime: plan.scheduledTime,
             ...final,
+            quoteVersion: plan.steps.filter(step => step.to === 'QUOTED').length,
             createdAt: plan.placedAt,
             updatedAt: lastAt,
             items: {
@@ -566,7 +613,7 @@ export async function seedDemo(prisma: PrismaClient) {
                 variety: item.variety ?? null,
                 company: item.company ?? null,
                 category: item.category ?? null,
-                price: item.finalPrice,
+                price: quoted ? item.price : null,
               })),
             },
             ...(plan.shifting
@@ -575,6 +622,10 @@ export async function seedDemo(prisma: PrismaClient) {
                     create: {
                       loadingArea: plan.shifting.loadingArea,
                       unloadingArea: plan.shifting.unloadingArea,
+                      loadingLat: plan.shifting.loadingPin?.lat ?? null,
+                      loadingLng: plan.shifting.loadingPin?.lng ?? null,
+                      unloadingLat: plan.shifting.unloadingPin?.lat ?? null,
+                      unloadingLng: plan.shifting.unloadingPin?.lng ?? null,
                       vehicleId: plan.shifting.vehicle.id,
                       vehicleNameBn: plan.shifting.vehicle.nameBn,
                       vehicleNameEn: plan.shifting.vehicle.nameEn,
@@ -597,29 +648,40 @@ export async function seedDemo(prisma: PrismaClient) {
 
         const code = `PA-${order.number}`
         const entity = { type: 'ORDER' as const, id: order.id, label: code }
-        const ref = { id: order.id, number: order.number, service: plan.service, user: { name: plan.customer.name } }
+        const ref = {
+          id: order.id,
+          number: order.number,
+          service: plan.service,
+          scheduledDate: new Date(`${plan.scheduledDate}T00:00:00.000Z`),
+          scheduledTime: plan.scheduledTime,
+          user: { name: plan.customer.name },
+        }
 
-        audit.push({ action: 'ORDER_CREATED', actor: plan.customer.actor, entity, meta: { service: plan.service, total: placed.total }, at: plan.placedAt })
-        for (const admin of admins) notify({ adminId: admin.id }, orderCreatedContent({ ...ref, total: placed.total }), plan.placedAt)
+        const meta = { service: plan.service, ...(isQuotedService(plan.service) ? {} : { total: placed.total }) }
+        audit.push({ action: 'ORDER_CREATED', actor: plan.customer.actor, entity, meta, at: plan.placedAt })
+        for (const admin of admins) notify({ adminId: admin.id }, orderCreatedContent({ ...ref, ...placed }), plan.placedAt)
 
         let previous: OrderStatus = 'PENDING'
         for (const step of plan.steps) {
+          // The quote: every line's price, any charge staff changed, then the move to QUOTED (as OrdersService.quote writes them).
+          if (step.to === 'QUOTED') {
+            const changes: AuditChange[] = plan.items.map(item => ({ field: 'item.price', label: item.name, from: null, to: item.price }))
+            if (final.deliveryFee !== placed.deliveryFee) changes.push({ field: 'deliveryFee', from: placed.deliveryFee, to: final.deliveryFee })
+            changes.push({ field: 'total', from: placed.total, to: final.total })
+            audit.push({ action: 'ORDER_BILL_UPDATED', actor: step.by, entity, changes, note: step.note, at: step.at })
+          }
           audit.push({ action: 'ORDER_STATUS_CHANGED', actor: step.by, entity, changes: [{ field: 'status', from: previous, to: step.to }], note: step.note, at: step.at })
           if (step.by.type === 'CUSTOMER') {
-            for (const admin of admins) notify({ adminId: admin.id }, customerCancelledContent({ ...ref, total: final.total }, step.to), step.at)
+            const content = step.to === 'BOOKED' ? customerConfirmedContent : customerCancelledContent
+            for (const admin of admins) notify({ adminId: admin.id }, content({ ...ref, ...final }, step.to), step.at)
           } else {
-            notify({ userId: plan.customer.id }, statusChangedContent({ ...ref, total: final.total }, step.to, step.note ?? null), step.at)
+            const content =
+              step.to === 'QUOTED'
+                ? quotedContent({ ...ref, ...final }, { previous: placed, note: step.note ?? null, requote: false })
+                : statusChangedContent({ ...ref, ...final }, step.to, step.note ?? null)
+            notify({ userId: plan.customer.id }, content, step.at)
           }
           previous = step.to
-        }
-
-        if (plan.bill) {
-          const changes: AuditChange[] = plan.items
-            .filter(item => item.price !== item.finalPrice)
-            .map(item => ({ field: 'item.price', label: item.name, from: item.price, to: item.finalPrice }))
-          if (final.total !== placed.total) changes.push({ field: 'total', from: placed.total, to: final.total })
-          audit.push({ action: 'ORDER_BILL_UPDATED', actor: plan.bill.by, entity, changes, note: plan.bill.note, at: plan.bill.at })
-          notify({ userId: plan.customer.id }, billUpdatedContent({ ...ref, total: final.total }), plan.bill.at)
         }
       }
 
@@ -683,6 +745,50 @@ export async function seedDemo(prisma: PrismaClient) {
         meta: { titleBn: announcement.title.bn, bodyBn: announcement.body.bn, audience: 'all', sent: recipients.length },
         at: announcedAt,
       })
+
+      // আজকের অফার: two running offers the manager posted (without pictures); the bazar one was announced.
+      const offerSpecs = [
+        {
+          titleBn: 'সব সবজিতে ১০% ছাড়',
+          titleEn: '10% off all vegetables',
+          bodyBn: 'আজকের বাজারে সব সবজিতে ১০% ছাড়। লিস্ট পাঠান, আমরা দাম জানাব।',
+          bodyEn: "10% off every vegetable in today's bazar. Send your list and we will price it.",
+          service: 'bazar' as const,
+          startsOn: today,
+          endsOn: addDays(today, 2),
+          announce: true,
+        },
+        {
+          titleBn: 'ঔষুধে ফ্রি ডেলিভারি',
+          titleEn: 'Free medicine delivery',
+          bodyBn: '৫০০ টাকার বেশি ঔষুধে কোনো ডেলিভারি চার্জ নেই।',
+          bodyEn: 'No delivery charge on medicine orders over Tk 500.',
+          service: 'medicine' as const,
+          startsOn: dayAgo(1),
+          endsOn: addDays(today, 5),
+          announce: false,
+        },
+      ]
+      for (const { announce, ...spec } of offerSpecs) {
+        const at = new Date(Math.min(bdAt(spec.startsOn, 8, int(5, 40)).getTime(), now.getTime() - 40 * MINUTE))
+        const offer = await tx.offer.create({
+          data: { ...spec, startsOn: new Date(`${spec.startsOn}T00:00:00.000Z`), endsOn: new Date(`${spec.endsOn}T00:00:00.000Z`), createdAt: at, updatedAt: at },
+        })
+        const entity = { type: 'OFFER' as const, id: offer.id, label: offer.titleBn }
+        audit.push({
+          action: 'OFFER_CREATED',
+          actor: staff.manager,
+          entity,
+          changes: (['titleBn', 'titleEn', 'bodyBn', 'bodyEn', 'service', 'startsOn', 'endsOn'] as const).map(field => ({ field, from: null, to: spec[field] })),
+          at,
+        })
+        if (announce) {
+          const sentAt = later(at, 2, 6)
+          const content = offerContent({ id: offer.id, title: { bn: spec.titleBn, en: spec.titleEn }, body: { bn: spec.bodyBn, en: spec.bodyEn } })
+          for (const customer of recipients) notify({ userId: customer.id }, content, sentAt)
+          audit.push({ action: 'OFFER_ANNOUNCED', actor: staff.manager, entity, meta: { sent: recipients.length }, at: sentAt })
+        }
+      }
 
       // Six days ago the operator typed a wrong password, and the super admin reset it.
       const passwordResetDay = dayAgo(6)

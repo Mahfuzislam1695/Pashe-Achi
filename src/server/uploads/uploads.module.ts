@@ -7,6 +7,7 @@ import { UploadsService } from './uploads.service'
 @Module({
   controllers: [UploadsController, AdminUploadsController],
   providers: [UploadsService, { provide: StorageService, useClass: LocalDiskStorage }],
-  exports: [UploadsService],
+  // StorageService is shared with offers (their pictures live next to the prescriptions).
+  exports: [UploadsService, StorageService],
 })
 export class UploadsModule {}

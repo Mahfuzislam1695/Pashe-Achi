@@ -1,6 +1,7 @@
 import {
   broadcastSchema,
   changePasswordSchema,
+  confirmOrderSchema,
   createAdminSchema,
   createBazarOrderSchema,
   createMedicineOrderSchema,
@@ -15,15 +16,22 @@ import {
   listNotificationsQuerySchema,
   listOrdersQuerySchema,
   loginSchema,
+  offerSchema,
   pricingSchema,
+  pushRemoveSchema,
+  pushSubscriptionSchema,
+  quoteOrderSchema,
   refreshSchema,
+  reverseGeocodeQuerySchema,
+  savedLocationSchema,
   signupSchema,
   supportSettingsSchema,
   updateAdminSchema,
   updateCustomerSchema,
-  updateOrderItemsSchema,
+  updateOfferSchema,
   updateOrderStatusSchema,
   updateProfileSchema,
+  updateSavedLocationSchema,
   updateVehicleSchema,
   vehicleSchema,
 } from '@/shared'
@@ -39,6 +47,9 @@ export class LoginDto extends createZodDto(loginSchema) {}
 export class RefreshDto extends createZodDto(refreshSchema) {}
 export class UpdateProfileDto extends createZodDto(updateProfileSchema) {}
 export class ChangePasswordDto extends createZodDto(changePasswordSchema) {}
+export class CreateSavedLocationDto extends createZodDto(savedLocationSchema) {}
+export class UpdateSavedLocationDto extends createZodDto(updateSavedLocationSchema) {}
+export class ReverseGeocodeQueryDto extends createZodDto(reverseGeocodeQuerySchema) {}
 
 export class CreateBazarOrderDto extends createZodDto(createBazarOrderSchema) {}
 export class CreateShiftingOrderDto extends createZodDto(createShiftingOrderSchema) {}
@@ -48,7 +59,8 @@ export class ListMyOrdersQueryDto extends createZodDto(listMyOrdersQuerySchema) 
 
 export class ListOrdersQueryDto extends createZodDto(listOrdersQuerySchema) {}
 export class UpdateOrderStatusDto extends createZodDto(updateOrderStatusSchema) {}
-export class UpdateOrderItemsDto extends createZodDto(updateOrderItemsSchema) {}
+export class QuoteOrderDto extends createZodDto(quoteOrderSchema) {}
+export class ConfirmOrderDto extends createZodDto(confirmOrderSchema) {}
 
 export class ListCustomersQueryDto extends createZodDto(listCustomersQuerySchema) {}
 export class UpdateCustomerDto extends createZodDto(updateCustomerSchema) {}
@@ -63,6 +75,10 @@ export class CreateAdminDto extends createZodDto(createAdminSchema) {}
 export class UpdateAdminDto extends createZodDto(updateAdminSchema) {}
 
 export class BroadcastDto extends createZodDto(broadcastSchema) {}
+export class CreateOfferDto extends createZodDto(offerSchema) {}
+export class UpdateOfferDto extends createZodDto(updateOfferSchema) {}
 export class ListNotificationsQueryDto extends createZodDto(listNotificationsQuerySchema) {}
+export class PushSubscriptionDto extends createZodDto(pushSubscriptionSchema) {}
+export class PushRemoveDto extends createZodDto(pushRemoveSchema) {}
 export class DashboardQueryDto extends createZodDto(dashboardQuerySchema) {}
 export class ListAuditQueryDto extends createZodDto(listAuditQuerySchema) {}

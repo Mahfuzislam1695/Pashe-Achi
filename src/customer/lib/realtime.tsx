@@ -27,6 +27,7 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
     socket.on(SOCKET_EVENTS.notificationNew, (notification: NotificationDto) => {
       queryClient.setQueryData<UnreadCountDto>(queryKeys.unread, current => ({ count: (current?.count ?? 0) + 1 }))
       void queryClient.invalidateQueries({ queryKey: queryKeys.notificationList })
+      if (notification.type === 'OFFER') void queryClient.invalidateQueries({ queryKey: queryKeys.offers })
       setToast(notification)
     })
     socket.on(SOCKET_EVENTS.orderUpdated, () => void queryClient.invalidateQueries({ queryKey: queryKeys.orders }))
@@ -37,7 +38,8 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!toast) return
-    const timer = setTimeout(() => setToast(null), 6000)
+    // A price to confirm stays up longer than other news.
+    const timer = setTimeout(() => setToast(null), toast.type === 'ORDER_BILL' ? 15_000 : 6000)
     return () => clearTimeout(timer)
   }, [toast])
 
@@ -56,7 +58,7 @@ function NotificationToast({ notification, onClose }: { notification: Notificati
   const open = () => {
     onClose()
     void api.notifications.markRead(notification.id).catch(() => undefined)
-    router.push(notification.data.orderId ? paths.order(notification.data.orderId) : paths.notifications)
+    router.push(notification.data.orderId ? paths.order(notification.data.orderId) : notification.data.offerId ? paths.offers : paths.notifications)
   }
   return (
     <div className="toast" role="status" aria-live="polite">
@@ -65,6 +67,7 @@ function NotificationToast({ notification, onClose }: { notification: Notificati
         <span>
           <strong>{text(notification.title)}</strong>
           <span>{text(notification.body)}</span>
+          {notification.type === 'ORDER_BILL' && <span className="toast-cta">{t('দেখুন ও কনফার্ম করুন →', 'View and confirm →')}</span>}
         </span>
       </button>
       <button type="button" className="icon-button" aria-label={t('বন্ধ করুন', 'Close')} onClick={onClose}>

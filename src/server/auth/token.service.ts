@@ -18,7 +18,8 @@ const hash = (token: string) => createHash('sha256').update(token).digest('hex')
 /**
  * Access tokens are short-lived JWTs. Refresh tokens are random strings stored only as a
  * SHA-256 hash, rotated on every use. Presenting an already-rotated token revokes its whole
- * family, which logs out whoever stole it.
+ * family, which logs out whoever stole it. Customer refresh tokens never expire (a customer stays
+ * signed in until logout, a password change or a block); admin ones expire after REFRESH_TOKEN_TTL_DAYS.
  */
 @Injectable()
 export class TokenService {
@@ -57,7 +58,8 @@ export class TokenService {
         userId: audience === 'customer' ? ownerId : null,
         adminId: audience === 'admin' ? ownerId : null,
         userAgent: options.userAgent?.slice(0, 300),
-        expiresAt: new Date(Date.now() + this.env.REFRESH_TOKEN_TTL_DAYS * 24 * 60 * 60 * 1000),
+        // Customer sessions last for life; admin sessions end after REFRESH_TOKEN_TTL_DAYS.
+        expiresAt: audience === 'customer' ? null : new Date(Date.now() + this.env.REFRESH_TOKEN_TTL_DAYS * 24 * 60 * 60 * 1000),
       },
     })
     return {
@@ -80,7 +82,7 @@ export class TokenService {
       if (!recentlyRotated) await this.revokeFamily(row.familyId)
       throw AppException.unauthorized()
     }
-    if (row.expiresAt.getTime() <= Date.now()) throw AppException.unauthorized()
+    if (row.expiresAt && row.expiresAt.getTime() <= Date.now()) throw AppException.unauthorized()
 
     const { refreshId, ...tokens } = await this.issue(audience, ownerId, { familyId: row.familyId, userAgent })
     // Only one concurrent request can win the rotation; the loser is treated like a reuse.
