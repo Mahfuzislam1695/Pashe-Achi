@@ -1,9 +1,16 @@
 import { Injectable } from '@nestjs/common'
 import {
   type CatalogDto,
+  DEFAULT_DELIVERY_HOURS,
   DEFAULT_PRICING,
+  type DeliveryHours,
+  type DeliveryHoursInput,
+  formatDeliveryWindows,
+  parseDeliveryWindows,
   type Pricing,
   type PricingInput,
+  SERVICE_IDS,
+  type ServiceId,
   type SupportSettings,
   type SupportSettingsInput,
   type UpdateVehicleInput,
@@ -19,6 +26,12 @@ import type { Vehicle } from '../generated/prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
 
 export const SUPPORT_KEYS = { phone: 'support.phone', whatsapp: 'support.whatsapp' } as const
+
+/** One Setting row per service, e.g. delivery.bazar = "08:00-10:00,18:00-21:00" (empty: any time). */
+export const DELIVERY_HOURS_KEYS = Object.fromEntries(SERVICE_IDS.map(service => [service, `delivery.${service}`])) as Record<ServiceId, string>
+
+/** The windows as the history log shows them: { bazarHours: "08:00-10:00,18:00-21:00", … }. */
+const hoursForAudit = (hours: DeliveryHours): Record<string, string> => Object.fromEntries(SERVICE_IDS.map(service => [`${service}Hours`, formatDeliveryWindows(hours[service])]))
 
 /** Placeholder support line until an admin sets the real one in Catalog. */
 export const DEFAULT_SUPPORT: SupportSettings = { phone: '+8801700000000', whatsapp: 'https://wa.me/8801700000000' }
@@ -73,14 +86,26 @@ export class CatalogService {
     return { phone: value(SUPPORT_KEYS.phone) ?? DEFAULT_SUPPORT.phone, whatsapp: value(SUPPORT_KEYS.whatsapp) ?? DEFAULT_SUPPORT.whatsapp }
   }
 
+  /** The ডেলিভারি টাইম windows per service. A service with no row yet keeps its default. */
+  async getDeliveryHours(): Promise<DeliveryHours> {
+    const rows = await this.prisma.setting.findMany({ where: { key: { in: Object.values(DELIVERY_HOURS_KEYS) } } })
+    return Object.fromEntries(
+      SERVICE_IDS.map(service => {
+        const row = rows.find(setting => setting.key === DELIVERY_HOURS_KEYS[service])
+        return [service, row ? parseDeliveryWindows(row.value) : DEFAULT_DELIVERY_HOURS[service]]
+      }),
+    ) as DeliveryHours
+  }
+
   /** Customers see active vehicles only; the admin panel sees all of them. */
   async getCatalog(includeInactive = false): Promise<CatalogDto> {
-    const [pricing, vehicles, support] = await Promise.all([
+    const [pricing, vehicles, support, deliveryHours] = await Promise.all([
       this.getPricing(),
       this.prisma.vehicle.findMany({ where: includeInactive ? {} : { isActive: true }, orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] }),
       this.getSupport(),
+      this.getDeliveryHours(),
     ])
-    return { pricing, vehicles: vehicles.map(toVehicleDto), support }
+    return { pricing, vehicles: vehicles.map(toVehicleDto), support, deliveryHours }
   }
 
   async updatePricing(input: PricingInput, actor: AuditActor): Promise<Pricing> {
@@ -132,5 +157,20 @@ export class CatalogService {
       if (changes.length) await this.audit.record({ action: 'SUPPORT_UPDATED', actor, entity: { type: 'SUPPORT' }, changes }, tx)
     })
     return input
+  }
+
+  async updateDeliveryHours(input: DeliveryHoursInput, actor: AuditActor): Promise<DeliveryHours> {
+    const before = await this.getDeliveryHours()
+    await this.prisma.$transaction(async tx => {
+      for (const service of SERVICE_IDS) {
+        const key = DELIVERY_HOURS_KEYS[service]
+        const value = formatDeliveryWindows(input[service])
+        await tx.setting.upsert({ where: { key }, create: { key, value }, update: { value } })
+      }
+      const after = hoursForAudit(input)
+      const changes = diffChanges(hoursForAudit(before), after, Object.keys(after))
+      if (changes.length) await this.audit.record({ action: 'DELIVERY_HOURS_UPDATED', actor, entity: { type: 'DELIVERY_HOURS' }, changes }, tx)
+    })
+    return this.getDeliveryHours()
   }
 }

@@ -1,9 +1,9 @@
 'use client'
 
-import { calcShifting, createShiftingOrderSchema, FORM_ERROR_PRIORITY, type ScheduleInput, toAmount, validateForm } from '@/shared'
+import { calcShifting, createShiftingOrderSchema, FORM_ERROR_PRIORITY, type ScheduleInput, toAmount, validateForm, withDeliveryHours } from '@/shared'
 import { useState } from 'react'
 
-import { DeliverySchedule, EMPTY_SCHEDULE } from '@/customer/components/delivery-schedule'
+import { DeliveryHoursNotice, DeliverySchedule, EMPTY_SCHEDULE } from '@/customer/components/delivery-schedule'
 import { BillSummary, ConfirmButton, CustomerInfo, Field, ServiceCard } from '@/customer/components/ui'
 import { api } from '@/customer/lib/api'
 import { useDraft } from '@/customer/lib/drafts'
@@ -60,7 +60,7 @@ export function ShiftingScreen() {
   const vehicle = vehicles.find(option => option.id === draft.vehicleId) ?? vehicles[0]
   const bill = calcShifting(pricing, { vehicleRate: vehicle?.rate ?? 0, ...draft })
   const check = validateForm(
-    createShiftingOrderSchema,
+    withDeliveryHours(createShiftingOrderSchema, catalog.deliveryHours.shifting),
     {
       loadingArea: draft.loadingArea,
       unloadingArea: draft.unloadingArea,
@@ -95,6 +95,7 @@ export function ShiftingScreen() {
       }
     >
       <CustomerInfo user={user} showPoints={false} />
+      <DeliveryHoursNotice service="shifting" windows={catalog.deliveryHours.shifting} />
       <div className="field-pair even">
         <Field label={t('Loading Area', 'Loading area')}>
           <input value={draft.loadingArea} onChange={e => update({ loadingArea: e.target.value })} placeholder={t('যেমন: মিরপুর ১০', 'e.g. Mirpur 10')} />

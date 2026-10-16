@@ -42,6 +42,7 @@ export const AUDIT_ENTITY_LABELS: Record<AuditEntity, Text> = {
   VEHICLE: { bn: 'গাড়ী', en: 'Vehicles' },
   SUPPORT: { bn: 'সাপোর্ট লাইন', en: 'Support line' },
   ANNOUNCEMENT: { bn: 'ঘোষণা', en: 'Announcements' },
+  DELIVERY_HOURS: { bn: 'ডেলিভারির সময় সূচী', en: 'Delivery hours' },
 }
 
 export const AUDIT_ACTION_LABELS: Record<AuditAction, Text> = {
@@ -66,6 +67,7 @@ export const AUDIT_ACTION_LABELS: Record<AuditAction, Text> = {
   ADMIN_SIGNED_OUT: { bn: 'সাইন আউট', en: 'Signed out' },
   ADMIN_PASSWORD_CHANGED: { bn: 'নিজের পাসওয়ার্ড বদল', en: 'Own password changed' },
   ANNOUNCEMENT_SENT: { bn: 'ঘোষণা পাঠানো', en: 'Announcement sent' },
+  DELIVERY_HOURS_UPDATED: { bn: 'ডেলিভারির সময় আপডেট', en: 'Delivery hours updated' },
 }
 
 /** Names of the fields a history entry can show as "before → after". Pricing names match the Catalog page. */
@@ -84,6 +86,10 @@ export const AUDIT_FIELD_LABELS: Record<string, Text> = {
   isActive: { bn: 'চালু', en: 'Active' },
   phone: { bn: 'কল নম্বর', en: 'Call number' },
   whatsapp: { bn: 'WhatsApp লিংক', en: 'WhatsApp link' },
+  bazarHours: { bn: 'কাঁচা বাজারের সময়', en: 'Fresh market hours' },
+  shiftingHours: { bn: 'বাসা বদলের সময়', en: 'House shifting hours' },
+  medicineHours: { bn: 'জরুরী ঔষুধের সময়', en: 'Emergency medicine hours' },
+  parcelHours: { bn: 'পণ্য আদান প্রদানের সময়', en: 'Parcel delivery hours' },
   name: { bn: 'নাম', en: 'Name' },
   mobile: { bn: 'মোবাইল', en: 'Mobile' },
   location: { bn: 'এলাকা', en: 'Location' },

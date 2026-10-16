@@ -38,7 +38,7 @@ export const ACTOR_TYPES = ['CUSTOMER', 'ADMIN', 'SYSTEM'] as const
 export type ActorType = (typeof ACTOR_TYPES)[number]
 
 /** The kinds of record the history log (AuditLog) is about. */
-export const AUDIT_ENTITIES = ['ORDER', 'CUSTOMER', 'STAFF', 'PRICING', 'VEHICLE', 'SUPPORT', 'ANNOUNCEMENT'] as const
+export const AUDIT_ENTITIES = ['ORDER', 'CUSTOMER', 'STAFF', 'PRICING', 'VEHICLE', 'SUPPORT', 'ANNOUNCEMENT', 'DELIVERY_HOURS'] as const
 export type AuditEntity = (typeof AUDIT_ENTITIES)[number]
 
 /** Every action the history log records (same order as the AuditAction enum in schema.prisma). */
@@ -64,6 +64,7 @@ export const AUDIT_ACTIONS = [
   'ADMIN_SIGNED_OUT',
   'ADMIN_PASSWORD_CHANGED',
   'ANNOUNCEMENT_SENT',
+  'DELIVERY_HOURS_UPDATED',
 ] as const
 export type AuditAction = (typeof AUDIT_ACTIONS)[number]
 
@@ -76,6 +77,7 @@ export const AUDIT_ACTIONS_BY_ENTITY: Record<AuditEntity, readonly AuditAction[]
   VEHICLE: ['VEHICLE_CREATED', 'VEHICLE_UPDATED'],
   SUPPORT: ['SUPPORT_UPDATED'],
   ANNOUNCEMENT: ['ANNOUNCEMENT_SENT'],
+  DELIVERY_HOURS: ['DELIVERY_HOURS_UPDATED'],
 }
 
 /** Where the REST API lives on the one server: /api/v1. The pages call it on their own origin. */

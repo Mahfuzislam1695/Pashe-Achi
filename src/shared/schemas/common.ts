@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-import { isoDateInBd, MOBILE_PATTERN, normalizeMobile } from '../format'
+import { isoDateInBd, MOBILE_PATTERN, normalizeMobile, TIME_PATTERN } from '../format'
 import type { MessageCode } from '../messages'
 
 // Every message is a MessageCode (see messages.ts); the front ends turn it into Bangla/English.
@@ -38,7 +38,7 @@ export const scheduleSchema = z.object({
     .string({ error: 'schedule.required' })
     .regex(/^\d{4}-\d{2}-\d{2}$/, { error: 'schedule.required' })
     .refine(date => date >= isoDateInBd(), { error: 'schedule.past' }),
-  time: z.string({ error: 'schedule.required' }).regex(/^([01]\d|2[0-3]):[0-5]\d$/, { error: 'schedule.required' }),
+  time: z.string({ error: 'schedule.required' }).regex(TIME_PATTERN, { error: 'schedule.required' }),
 })
 export type ScheduleInput = z.infer<typeof scheduleSchema>
 

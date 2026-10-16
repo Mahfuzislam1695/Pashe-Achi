@@ -1,11 +1,11 @@
 'use client'
 
-import { calcMedicine, createMedicineOrderSchema, FORM_ERROR_PRIORITY, type MessageCode, type ScheduleInput, toAmount, validateForm } from '@/shared'
+import { calcMedicine, createMedicineOrderSchema, FORM_ERROR_PRIORITY, type MessageCode, type ScheduleInput, toAmount, validateForm, withDeliveryHours } from '@/shared'
 import { useMutation } from '@tanstack/react-query'
 import { Upload } from 'lucide-react'
 import { useState } from 'react'
 
-import { DeliverySchedule, EMPTY_SCHEDULE } from '@/customer/components/delivery-schedule'
+import { DeliveryHoursNotice, DeliverySchedule, EMPTY_SCHEDULE } from '@/customer/components/delivery-schedule'
 import { type Column, isRowStarted, LineTable, type Row } from '@/customer/components/line-table'
 import { BillSummary, ConfirmButton, CustomerInfo, Field, FormError, ServiceCard } from '@/customer/components/ui'
 import { api } from '@/customer/lib/api'
@@ -59,7 +59,7 @@ export function MedicineScreen() {
   ]
   const bill = calcMedicine(catalog.pricing, draft.rows.map(row => row.price))
   const check = validateForm(
-    createMedicineOrderSchema,
+    withDeliveryHours(createMedicineOrderSchema, catalog.deliveryHours.medicine),
     {
       address: draft.address,
       contactMobile: draft.mobile,
@@ -107,6 +107,7 @@ export function MedicineScreen() {
       }
     >
       <CustomerInfo user={user} />
+      <DeliveryHoursNotice service="medicine" windows={catalog.deliveryHours.medicine} />
       <div className="field-pair">
         <Field label={t('গ্রহীতার ঠিকানা', "Receiver's address")}>
           <input value={draft.address} onChange={e => update({ address: e.target.value })} placeholder={t('বাসা, রোড, এলাকা', 'House, road, area')} />

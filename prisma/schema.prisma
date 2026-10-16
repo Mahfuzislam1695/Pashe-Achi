@@ -74,6 +74,7 @@ enum AuditAction {
   ADMIN_SIGNED_OUT
   ADMIN_PASSWORD_CHANGED
   ANNOUNCEMENT_SENT
+  DELIVERY_HOURS_UPDATED
 }
 
 enum AuditEntity {
@@ -84,6 +85,7 @@ enum AuditEntity {
   VEHICLE
   SUPPORT
   ANNOUNCEMENT
+  DELIVERY_HOURS
 }
 
 /// A customer of the web/mobile app.
@@ -313,7 +315,7 @@ model Vehicle {
   shiftings ShiftingDetail[]
 }
 
-/// Simple key/value settings (support phone and WhatsApp link).
+/// Simple key/value settings (support phone and WhatsApp link, delivery hours per service).
 model Setting {
   key       String   @id
   value     String

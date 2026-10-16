@@ -8,6 +8,7 @@ import type { Text } from './enums'
 export const MESSAGES = {
   'schedule.required': { bn: 'ডেলিভারি তারিখ ও টাইম দিন।', en: 'Choose the delivery date and time.' },
   'schedule.past': { bn: 'আজ বা পরের কোনো তারিখ দিন।', en: 'Choose today or a later date.' },
+  'schedule.hours': { bn: 'ডেলিভারির সময় সূচীর মধ্যে একটি টাইম দিন।', en: 'Choose a time within the delivery hours.' },
   'bazar.rows': { bn: 'প্রতিটি লাইনে বাজারের নাম ও পরিমাণ লিখুন।', en: 'Fill in the item and quantity in each row.' },
   'bazar.details': { bn: 'ঠিকানা, মোবাইল নম্বর ও অন্তত একটি বাজারের লাইন দিন।', en: 'Add your address, mobile number and at least one item.' },
   'shifting.areas': { bn: 'Loading Area ও Unloading Area দিন।', en: 'Add the loading and unloading areas.' },
@@ -37,6 +38,7 @@ export const MESSAGES = {
   'order.bad_transition': { bn: 'এই অবস্থায় পরিবর্তন করা যাবে না।', en: 'The order cannot move to that status.' },
   'order.bill_locked': { bn: 'শেষ হওয়া অর্ডারের বিল বদলানো যাবে না।', en: 'The bill of a finished order cannot be changed.' },
   'vehicle.unavailable': { bn: 'এই গাড়ীটি এখন পাওয়া যাচ্ছে না।', en: 'This vehicle is not available right now.' },
+  'hours.invalid': { bn: 'প্রতিটি সময়ের শুরু ও শেষ দিন; শেষ হবে শুরুর পরে, আর দুটি সময় একটার ওপর আরেকটা পড়বে না।', en: 'Give each window a start and a later end, without overlapping another window.' },
   'admin.self': { bn: 'নিজের অ্যাকাউন্ট বন্ধ বা রোল বদল করা যাবে না।', en: 'You cannot deactivate or change the role of your own account.' },
   'field.required': { bn: 'এই ঘরটি পূরণ করুন।', en: 'This field is required.' },
   'field.invalid': { bn: 'তথ্যটি সঠিক নয়।', en: 'This value is not valid.' },

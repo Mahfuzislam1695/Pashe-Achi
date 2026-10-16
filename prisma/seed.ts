@@ -1,7 +1,7 @@
 /**
  * Idempotent seed: `npm run db:seed`. Creates what the app needs to run, and never overwrites values
  * an admin has since changed:
- * - the pricing row, the vehicles and the support line (defaults from the paper sketches)
+ * - the pricing row, the vehicles, the support line and the delivery hours (defaults from the paper sketches)
  * - the first super admin from SEED_ADMIN_* in .env
  * Everything it creates is also written to the history log, as done by the system.
  *
@@ -9,7 +9,16 @@
  */
 import 'dotenv/config'
 
-import { type AuditChange, DEFAULT_PRICING, DEFAULT_VEHICLES, MOBILE_PATTERN, normalizeMobile } from '@/shared'
+import {
+  type AuditChange,
+  DEFAULT_DELIVERY_HOURS,
+  DEFAULT_PRICING,
+  DEFAULT_VEHICLES,
+  formatDeliveryWindows,
+  MOBILE_PATTERN,
+  normalizeMobile,
+  SERVICE_IDS,
+} from '@/shared'
 import { PrismaPg } from '@prisma/adapter-pg'
 import bcrypt from 'bcryptjs'
 
@@ -62,7 +71,18 @@ async function seedCatalog() {
       log({ action: 'SUPPORT_UPDATED', actor: SYSTEM, entity: { type: 'SUPPORT' }, changes: created(Object.fromEntries(missing.map(field => [field, DEFAULT_SUPPORT[field]]))) }),
     ])
   }
-  console.log('✔ pricing, vehicles and support line')
+
+  const missingHours = (
+    await Promise.all(SERVICE_IDS.map(async service => ((await prisma.setting.findUnique({ where: { key: `delivery.${service}` } })) ? null : service)))
+  ).filter(service => service !== null)
+  if (missingHours.length) {
+    const values = missingHours.map(service => [service, formatDeliveryWindows(DEFAULT_DELIVERY_HOURS[service])] as const)
+    await prisma.$transaction([
+      ...values.map(([service, value]) => prisma.setting.create({ data: { key: `delivery.${service}`, value } })),
+      log({ action: 'DELIVERY_HOURS_UPDATED', actor: SYSTEM, entity: { type: 'DELIVERY_HOURS' }, changes: created(Object.fromEntries(values.filter(([, value]) => value).map(([service, value]) => [`${service}Hours`, value]))) }),
+    ])
+  }
+  console.log('✔ pricing, vehicles, support line and delivery hours')
 }
 
 async function seedSuperAdmin() {

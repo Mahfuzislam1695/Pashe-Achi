@@ -2,9 +2,18 @@
 
 import {
   type CatalogDto,
+  type DeliveryHours,
+  deliveryHoursSchema,
+  type DeliveryWindow,
+  describeDeliveryHours,
+  formatDeliveryWindows,
   type MessageCode,
+  parseDeliveryWindows,
   type Pricing,
   pricingSchema,
+  SERVICE_IDS,
+  SERVICE_LABELS,
+  type ServiceId,
   supportSettingsSchema,
   toAmount,
   validateForm,
@@ -12,7 +21,7 @@ import {
   vehicleSchema,
 } from '@/shared'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus, Save } from 'lucide-react'
+import { Plus, Save, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
 
@@ -44,6 +53,7 @@ export default function CatalogPage() {
           <PricingCard pricing={catalog.data.pricing} editable={editable} />
           <div className="grid min-w-0 content-start gap-5">
             <SupportCard catalog={catalog.data} editable={editable} />
+            <DeliveryHoursCard hours={catalog.data.deliveryHours} editable={editable} />
           </div>
           <div className="lg:col-span-2">
             <VehiclesCard vehicles={catalog.data.vehicles} editable={editable} />
@@ -136,6 +146,91 @@ function SupportCard({ catalog, editable }: { catalog: CatalogDto; editable: boo
         <Field label={t('WhatsApp লিংক', 'WhatsApp link')} hint="https://wa.me/8801XXXXXXXXX">
           <Input type="url" disabled={!editable} value={form.whatsapp} onChange={e => setForm({ ...form, whatsapp: e.target.value })} />
         </Field>
+        <ErrorNote code={error ?? (save.isError ? errorCode(save.error) : null)} />
+        {editable && (
+          <div>
+            <Button type="submit" variant="secondary" loading={save.isPending}>
+              <Save className="size-4" />
+              {t('সেভ করুন', 'Save')}
+            </Button>
+          </div>
+        )}
+      </form>
+    </Card>
+  )
+}
+
+/** The ডেলিভারি টাইম windows per service. The customer forms and the API reject a time outside them. */
+function DeliveryHoursCard({ hours, editable }: { hours: DeliveryHours; editable: boolean }) {
+  const { t, text } = useLang()
+  const [form, setForm] = useState(hours)
+  const [error, setError] = useState<MessageCode | null>(null)
+  const save = useCatalogMutation(api.catalog.updateDeliveryHours, t('ডেলিভারির সময় সেভ হয়েছে', 'Delivery hours saved'))
+
+  const setWindows = (service: ServiceId, windows: DeliveryWindow[]) => setForm({ ...form, [service]: windows })
+  const setWindow = (service: ServiceId, index: number, patch: Partial<DeliveryWindow>) =>
+    setWindows(service, form[service].map((window, at) => (at === index ? { ...window, ...patch } : window)))
+
+  return (
+    <Card title={t('ডেলিভারির সময় সূচী', 'Delivery hours')}>
+      <form
+        className="grid gap-4"
+        onSubmit={event => {
+          event.preventDefault()
+          const check = validateForm(deliveryHoursSchema, form, [])
+          if (!check.success) return setError(check.code)
+          setError(null)
+          save.mutate(check.data)
+        }}
+      >
+        <p className="text-xs text-muted">
+          {t('গ্রাহক শুধু এই সময়ের মধ্যে ডেলিভারি টাইম দিতে পারবেন। কোনো সময় না দিলে যেকোনো সময় চলবে।', 'Customers can only pick a delivery time inside these windows. With no windows, any time is accepted.')}
+        </p>
+        {SERVICE_IDS.map(service => {
+          const windows = form[service]
+          // Only the complete windows, so the preview never shows a half-typed one.
+          const preview = parseDeliveryWindows(formatDeliveryWindows(windows))
+          return (
+            <fieldset key={service} className="grid gap-2">
+              <legend className="mb-1 text-xs font-semibold text-muted">{text(SERVICE_LABELS[service])}</legend>
+              {windows.map((window, index) => (
+                <div key={index} className="flex items-center gap-2">
+                  <Input
+                    type="time"
+                    aria-label={t('শুরু', 'From')}
+                    className="h-9 w-32"
+                    disabled={!editable}
+                    value={window.from}
+                    onChange={e => setWindow(service, index, { from: e.target.value })}
+                  />
+                  <span className="text-muted">–</span>
+                  <Input
+                    type="time"
+                    aria-label={t('শেষ', 'To')}
+                    className="h-9 w-32"
+                    disabled={!editable}
+                    value={window.to}
+                    onChange={e => setWindow(service, index, { to: e.target.value })}
+                  />
+                  {editable && (
+                    <Button size="icon" variant="ghost" aria-label={t('সময়টি মুছুন', 'Remove window')} onClick={() => setWindows(service, windows.filter((_, at) => at !== index))}>
+                      <Trash2 className="size-4" />
+                    </Button>
+                  )}
+                </div>
+              ))}
+              <div className="flex flex-wrap items-center gap-3">
+                {editable && windows.length < 4 && (
+                  <Button size="sm" variant="secondary" onClick={() => setWindows(service, [...windows, { from: '', to: '' }])}>
+                    <Plus className="size-4" />
+                    {t('সময় যোগ করুন', 'Add window')}
+                  </Button>
+                )}
+                <span className="text-xs text-muted">{preview.length ? text(describeDeliveryHours(preview)) : t('যেকোনো সময়', 'Any time')}</span>
+              </div>
+            </fieldset>
+          )
+        })}
         <ErrorNote code={error ?? (save.isError ? errorCode(save.error) : null)} />
         {editable && (
           <div>

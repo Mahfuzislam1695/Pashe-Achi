@@ -1,10 +1,9 @@
 'use client'
 
-import { calcBazar, createBazarOrderSchema, FORM_ERROR_PRIORITY, type ScheduleInput, toAmount, validateForm } from '@/shared'
-import { Clock } from 'lucide-react'
+import { calcBazar, createBazarOrderSchema, FORM_ERROR_PRIORITY, type ScheduleInput, toAmount, validateForm, withDeliveryHours } from '@/shared'
 import { useState } from 'react'
 
-import { DeliverySchedule, EMPTY_SCHEDULE } from '@/customer/components/delivery-schedule'
+import { DeliveryHoursNotice, DeliverySchedule, EMPTY_SCHEDULE } from '@/customer/components/delivery-schedule'
 import { type Column, isRowStarted, LineTable, type Row } from '@/customer/components/line-table'
 import { BillSummary, ConfirmButton, CustomerInfo, Field, ServiceCard } from '@/customer/components/ui'
 import { api } from '@/customer/lib/api'
@@ -35,7 +34,7 @@ export function BazarScreen() {
   ]
   const bill = calcBazar(catalog.pricing, draft.rows.map(row => row.price))
   const check = validateForm(
-    createBazarOrderSchema,
+    withDeliveryHours(createBazarOrderSchema, catalog.deliveryHours.bazar),
     {
       address: draft.address,
       contactMobile: draft.mobile,
@@ -80,10 +79,7 @@ export function BazarScreen() {
       }
     >
       <CustomerInfo user={user} />
-      <p className="notice">
-        <Clock size={16} />
-        <span>{t('কাঁচা বাজার ডেলিভারির সময় সূচী: সকাল ৮ থেকে ১০ এবং সন্ধ্যা ৬ থেকে ৯ পর্যন্ত।', 'Fresh market delivery hours: 8–10 am and 6–9 pm.')}</span>
-      </p>
+      <DeliveryHoursNotice service="bazar" windows={catalog.deliveryHours.bazar} />
       <div className="field-pair">
         <Field label={t('ঠিকানা', 'Address')}>
           <input value={draft.address} onChange={e => update({ address: e.target.value })} placeholder={t('বাসা, রোড, এলাকা', 'House, road, area')} />

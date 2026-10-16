@@ -11,9 +11,11 @@ import {
   type AuditChange,
   type AuditLogDto,
   type AuditValue,
+  describeDeliveryHours,
   isoDateInBd,
   ORDER_STATUSES,
   type OrderStatus,
+  parseDeliveryWindows,
   SERVICE_IDS,
   SERVICE_LABELS,
   type ServiceId,
@@ -23,6 +25,7 @@ import {
   Ban,
   CircleCheck,
   ClipboardList,
+  Clock,
   KeyRound,
   LogIn,
   LogOut,
@@ -76,6 +79,7 @@ const ACTION_ICONS: Record<AuditAction, [LucideIcon, Tone]> = {
   ADMIN_SIGNED_OUT: [LogOut, 'neutral'],
   ADMIN_PASSWORD_CHANGED: [KeyRound, 'neutral'],
   ANNOUNCEMENT_SENT: [Megaphone, 'brand'],
+  DELIVERY_HOURS_UPDATED: [Clock, 'brand'],
 }
 
 const MONEY_FIELDS = new Set([
@@ -90,6 +94,9 @@ const MONEY_FIELDS = new Set([
   'item.price',
   'total',
 ])
+
+/** Delivery hours, stored as "08:00-10:00,18:00-21:00" (empty: any time). */
+const HOURS_FIELDS = new Set(SERVICE_IDS.map(service => `${service}Hours`))
 
 const isStatus = (value: AuditValue): value is OrderStatus => ORDER_STATUSES.includes(value as OrderStatus)
 const isService = (value: AuditValue): value is ServiceId => SERVICE_IDS.includes(value as ServiceId)
@@ -231,7 +238,7 @@ function EntityRef({ entry }: { entry: AuditLogDto }) {
         ? `/admin/customers/${id}`
         : type === 'STAFF' && isSuperAdmin(me.role)
           ? '/admin/staff'
-          : type === 'PRICING' || type === 'VEHICLE' || type === 'SUPPORT'
+          : type === 'PRICING' || type === 'VEHICLE' || type === 'SUPPORT' || type === 'DELIVERY_HOURS'
             ? '/admin/catalog'
             : null
   return (
@@ -308,8 +315,12 @@ function Changes({ changes }: { changes: AuditChange[] }) {
 function Value({ change, value, muted = false }: { change: AuditChange; value: AuditValue; muted?: boolean }) {
   const { t, text, taka, digits } = useLang()
   if (change.field === 'status' && isStatus(value)) return <StatusBadge status={value} />
-  const shown =
-    value === null || value === ''
+  const hours = HOURS_FIELDS.has(change.field) && typeof value === 'string' ? parseDeliveryWindows(value) : null
+  const shown = hours
+    ? hours.length
+      ? text(describeDeliveryHours(hours))
+      : t('যেকোনো সময়', 'Any time')
+    : value === null || value === ''
       ? '—'
       : MONEY_FIELDS.has(change.field) && typeof value === 'number'
         ? taka(value)

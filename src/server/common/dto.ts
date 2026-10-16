@@ -7,6 +7,7 @@ import {
   createParcelOrderSchema,
   createShiftingOrderSchema,
   dashboardQuerySchema,
+  deliveryHoursSchema,
   idParamSchema,
   listAuditQuerySchema,
   listCustomersQuerySchema,
@@ -56,6 +57,7 @@ export class PricingDto extends createZodDto(pricingSchema) {}
 export class VehicleDto extends createZodDto(vehicleSchema) {}
 export class UpdateVehicleDto extends createZodDto(updateVehicleSchema) {}
 export class SupportSettingsDto extends createZodDto(supportSettingsSchema) {}
+export class DeliveryHoursDto extends createZodDto(deliveryHoursSchema) {}
 
 export class CreateAdminDto extends createZodDto(createAdminSchema) {}
 export class UpdateAdminDto extends createZodDto(updateAdminSchema) {}

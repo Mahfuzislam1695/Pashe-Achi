@@ -77,10 +77,10 @@ export type CreateParcelOrderInput = z.infer<typeof createParcelOrderSchema>
 
 /** The order each form reports its problems in (matches the original screens). */
 export const FORM_ERROR_PRIORITY = {
-  bazar: ['bazar.rows', 'bazar.details', 'mobile.invalid', 'schedule.required', 'schedule.past'],
-  shifting: ['shifting.areas', 'schedule.required', 'schedule.past', 'shifting.vehicle', 'shifting.numbers'],
-  medicine: ['medicine.rows', 'medicine.details', 'mobile.invalid', 'schedule.required', 'schedule.past'],
-  parcel: ['parcel.details', 'mobile.invalid', 'schedule.required', 'schedule.past'],
+  bazar: ['bazar.rows', 'bazar.details', 'mobile.invalid', 'schedule.required', 'schedule.past', 'schedule.hours'],
+  shifting: ['shifting.areas', 'schedule.required', 'schedule.past', 'schedule.hours', 'shifting.vehicle', 'shifting.numbers'],
+  medicine: ['medicine.rows', 'medicine.details', 'mobile.invalid', 'schedule.required', 'schedule.past', 'schedule.hours'],
+  parcel: ['parcel.details', 'mobile.invalid', 'schedule.required', 'schedule.past', 'schedule.hours'],
   signup: ['auth.signup', 'mobile.invalid', 'password.short'],
   login: ['auth.login', 'mobile.invalid'],
   profile: ['profile.name', 'profile.mobile', 'mobile.invalid'],

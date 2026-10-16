@@ -2,7 +2,7 @@ import type { AddressInfo } from 'node:net'
 
 import { Test } from '@nestjs/testing'
 import type { NestExpressApplication } from '@nestjs/platform-express'
-import { API_PREFIX, DEFAULT_PRICING, DEFAULT_VEHICLES, isoDateInBd, type OrderDetail, SOCKET_EVENTS, SOCKET_NAMESPACE } from '@/shared'
+import { API_PREFIX, DEFAULT_DELIVERY_HOURS, DEFAULT_PRICING, DEFAULT_VEHICLES, isoDateInBd, type OrderDetail, SOCKET_EVENTS, SOCKET_NAMESPACE } from '@/shared'
 import bcrypt from 'bcryptjs'
 import { io, type Socket } from 'socket.io-client'
 import request from 'supertest'
@@ -126,6 +126,11 @@ describe('Pashe Achi API (e2e)', () => {
         .send({ address: 'x', contactMobile: '01712000011', schedule: { date: '2020-01-01', time: '10:00' }, items: [{ name: 'a', quantity: '1' }] })
         .expect(400)
         .expect(res => expect(res.body.code).toBe('schedule.past'))
+      await agent
+        .post(api('/orders/bazar'))
+        .send({ address: 'x', contactMobile: '01712000011', schedule: { ...schedule, time: '12:00' }, items: [{ name: 'a', quantity: '1' }] })
+        .expect(400)
+        .expect(res => expect(res.body.code).toBe('schedule.hours'))
       await agent
         .post(api('/orders/medicine'))
         .send({ address: 'x', contactMobile: '01712000011', schedule, items: [{ name: 'Napa', quantity: '1', company: '', category: 'জ্বর', price: 5 }] })
@@ -270,6 +275,31 @@ describe('Pashe Achi API (e2e)', () => {
         changes: [{ field: 'bazarShoppingFee', from: 150, to: 999 }],
       })
       expect(log.body.items[0].changes).toEqual([{ field: 'bazarShoppingFee', from: 999, to: 150 }])
+    })
+
+    it('lets managers set the delivery hours, which every order then has to fall in', async () => {
+      const manager = await staffAgent({ name: 'Nila', mobile: '01912000032', password: 'manager1', role: 'MANAGER' })
+      const operator = await staffAgent({ name: 'Sumon', mobile: '01912000033', password: 'operator1', role: 'OPERATOR' })
+      const hours = { ...DEFAULT_DELIVERY_HOURS, parcel: [{ from: '10:00', to: '18:00' }] }
+      await operator.agent.put(api('/admin/catalog/delivery-hours')).send(hours).expect(403)
+      await manager.agent
+        .put(api('/admin/catalog/delivery-hours'))
+        .send({ ...hours, bazar: [{ from: '08:00', to: '12:00' }, { from: '11:00', to: '13:00' }] })
+        .expect(400)
+        .expect(res => expect(res.body.code).toBe('hours.invalid'))
+      await manager.agent.put(api('/admin/catalog/delivery-hours')).send(hours).expect(200)
+
+      const catalog = await request(app.getHttpServer()).get(api('/catalog')).expect(200)
+      expect(catalog.body.deliveryHours).toEqual(hours)
+      const { agent } = await signup('01712000040')
+      const parcel = { product: 'ব্যাগ', pickupAddress: 'A', dropoffAddress: 'B', receiverMobile: '01711111111' }
+      await agent.post(api('/orders/parcel')).send({ ...parcel, schedule: { ...schedule, time: '09:00' } }).expect(400).expect(res => expect(res.body.code).toBe('schedule.hours'))
+      await agent.post(api('/orders/parcel')).send({ ...parcel, schedule: { ...schedule, time: '18:00' } }).expect(201)
+
+      const log = await manager.agent.get(api(`/admin/audit?entityType=DELIVERY_HOURS&adminId=${manager.id}`)).expect(200)
+      expect(log.body.items).toHaveLength(1)
+      expect(log.body.items[0]).toMatchObject({ action: 'DELIVERY_HOURS_UPDATED', changes: [{ field: 'parcelHours', from: '', to: '10:00-18:00' }] })
+      await manager.agent.put(api('/admin/catalog/delivery-hours')).send(DEFAULT_DELIVERY_HOURS).expect(200)
     })
 
     it("keeps an order's whole history, which operators can read but not the full log", async () => {

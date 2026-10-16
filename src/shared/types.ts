@@ -1,4 +1,5 @@
 import type { ActorType, AdminRole, AuditAction, AuditEntity, Lang, NotificationType, OrderStatus, ServiceId, Text } from './enums'
+import type { DeliveryHours } from './delivery-hours'
 import type { Pricing } from './pricing'
 
 // Response bodies of the API. Dates are ISO 8601 strings; amounts are whole taka.
@@ -66,6 +67,8 @@ export interface CatalogDto {
   pricing: Pricing
   vehicles: VehicleDto[]
   support: SupportSettings
+  /** The ডেলিভারি টাইম windows per service; an empty list means any time. */
+  deliveryHours: DeliveryHours
 }
 
 export interface OrderCustomerRef {

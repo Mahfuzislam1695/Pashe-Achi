@@ -1,9 +1,9 @@
 'use client'
 
-import { createParcelOrderSchema, FORM_ERROR_PRIORITY, type ScheduleInput, validateForm } from '@/shared'
+import { createParcelOrderSchema, FORM_ERROR_PRIORITY, type ScheduleInput, validateForm, withDeliveryHours } from '@/shared'
 import { useState } from 'react'
 
-import { DeliverySchedule, EMPTY_SCHEDULE } from '@/customer/components/delivery-schedule'
+import { DeliveryHoursNotice, DeliverySchedule, EMPTY_SCHEDULE } from '@/customer/components/delivery-schedule'
 import { ConfirmButton, CustomerInfo, InlineField, ServiceCard } from '@/customer/components/ui'
 import { api } from '@/customer/lib/api'
 import { useDraft } from '@/customer/lib/drafts'
@@ -29,7 +29,7 @@ export function ParcelScreen() {
   const bind = (key: keyof ParcelFields) => ({ value: draft[key], onChange: (e: React.ChangeEvent<HTMLInputElement>) => update({ [key]: e.target.value }) })
 
   const check = validateForm(
-    createParcelOrderSchema,
+    withDeliveryHours(createParcelOrderSchema, catalog.deliveryHours.parcel),
     {
       product: draft.product,
       weight: draft.weight || undefined,
@@ -55,6 +55,7 @@ export function ParcelScreen() {
   return (
     <ServiceCard id="parcel">
       <CustomerInfo user={user} />
+      <DeliveryHoursNotice service="parcel" windows={catalog.deliveryHours.parcel} />
       <div className="field-rows">
         <InlineField label={t('পণ্যের নাম', 'Product name')}>
           <input {...bind('product')} placeholder={t('যেমন: কাপড়ের ব্যাগ', 'e.g. Bag of clothes')} />

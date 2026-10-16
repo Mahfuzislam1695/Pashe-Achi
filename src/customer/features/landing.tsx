@@ -1,10 +1,11 @@
 'use client'
 
 import { APP_LOGO_HERO, APP_NAME, APP_TAGLINE, APP_WELCOME, SERVICE_IDS, SERVICE_LABELS, type ServiceId } from '@/shared'
-import { ArrowRight, BellRing, Clock, LogIn, Menu, MessageCircle, Phone, ReceiptText, UserPlus, X } from 'lucide-react'
+import { ArrowRight, BellRing, LogIn, Menu, MessageCircle, Phone, ReceiptText, UserPlus, X } from 'lucide-react'
 import Link from 'next/link'
 import { useState } from 'react'
 
+import { DeliveryHoursNotice } from '@/customer/components/delivery-schedule'
 import { ContactDock, LangToggle, Logo } from '@/customer/components/ui'
 import { useLang } from '@/customer/lib/i18n'
 import { webPaths as paths } from '@/customer/lib/paths'
@@ -17,6 +18,7 @@ const SECTIONS = ['services', 'how', 'pricing', 'contact'] as const
 export function LandingScreen({ signedIn }: { signedIn: boolean }) {
   const { t, lang, setLang, text } = useLang()
   const [menuOpen, setMenuOpen] = useState(false)
+  const deliveryHours = useCatalog().data?.deliveryHours
 
   const sectionLabel: Record<(typeof SECTIONS)[number], string> = {
     services: t('সেবাসমূহ', 'Services'),
@@ -182,10 +184,7 @@ export function LandingScreen({ signedIn }: { signedIn: boolean }) {
                 <p>{t('অর্ডারের প্রতিটি ধাপ নোটিফিকেশনে জানতে পারবেন।', 'You get a notification at every step of the order.')}</p>
               </li>
             </ol>
-            <p className="notice landing-hours">
-              <Clock size={16} />
-              <span>{t('কাঁচা বাজার ডেলিভারির সময় সূচী: সকাল ৮ থেকে ১০ এবং সন্ধ্যা ৬ থেকে ৯ পর্যন্ত।', 'Fresh market delivery hours: 8–10 am and 6–9 pm.')}</span>
-            </p>
+            <DeliveryHoursNotice service="bazar" windows={deliveryHours?.bazar ?? []} className="landing-hours" />
           </div>
         </section>
 

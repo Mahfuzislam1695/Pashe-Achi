@@ -9,7 +9,7 @@ export const ORDER_PREFIX = 'PA'
 
 // These phrases depend on the name's wording and grammar, so they live with it.
 export const APP_WELCOME = { bn: 'কিংফিশার-এ স্বাগতম', en: 'WELCOME TO KINGFISHER' } as const
-export const APP_TAGLINE = { bn: 'প্রতিদিনের দরকারে, আমরা পাশে আছি', en: 'Everyday help, right by your side' } as const
+export const APP_TAGLINE = { bn: 'উন্নত জীবনের – সহজ সমাধান', en: 'Better living – simple solutions' } as const
 
 // All dates (delivery schedule, "today" on the dashboard) are interpreted in Bangladesh time.
 export const APP_TIME_ZONE = 'Asia/Dhaka'

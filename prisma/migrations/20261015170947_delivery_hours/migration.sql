@@ -1,0 +1,5 @@
+-- AlterEnum
+ALTER TYPE "AuditAction" ADD VALUE 'DELIVERY_HOURS_UPDATED';
+
+-- AlterEnum
+ALTER TYPE "AuditEntity" ADD VALUE 'DELIVERY_HOURS';

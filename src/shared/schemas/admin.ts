@@ -1,6 +1,8 @@
 import { z } from 'zod'
 
+import type { DeliveryHours } from '../delivery-hours'
 import { ACTOR_TYPES, ADMIN_ROLES, AUDIT_ACTIONS, AUDIT_ENTITIES } from '../enums'
+import { TIME_PATTERN } from '../format'
 import { amount, cursorQuery, mobile, password, requiredText } from './common'
 
 export const listCustomersQuerySchema = z.object({
@@ -46,6 +48,25 @@ export const supportSettingsSchema = z.object({
   whatsapp: z.url({ error: 'field.invalid' }).max(200),
 })
 export type SupportSettingsInput = z.infer<typeof supportSettingsSchema>
+
+const clockTime = z.string({ error: 'hours.invalid' }).regex(TIME_PATTERN, { error: 'hours.invalid' })
+
+/** Up to four windows that each end after they start and don't overlap. Empty means any time. */
+const deliveryWindows = z
+  .array(z.object({ from: clockTime, to: clockTime }).refine(window => window.from < window.to, { error: 'hours.invalid' }), { error: 'hours.invalid' })
+  .max(4, { error: 'hours.invalid' })
+  .refine(
+    windows => [...windows].sort((a, b) => a.from.localeCompare(b.from)).every((window, index, sorted) => index === 0 || sorted[index - 1]!.to <= window.from),
+    { error: 'hours.invalid' },
+  )
+
+export const deliveryHoursSchema = z.object({
+  bazar: deliveryWindows,
+  shifting: deliveryWindows,
+  medicine: deliveryWindows,
+  parcel: deliveryWindows,
+}) satisfies z.ZodType<DeliveryHours>
+export type DeliveryHoursInput = z.infer<typeof deliveryHoursSchema>
 
 export const createAdminSchema = z.object({
   name: requiredText('field.required', 80),

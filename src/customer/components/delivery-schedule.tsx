@@ -1,6 +1,7 @@
 'use client'
 
-import { isoDateInBd, type ScheduleInput } from '@/shared'
+import { type DeliveryWindow, deliveryHoursNotice, isoDateInBd, type ScheduleInput, type ServiceId } from '@/shared'
+import { Clock } from 'lucide-react'
 
 import { useLang } from '@/customer/lib/i18n'
 import { Field, InlineField } from './ui'
@@ -22,4 +23,17 @@ export function DeliverySchedule({ value, onChange, inline = false }: { value: S
     </>
   )
   return inline ? fields : <div className="field-pair even">{fields}</div>
+}
+
+/** "কাঁচা বাজার ডেলিভারির সময় সূচী: …", built from the hours set in the admin Catalog. Nothing when the service takes any time. */
+export function DeliveryHoursNotice({ service, windows, className }: { service: ServiceId; windows: readonly DeliveryWindow[]; className?: string }) {
+  const { text } = useLang()
+  const notice = deliveryHoursNotice(service, windows)
+  if (!notice) return null
+  return (
+    <p className={className ? `notice ${className}` : 'notice'}>
+      <Clock size={16} />
+      <span>{text(notice)}</span>
+    </p>
+  )
 }

@@ -15,6 +15,9 @@ export const normalizeMobile = (value: string) => {
 
 export const MOBILE_PATTERN = /^01[3-9]\d{8}$/
 
+/** HH:mm, 24-hour (the value format of <input type="time">). */
+export const TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/
+
 export const orderCode = (number: number) => `${ORDER_PREFIX}-${number}`
 
 /** YYYY-MM-DD for the given instant in Bangladesh time (the value format of <input type="date">). */
