@@ -30,7 +30,7 @@ export function OrdersScreen() {
           return (
             <Link className="order-link" href={paths.order(order.id)} key={order.id}>
               <article className="order-card">
-                <div className="order-icon">
+                <div className={`order-icon svc-${order.service}`}>
                   <Icon size={18} />
                 </div>
                 <div className="order-info">

@@ -38,10 +38,10 @@ export default function LoginPage() {
   })
 
   return (
-    <main className="grid min-h-screen place-items-center p-4">
+    <main className="grid min-h-screen place-items-center bg-[radial-gradient(circle_at_85%_10%,var(--color-brand-100)_0,transparent_40%),linear-gradient(160deg,var(--color-brand-50),var(--color-canvas))] p-4">
       <form
         noValidate
-        className="grid w-full max-w-sm gap-4 rounded-2xl border border-line bg-surface p-6 shadow-sm"
+        className="grid w-full max-w-sm gap-4 rounded-2xl border border-line bg-surface p-6 shadow-raised sm:p-7"
         onSubmit={event => {
           event.preventDefault()
           setError(null)
@@ -50,15 +50,15 @@ export default function LoginPage() {
       >
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <img src={APP_LOGO} alt="" className="size-10 rounded-full bg-white object-cover ring-1 ring-line" />
+            <img src={APP_LOGO} alt="" className="size-11 rounded-full bg-white object-cover shadow-xs ring-1 ring-line" />
             <div className="leading-tight">
-              <strong className="block">{APP_NAME.en}</strong>
-              <span className="text-xs text-muted">{t('অ্যাডমিন প্যানেল', 'Admin panel')}</span>
+              <strong className="block font-bold text-navy">{APP_NAME.en}</strong>
+              <span className="text-xs font-medium text-brand-600">{t('অ্যাডমিন প্যানেল', 'Admin panel')}</span>
             </div>
           </div>
           <LangSwitch />
         </div>
-        <h1 className="text-lg font-bold">{t('লগইন', 'Sign in')}</h1>
+        <h1 className="mt-1 text-xl font-bold text-navy">{t('লগইন', 'Sign in')}</h1>
         <Field label={t('মোবাইল নম্বর', 'Mobile number')}>
           <Input type="tel" inputMode="tel" autoComplete="username" placeholder="01XXXXXXXXX" value={form.mobile} onChange={e => setForm({ ...form, mobile: e.target.value })} />
         </Field>

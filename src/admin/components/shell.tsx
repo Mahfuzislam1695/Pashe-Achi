@@ -45,10 +45,10 @@ export function PanelShell({ children }: { children: React.ReactNode }) {
 function Brand({ compact = false }: { compact?: boolean }) {
   return (
     <div className="flex items-center gap-2.5">
-      <img src={APP_LOGO} alt="" className="size-9 rounded-full bg-white object-cover ring-1 ring-line" />
+      <img src={APP_LOGO} alt="" className="size-10 rounded-full bg-white object-cover shadow-xs ring-1 ring-line" />
       <div className={cn('leading-tight', compact && 'hidden sm:block')}>
-        <strong className="block text-sm">{APP_NAME.en}</strong>
-        <span className="text-xs text-muted">Admin</span>
+        <strong className="block text-[15px] font-bold text-navy">{APP_NAME.en}</strong>
+        <span className="text-xs font-medium text-brand-600">Admin</span>
       </div>
     </div>
   )
@@ -98,8 +98,10 @@ function Frame({ children }: { children: React.ReactNode }) {
             href={item.href}
             aria-current={isActive(item.href) ? 'page' : undefined}
             className={cn(
-              'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium',
-              isActive(item.href) ? 'bg-brand-50 text-brand-700' : 'text-muted hover:bg-canvas hover:text-ink',
+              'relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors',
+              isActive(item.href)
+                ? 'bg-brand-50 font-semibold text-brand-700 before:absolute before:inset-y-2.5 before:left-0 before:w-0.75 before:rounded-r-full before:bg-brand-600'
+                : 'text-muted hover:bg-canvas hover:text-navy',
             )}
           >
             <item.icon className="size-4.5" />
@@ -108,10 +110,10 @@ function Frame({ children }: { children: React.ReactNode }) {
         ))}
       </nav>
       <div className="mt-auto grid gap-2 border-t border-line pt-4">
-        <Link href="/admin/profile" className="flex items-center gap-3 rounded-lg px-2 py-1.5 hover:bg-canvas">
-          <div className="grid size-8 place-items-center rounded-full bg-brand-100 text-sm font-bold text-brand-700">{admin.name[0]}</div>
+        <Link href="/admin/profile" className="flex items-center gap-3 rounded-xl border border-line bg-canvas/60 px-2.5 py-2 transition-colors hover:border-brand-200">
+          <div className="grid size-8 place-items-center rounded-full bg-brand-600 text-sm font-bold text-white">{admin.name[0]}</div>
           <div className="min-w-0 leading-tight">
-            <strong className="block truncate text-sm">{admin.name}</strong>
+            <strong className="block truncate text-sm text-navy">{admin.name}</strong>
             <span className="text-xs text-muted">{text(ADMIN_ROLE_LABELS[admin.role])}</span>
           </div>
         </Link>
@@ -128,12 +130,12 @@ function Frame({ children }: { children: React.ReactNode }) {
       <aside className="sticky top-0 hidden h-screen border-r border-line bg-surface lg:block">{sidebar}</aside>
       {menuOpen && (
         <div className="fixed inset-0 z-40 lg:hidden">
-          <button type="button" className="absolute inset-0 bg-ink/30" aria-label={t('মেনু বন্ধ করুন', 'Close menu')} onClick={() => setMenuOpen(false)} />
-          <aside className="absolute inset-y-0 left-0 w-72 max-w-[85vw] bg-surface shadow-xl">{sidebar}</aside>
+          <button type="button" className="absolute inset-0 bg-navy/40" aria-label={t('মেনু বন্ধ করুন', 'Close menu')} onClick={() => setMenuOpen(false)} />
+          <aside className="absolute inset-y-0 left-0 w-72 max-w-[85vw] bg-surface shadow-raised">{sidebar}</aside>
         </div>
       )}
       <div className="min-w-0">
-        <header className="sticky top-0 z-30 flex h-14 items-center gap-2 border-b border-line bg-surface/95 px-4 backdrop-blur sm:px-6">
+        <header className="sticky top-0 z-30 flex h-16 items-center gap-2 border-b border-line bg-surface/90 px-4 backdrop-blur sm:px-6">
           <Button variant="ghost" size="icon" className="lg:hidden" aria-label={t('মেনু খুলুন', 'Open menu')} onClick={() => setMenuOpen(true)}>
             <Menu className="size-5" />
           </Button>
@@ -154,17 +156,17 @@ function Frame({ children }: { children: React.ReactNode }) {
             </Button>
             <Link
               href="/admin/notifications"
-              className="relative grid size-9 place-items-center rounded-lg text-muted hover:bg-canvas hover:text-ink"
+              className="relative grid size-9 place-items-center rounded-xl text-muted transition-colors hover:bg-canvas hover:text-brand-700"
               aria-label={unread ? t(`নোটিফিকেশন, ${digits(unread)}টি নতুন`, `Notifications, ${unread} unread`) : t('নোটিফিকেশন', 'Notifications')}
             >
               <Bell className="size-4.5" />
               {unread > 0 && (
-                <span className="absolute -top-0.5 -right-0.5 grid h-4.5 min-w-4.5 place-items-center rounded-full bg-red-600 px-1 text-[10px] font-bold text-white">
+                <span className="absolute -top-0.5 -right-0.5 grid h-4.5 min-w-4.5 place-items-center rounded-full bg-danger px-1 text-[10px] font-bold text-white ring-2 ring-surface">
                   {unread > 99 ? '99+' : digits(unread)}
                 </span>
               )}
             </Link>
-            <Link href="/admin/profile" className="grid size-9 place-items-center rounded-full bg-brand-100 text-sm font-bold text-brand-700" aria-label={t('প্রোফাইল', 'Profile')}>
+            <Link href="/admin/profile" className="grid size-9 place-items-center rounded-full bg-brand-600 text-sm font-bold text-white transition-colors hover:bg-brand-700" aria-label={t('প্রোফাইল', 'Profile')}>
               <UserRound className="size-4" />
             </Link>
           </div>

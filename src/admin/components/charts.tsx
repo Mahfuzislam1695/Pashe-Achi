@@ -2,6 +2,7 @@
 
 import type { DashboardDto } from '@/shared'
 import { SERVICE_LABELS } from '@/shared'
+import type { LucideIcon } from 'lucide-react'
 import { useState } from 'react'
 
 import { useLang } from '@/admin/lib/i18n'
@@ -16,11 +17,25 @@ function niceMax(value: number) {
   return step * power
 }
 
-export function StatTile({ label, value, hint }: { label: string; value: string; hint?: string }) {
+const TILE_TONES = {
+  brand: 'bg-brand-50 text-brand-600',
+  success: 'bg-success-soft text-success',
+  warning: 'bg-warning-soft text-warning',
+  violet: 'bg-violet-soft text-violet',
+} as const
+
+export function StatTile({ label, value, hint, icon: Icon, tone = 'brand' }: { label: string; value: string; hint?: string; icon?: LucideIcon; tone?: keyof typeof TILE_TONES }) {
   return (
-    <div className="rounded-xl border border-line bg-surface p-4 shadow-sm">
-      <p className="text-xs font-medium text-muted">{label}</p>
-      <p className="mt-1.5 text-2xl font-semibold tabular-nums">{value}</p>
+    <div className="rounded-2xl border border-line bg-surface p-4 shadow-card">
+      <div className="flex items-start justify-between gap-2">
+        <p className="text-xs font-medium text-muted">{label}</p>
+        {Icon && (
+          <span className={cn('grid size-9 shrink-0 place-items-center rounded-xl', TILE_TONES[tone])} aria-hidden="true">
+            <Icon className="size-4.5" />
+          </span>
+        )}
+      </div>
+      <p className="mt-1 text-2xl font-bold text-navy tabular-nums">{value}</p>
       {hint && <p className="mt-1 text-xs text-muted">{hint}</p>}
     </div>
   )
@@ -108,7 +123,7 @@ export function DailyOrdersChart({ daily, title }: { daily: DashboardDto['daily'
                     </span>
                   )}
                   {active === index && (
-                    <span className="pointer-events-none absolute bottom-full z-10 mb-1 grid min-w-28 gap-0.5 rounded-lg border border-line bg-surface px-2.5 py-1.5 text-left text-xs shadow-lg">
+                    <span className="pointer-events-none absolute bottom-full z-10 mb-1 grid min-w-28 gap-0.5 rounded-xl border border-line bg-surface px-2.5 py-1.5 text-left text-xs shadow-raised">
                       <strong className="text-sm tabular-nums">
                         {digits(day.orders)} {t('অর্ডার', 'orders')}
                       </strong>

@@ -53,8 +53,8 @@ type Tone = 'brand' | 'neutral' | 'success' | 'danger'
 const TONES: Record<Tone, string> = {
   brand: 'bg-brand-50 text-brand-700',
   neutral: 'bg-canvas text-muted',
-  success: 'bg-emerald-50 text-emerald-700',
-  danger: 'bg-red-50 text-red-700',
+  success: 'bg-success-soft text-success-ink',
+  danger: 'bg-danger-soft text-danger-ink',
 }
 
 const ACTION_ICONS: Record<AuditAction, [LucideIcon, Tone]> = {

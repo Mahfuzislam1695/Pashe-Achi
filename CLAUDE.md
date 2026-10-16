@@ -177,8 +177,9 @@ prisma/  schema, migrations, seed.ts        test/  API e2e tests        public/ 
 - **Line tables.** A table starts with one row, and "add more" appears once the last row's required boxes are filled. Bazar requires item and quantity; medicine requires all five columns. Fully empty rows are ignored.
 - **Styling:**
   - Screens use the hand-written classes in `globals.css` (`.page-card`, `.field`, `.line-table`, `.bill` and so on), not Tailwind utilities.
-  - The file is minified old v0 CSS, then "Screens from the paper sketches", then "Live data screens (API)", then "Landing page", then "Web version". Later rules win.
-  - Variable names are misleading: `--blue` is the teal primary `#287c68` and `--green` is amber.
+  - The file is minified old v0 CSS, then "Screens from the paper sketches", then "Live data screens (API)", then "Landing page", then "Kingfisher theme", then "Web version". Later rules win.
+  - Colours are tokens on `:root` (the Kingfisher palette from the logo): `--blue` is the primary `#1265d8`, `--navy` the headings, `--ink` the text, `--green`/`--orange` support it. Use tokens, never raw hex.
+  - The "Kingfisher theme" section sets colours, type and shape for both versions. Service tints come from `.svc-bazar` / `.svc-shifting` / `.svc-medicine` / `.svc-parcel` (or `.tone-*`), which set `--svc`, `--svc-soft` and `--svc-ink`.
   - Bangla needs `letter-spacing: 0` (via `html[lang='bn']`) to keep the headstroke (মাত্রা).
   - Everything before the "Web version" section is the app version's look: a 430px phone column at every width. Leave it alone.
   - Every web-only rule is scoped to `.mode-web`, the class on the web shells. Add new web styles there.
@@ -186,11 +187,11 @@ prisma/  schema, migrations, seed.ts        test/  API e2e tests        public/ 
     - Tablets (801–1023px) get a wider centred column.
     - The web (≥1024px) gets a fixed sidebar, a titled top bar, two-column screens and the split login.
   - Service forms pass their bill and Confirm as `ServiceCard`'s `summary`, which becomes a sticky column only on the web.
-  - The font is Hind Siliguri via `next/font/google`, so builds need internet access.
+  - The fonts are Inter (Latin, `--font-latin`) and Hind Siliguri (Bangla, `--font-bangla`) via `next/font/google`, so builds need internet access. Stacks list Inter first, so Bangla falls through to Hind Siliguri.
 
 ### Admin panel (src/admin, src/app/(admin)/admin)
 
-- **Stack.** Tailwind v4 utilities, with brand tokens in the `@theme` block of its `globals.css` (`brand-*`, `ink`, `muted`, `line`, `canvas`, `chart`). UI primitives are in `components/ui.tsx` (cva and tailwind-merge) and toasts use `sonner`.
+- **Stack.** Tailwind v4 utilities, with brand tokens in the `@theme` block of its `globals.css` (`brand-*` blue, `navy`, `ink`, `muted`, `line`, `canvas`, `chart`, the `success`/`warning`/`violet`/`danger` tones with `-soft` and `-ink`, and `shadow-card`/`shadow-raised`). UI primitives are in `components/ui.tsx` (cva and tailwind-merge) and toasts use `sonner`.
 - **Routes.** `/admin/login`, then `(panel)/…` for `/admin` (dashboard), orders, customers, catalog, notifications, history, staff and profile. Every link and redirect in the panel starts with `/admin`.
 - **History.** `components/audit-feed.tsx` renders history entries everywhere. That means `/admin/history` (managers and up, filters in the URL), the order page's History card, the customer page's History card and the dashboard's Recent activity.
 - **Filters.** Order filters live in the URL query.

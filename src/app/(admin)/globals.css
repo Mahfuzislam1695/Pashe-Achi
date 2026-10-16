@@ -4,27 +4,46 @@
 @source '.';
 
 /*
- * Admin panel theme. Same brand as the customer app (teal primary, amber accent, Hind Siliguri),
- * expressed as Tailwind tokens: bg-brand-600, text-ink, border-line, bg-canvas and so on.
+ * Admin panel theme. Same Kingfisher brand as the customer site (blue primary, navy headings,
+ * Inter for Latin and Hind Siliguri for Bangla), expressed as Tailwind tokens: bg-brand-600,
+ * text-ink, text-navy, border-line, bg-canvas, bg-success-soft and so on.
  */
 @theme {
-  --font-sans: var(--font-bangla), ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-sans: var(--font-latin), var(--font-bangla), ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
 
-  --color-brand-50: #eef7f3;
-  --color-brand-100: #d8eee5;
-  --color-brand-200: #b3dccb;
-  --color-brand-500: #2f8a73;
-  --color-brand-600: #287c68;
-  --color-brand-700: #1f6352;
-  --color-brand-800: #1a5144;
-  /* Chart bars: a slightly more saturated teal so a single-series bar never reads gray. */
-  --color-chart: #1a8a6e;
+  --color-brand-50: #eef5ff;
+  --color-brand-100: #dceaff;
+  --color-brand-200: #b9d4fb;
+  --color-brand-500: #3a82e4;
+  --color-brand-600: #1265d8;
+  --color-brand-700: #0f55b8;
+  --color-brand-800: #0d4796;
+  /* Chart bars: the primary blue, so a single-series bar never reads gray. */
+  --color-chart: #1265d8;
 
-  --color-canvas: #f6f7f3;
+  --color-canvas: #f4f7fb;
   --color-surface: #ffffff;
-  --color-line: #e3e8e1;
-  --color-ink: #20312d;
-  --color-muted: #6b7c75;
+  --color-line: #e4eaf2;
+  --color-ink: #172033;
+  --color-navy: #10213a;
+  --color-muted: #65748b;
+
+  /* Tones for status badges and dashboard tiles: a soft fill with readable text on it. */
+  --color-success: #168447;
+  --color-success-soft: #e7f7ed;
+  --color-success-ink: #176b3a;
+  --color-warning: #d96a21;
+  --color-warning-soft: #fff0d9;
+  --color-warning-ink: #b45309;
+  --color-violet: #7047c5;
+  --color-violet-soft: #eee8ff;
+  --color-violet-ink: #6240ac;
+  --color-danger: #dc3545;
+  --color-danger-soft: #fdecec;
+  --color-danger-ink: #b42330;
+
+  --shadow-card: 0 1px 2px #10213a0d, 0 8px 24px #10213a0f;
+  --shadow-raised: 0 12px 32px #10213a1a;
 }
 
 @layer base {
@@ -36,6 +55,15 @@
   body {
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
+  }
+  h1,
+  h2,
+  h3 {
+    color: var(--color-navy);
+  }
+  ::selection {
+    background: var(--color-brand-100);
+    color: var(--color-navy);
   }
   button:not(:disabled),
   [role='button']:not([aria-disabled='true']) {

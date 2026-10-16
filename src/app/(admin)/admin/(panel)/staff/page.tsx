@@ -114,7 +114,7 @@ function StaffList({ myId }: { myId: string }) {
                   <Td className="text-right whitespace-nowrap">
                     <Link
                       href={`/admin/history?adminId=${encodeURIComponent(admin.id)}`}
-                      className="inline-flex h-8 items-center gap-2 rounded-lg px-3 text-xs font-semibold text-muted hover:bg-canvas hover:text-ink"
+                      className="inline-flex h-8 items-center gap-2 rounded-lg px-3 text-xs font-semibold text-muted transition-colors hover:bg-canvas hover:text-brand-700"
                     >
                       <History className="size-4" />
                       {t('কাজের ইতিহাস', 'Activity')}

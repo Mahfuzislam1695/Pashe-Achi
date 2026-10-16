@@ -3,7 +3,7 @@ import type { Metadata, Viewport } from 'next'
 import { cookies } from 'next/headers'
 
 import { LANG_COOKIE } from '@/customer/lib/constants'
-import { hindSiliguri } from '../fonts'
+import { fontVariables } from '../fonts'
 import { Providers } from './providers'
 import './globals.css'
 
@@ -33,7 +33,7 @@ export const viewport: Viewport = {
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   const lang = (await cookies()).get(LANG_COOKIE)?.value === 'en' ? 'en' : 'bn'
   return (
-    <html lang={lang} className={hindSiliguri.variable}>
+    <html lang={lang} className={fontVariables}>
       <body className="antialiased">
         <Providers initialLang={lang}>{children}</Providers>
       </body>

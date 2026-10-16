@@ -1,5 +1,6 @@
 'use client'
 
+import { ClipboardList, Clock, Truck, Users, Wallet } from 'lucide-react'
 import { useState } from 'react'
 import Link from 'next/link'
 
@@ -40,11 +41,11 @@ export default function DashboardPage() {
       {data && (
         <div className="grid grid-cols-1 gap-5">
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
-            <StatTile label={t('আজকের অর্ডার', "Today's orders")} value={digits(data.today.orders)} />
-            <StatTile label={t('আজকের আয়', "Today's revenue")} value={taka(data.today.revenue)} hint={t('বাতিল ছাড়া', 'Excluding cancelled')} />
-            <StatTile label={t('অপেক্ষমাণ', 'Pending')} value={digits(data.pending)} hint={t('বুক করা বাকি', 'Waiting to be booked')} />
-            <StatTile label={t('চলমান', 'Active')} value={digits(data.active)} hint={t('বুক করা ও চলমান', 'Booked or in progress')} />
-            <StatTile label={t('মোট গ্রাহক', 'Customers')} value={digits(data.customers)} />
+            <StatTile icon={ClipboardList} label={t('আজকের অর্ডার', "Today's orders")} value={digits(data.today.orders)} />
+            <StatTile icon={Wallet} tone="success" label={t('আজকের আয়', "Today's revenue")} value={taka(data.today.revenue)} hint={t('বাতিল ছাড়া', 'Excluding cancelled')} />
+            <StatTile icon={Clock} tone="warning" label={t('অপেক্ষমাণ', 'Pending')} value={digits(data.pending)} hint={t('বুক করা বাকি', 'Waiting to be booked')} />
+            <StatTile icon={Truck} tone="violet" label={t('চলমান', 'Active')} value={digits(data.active)} hint={t('বুক করা ও চলমান', 'Booked or in progress')} />
+            <StatTile icon={Users} label={t('মোট গ্রাহক', 'Customers')} value={digits(data.customers)} />
           </div>
           <div className="grid grid-cols-1 gap-5 lg:grid-cols-[3fr_2fr]">
             <Card>

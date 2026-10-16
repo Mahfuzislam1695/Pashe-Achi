@@ -1,6 +1,7 @@
 'use client'
 
 import {
+  APP_LOGO,
   APP_LOGO_LARGE,
   APP_NAME,
   APP_TAGLINE,
@@ -14,16 +15,17 @@ import {
   validateForm,
 } from '@/shared'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, LockKeyhole, LogIn, MapPin, Phone, UserPlus, UserRound } from 'lucide-react'
+import { ArrowLeft, Eye, EyeOff, Headset, LockKeyhole, LogIn, MapPin, Phone, UserPlus, UserRound } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 
+import { BillPreviewCard, OrderTrackerCard, SplitHeadline } from '@/customer/components/showcase'
 import { ContactDock, Field, FormError, LangToggle, Logo } from '@/customer/components/ui'
 import { api } from '@/customer/lib/api'
 import { useLang } from '@/customer/lib/i18n'
 import { appPaths, type Mode, type Paths, pathsFor } from '@/customer/lib/paths'
-import { errorCode, queryKeys } from '@/customer/lib/queries'
+import { errorCode, queryKeys, useCatalog } from '@/customer/lib/queries'
 import { SERVICE_ICONS } from './orders'
 
 /**
@@ -35,6 +37,7 @@ function AuthShell({ version, children }: { version: Mode; children: React.React
     <main className={`auth-shell mode-${version}`}>
       {version === 'web' && <BrandPanel />}
       <section className="auth-panel">
+        {version === 'web' && <AuthHero />}
         <div className="auth-form">
           <div className="mobile-auth-logo">
             <Logo />
@@ -47,23 +50,24 @@ function AuthShell({ version, children }: { version: Mode; children: React.React
   )
 }
 
+/** The web version's brand panel beside the form on a wide screen. */
 function BrandPanel() {
   const { t, lang, text } = useLang()
+  const support = useCatalog().data?.support
   return (
     <aside className="auth-visual">
       <Link href={pathsFor('web').entry} className="auth-visual-brand">
         <Logo />
       </Link>
       <div className="auth-message">
-        <img className="auth-visual-logo" src={APP_LOGO_LARGE} alt="" />
         <p className="eyebrow">{APP_WELCOME[lang]}</p>
-        <h1>{APP_TAGLINE[lang]}</h1>
+        <SplitHeadline text={APP_TAGLINE[lang]} />
         <p>{t('কাঁচা বাজার, বাসা বদল, জরুরী ঔষুধ ও পণ্য আদান প্রদান — এক জায়গায়।', 'Fresh market, house shifting, emergency medicine and parcel delivery, in one place.')}</p>
         <ul className="auth-visual-services">
           {SERVICE_IDS.map(service => {
             const Icon = SERVICE_ICONS[service]
             return (
-              <li key={service}>
+              <li key={service} className={`svc-${service}`}>
                 <Icon size={18} />
                 <span>{text(SERVICE_LABELS[service])}</span>
               </li>
@@ -71,8 +75,48 @@ function BrandPanel() {
           })}
         </ul>
       </div>
-      <small className="auth-visual-foot">© {new Date().getFullYear()} {APP_NAME[lang]}</small>
+      <div className="auth-visual-cards">
+        <OrderTrackerCard />
+        <BillPreviewCard />
+      </div>
+      <div className="auth-visual-foot">
+        {support && (
+          <a href={`tel:${support.phone}`}>
+            <Phone size={14} />
+            {support.phone}
+          </a>
+        )}
+        <small>
+          © {new Date().getFullYear()} {APP_NAME[lang]}
+        </small>
+      </div>
     </aside>
+  )
+}
+
+/** The web version's header band on phones and tablets, where the brand panel is hidden. */
+function AuthHero() {
+  const { lang, text } = useLang()
+  return (
+    <div className="auth-hero">
+      <Link href={pathsFor('web').entry} className="auth-hero-brand">
+        <img src={APP_LOGO_LARGE} alt="" />
+        <span>
+          <strong>{APP_NAME[lang]}</strong>
+          <small>{APP_TAGLINE[lang]}</small>
+        </span>
+      </Link>
+      <ul className="auth-hero-services">
+        {SERVICE_IDS.map(service => {
+          const Icon = SERVICE_ICONS[service]
+          return (
+            <li key={service} className={`svc-${service}`} title={text(SERVICE_LABELS[service])}>
+              <Icon size={17} />
+            </li>
+          )
+        })}
+      </ul>
+    </div>
   )
 }
 
@@ -101,7 +145,7 @@ export function WelcomeScreen() {
           {SERVICE_IDS.map(service => {
             const Icon = SERVICE_ICONS[service]
             return (
-              <div key={service}>
+              <div key={service} className={`svc-${service}`}>
                 <Icon size={20} />
                 <span>{text(SERVICE_LABELS[service])}</span>
               </div>
@@ -126,7 +170,9 @@ export function AuthScreen({ mode, version }: { mode: 'login' | 'signup'; versio
   const queryClient = useQueryClient()
   const isSignup = mode === 'signup'
   const [form, setForm] = useState({ name: '', mobile: '', location: '', password: '' })
+  const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState<MessageCode | null>(null)
+  const support = useCatalog().data?.support
   const priority = isSignup ? FORM_ERROR_PRIORITY.signup : FORM_ERROR_PRIORITY.login
 
   const submitMutation = useMutation({
@@ -171,6 +217,7 @@ export function AuthScreen({ mode, version }: { mode: 'login' | 'signup'; versio
           </Link>
           <LangToggle compact lang={lang} onChange={setLang} />
         </div>
+        {version === 'web' && <img className="auth-form-mark" src={APP_LOGO} alt="" />}
         <h2>{isSignup ? t('সাইন আপ', 'Sign up') : t('লগইন', 'Login')}</h2>
         <p className="auth-subtitle">
           {isSignup ? t('নতুন অ্যাকাউন্ট খুলুন, সব সেবা এক জায়গায় পান।', 'Create an account to use every service.') : t('আপনার মোবাইল নম্বর দিয়ে লগইন করুন।', 'Log in with your mobile number.')}
@@ -200,7 +247,21 @@ export function AuthScreen({ mode, version }: { mode: 'login' | 'signup'; versio
         <Field label={t('পাসওয়ার্ড', 'Password')}>
           <div className="input-wrap">
             <LockKeyhole size={17} />
-            <input type="password" {...bind('password')} placeholder={t('পাসওয়ার্ড দিন', 'Enter password')} autoComplete={isSignup ? 'new-password' : 'current-password'} />
+            <input
+              type={showPassword ? 'text' : 'password'}
+              {...bind('password')}
+              placeholder={t('পাসওয়ার্ড দিন', 'Enter password')}
+              autoComplete={isSignup ? 'new-password' : 'current-password'}
+            />
+            <button
+              type="button"
+              className="password-toggle"
+              aria-pressed={showPassword}
+              aria-label={showPassword ? t('পাসওয়ার্ড লুকান', 'Hide password') : t('পাসওয়ার্ড দেখুন', 'Show password')}
+              onClick={() => setShowPassword(shown => !shown)}
+            >
+              {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+            </button>
           </div>
         </Field>
         <FormError code={error} />
@@ -214,6 +275,12 @@ export function AuthScreen({ mode, version }: { mode: 'login' | 'signup'; versio
             {isSignup ? t('লগইন', 'Login') : t('সাইন আপ', 'Sign up')}
           </Link>
         </p>
+        {version === 'web' && support && (
+          <p className="auth-help">
+            <Headset size={15} />
+            {isSignup ? t('সাহায্য দরকার?', 'Need help?') : t('লগইনে সমস্যা?', 'Trouble logging in?')} <a href={`tel:${support.phone}`}>{t(`কল করুন ${support.phone}`, `Call ${support.phone}`)}</a>
+          </p>
+        )}
       </form>
     </AuthShell>
   )

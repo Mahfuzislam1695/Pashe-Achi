@@ -3,7 +3,7 @@ import type { Metadata } from 'next'
 import { cookies } from 'next/headers'
 
 import { LANG_COOKIE } from '@/admin/lib/constants'
-import { hindSiliguri } from '../fonts'
+import { fontVariables } from '../fonts'
 import { Providers } from './providers'
 import './globals.css'
 
@@ -24,7 +24,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
   // The admin panel defaults to English; the toggle switches to Bangla.
   const lang = (await cookies()).get(LANG_COOKIE)?.value === 'bn' ? 'bn' : 'en'
   return (
-    <html lang={lang} className={hindSiliguri.variable}>
+    <html lang={lang} className={fontVariables}>
       <body>
         <Providers initialLang={lang}>{children}</Providers>
       </body>

@@ -68,7 +68,7 @@ function Inbox() {
               type="button"
               onClick={() => void open(notification)}
               className={cn(
-                'grid w-full grid-cols-[8px_1fr] gap-3 rounded-lg border p-3 text-left hover:bg-canvas',
+                'grid w-full grid-cols-[8px_1fr] gap-3 rounded-xl border p-3 text-left transition-colors hover:bg-canvas',
                 notification.readAt ? 'border-line' : 'border-brand-200 bg-brand-50/60',
               )}
             >
