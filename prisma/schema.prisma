@@ -105,7 +105,12 @@ model User {
   id                String             @id @default(cuid())
   name              String
   mobile            String             @unique
+  /// The customer's one location, always picked on the map: the address the map gave for the pin,
+  /// the house/flat/road they added, and the pin (null only for accounts from before pins).
   location          String             @default("")
+  locationDetails   String             @default("")
+  locationLat       Float?
+  locationLng       Float?
   passwordHash      String
   points            Int                @default(0)
   lang              Lang               @default(bn)
@@ -117,28 +122,9 @@ model User {
   notifications     Notification[]
   refreshTokens     RefreshToken[]
   auditLogs         AuditLog[]
-  savedLocations    SavedLocation[]
   pushSubscriptions PushSubscription[]
 
   @@index([createdAt])
-}
-
-/// A place a customer saved on the map (বাসা, অফিস, …). Orders copy the address and pin, so
-/// editing or deleting a saved location never changes an old order.
-model SavedLocation {
-  id        String   @id @default(cuid())
-  userId    String
-  label     String
-  address   String
-  lat       Float
-  lng       Float
-  /// One per customer: listed first and offered first in the order forms.
-  isDefault Boolean  @default(false)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId])
 }
 
 /// Staff who use the admin panel. Kept apart from customers so the two sessions never mix.

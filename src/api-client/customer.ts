@@ -8,6 +8,7 @@ import type {
   CreateParcelOrderInput,
   CreateShiftingOrderInput,
   CustomerDto,
+  CustomerLocationInput,
   GeoPoint,
   Lang,
   ListMyOrdersQuery,
@@ -21,12 +22,9 @@ import type {
   PushKeyDto,
   PushSubscriptionInput,
   ReverseGeocodeDto,
-  SavedLocationDto,
-  SavedLocationInput,
   SignupInput,
   UnreadCountDto,
   UpdateProfileInput,
-  UpdateSavedLocationInput,
   UploadDto,
 } from '@/shared'
 
@@ -46,12 +44,8 @@ export function createCustomerApi(options: Omit<HttpClientOptions, 'audience'>) 
     me: {
       update: (body: UpdateProfileInput) => http.patch<CustomerDto>('/me', body),
       changePassword: (body: ChangePasswordInput) => http.post<void>('/me/password', body),
-      locations: {
-        list: () => http.get<SavedLocationDto[]>('/me/locations'),
-        create: (body: SavedLocationInput) => http.post<SavedLocationDto>('/me/locations', body),
-        update: (id: string, body: UpdateSavedLocationInput) => http.patch<SavedLocationDto>(`/me/locations/${encodeURIComponent(id)}`, body),
-        remove: (id: string) => http.request<void>('DELETE', `/me/locations/${encodeURIComponent(id)}`),
-      },
+      /** আমার লোকেশন: the one location, picked on the map. Replaces the old one. */
+      setLocation: (body: CustomerLocationInput) => http.put<CustomerDto>('/me/location', body),
     },
     geo: {
       /** The address text for a map pin; `address` is null when nothing was found. */

@@ -43,7 +43,7 @@ npm run db:deploy | db:seed | db:seed:demo | db:studio | db:generate
 - **Single test file.** `npx vitest run src/shared/pricing.test.ts`, or `npx jest src/server/auth/cookies.spec.ts`.
 - **Dev vs production.** `npm run dev` runs `nest start --watch -- --dev`. That `--dev` flag, not `NODE_ENV`, puts Next.js in dev mode. `src/server/load-env.ts` then sets `NODE_ENV` to development or production to match, unless the environment already sets it.
 - **e2e database.** `test:e2e` uses `TEST_DATABASE_URL`, or `DATABASE_URL` with `_test` appended. It creates that database (UTF8), migrates it, and truncates it on every run. It runs Jest through `node --experimental-vm-modules`, because the Prisma 7 client loads its query engine with dynamic `import()`. The e2e tests boot the API alone, through `configureApp`, without the pages.
-- **Seed.** `prisma/seed.ts` is idempotent: catalog defaults and the first super admin (from `SEED_ADMIN_*` in `.env`), each with a SYSTEM history row. `npm run db:seed:demo` adds `prisma/seed-demo.ts`: a deterministic month of data relative to today. It has a demo manager (01822222222), an operator (01833333333) and 8 customers, among them 01811111111 with the prototype's three orders. Every demo password is demo1234. Alongside about 65 orders in every status (bazar and medicine through the quote → confirm flow, some with a higher delivery charge for a far address; the demo customer's medicine order waits for their confirm), it writes timelines, history entries and notifications, two running offers, plus the demo customer's two saved map locations (their orders carry the same pins). It runs in one transaction and skips if the demo customer exists.
+- **Seed.** `prisma/seed.ts` is idempotent: catalog defaults and the first super admin (from `SEED_ADMIN_*` in `.env`), each with a SYSTEM history row. `npm run db:seed:demo` adds `prisma/seed-demo.ts`: a deterministic month of data relative to today. It has a demo manager (01822222222), an operator (01833333333) and 8 customers, among them 01811111111 with the prototype's three orders. Every demo password is demo1234. Alongside about 65 orders in every status (bazar and medicine through the quote → confirm flow, some with a higher delivery charge for a far address; the demo customer's medicine order waits for their confirm), it writes timelines, history entries and notifications, two running offers, plus a map location for every customer (one pin per area; their orders carry pins too). It runs in one transaction and skips if the demo customer exists.
 - **Lint.** There is no lint script.
 
 ## Layout and request flow
@@ -90,7 +90,7 @@ prisma/  schema, migrations, seed.ts        test/  API e2e tests        public/ 
 - `enums.ts`: services, statuses, `ORDER_TRANSITIONS` and `adminNextStatuses` (the moves staff may make), `QUOTED_SERVICES` / `isAwaitingPrice` (bazar and medicine are priced by staff), `CUSTOMER_CANCELLABLE`, `QUOTE_EDITABLE`, roles, `API_PREFIX` (`api/v1`), `SOCKET_NAMESPACE` and `SOCKET_EVENTS`.
 - `labels.ts`: bilingual service and status labels.
 - `brand.ts`: app name, logo paths (resized from `public/logo/logo.jpeg`), `PA-` order prefix.
-- `geo.ts`: `GeoPoint`, `DHAKA_CENTER`, `MAX_SAVED_LOCATIONS` (10), the label presets and `mapLink` (a Google Maps URL, no key, for staff and riders to open a pin). `schemas/locations.ts` validates saved locations and the optional order pins (`addressPin`, `loadingPin`/`unloadingPin`, `pickupPin`/`dropoffPin`).
+- `geo.ts`: `GeoPoint`, `DHAKA_CENTER`, `joinAddress` (details, then the map address, as one line) and `mapLink` (a Google Maps URL, no key, for staff and riders to open a pin). `schemas/locations.ts` has `customerLocationSchema` (the customer's one location, and the value of every address box) and `requiredPin` (the order pins `addressPin`, `loadingPin`/`unloadingPin`, `pickupPin`/`dropoffPin`, all required).
 - `schemas/offers.ts`: আজকের অফার (`offerSchema`, `updateOfferSchema`); `OfferDto` / `AdminOfferDto` are in `types.ts`.
 - `types.ts`: response DTOs.
 
@@ -98,7 +98,7 @@ prisma/  schema, migrations, seed.ts        test/  API e2e tests        public/ 
 
 - **Modules:**
   - `auth` (customer and admin)
-  - `users` (`/me`, `/me/locations`, `/admin/customers`)
+  - `users` (`/me`, `/me/location`, `/admin/customers`)
   - `admins` (`/admin/staff`)
   - `catalog` (pricing, vehicles, support line, delivery hours)
   - `uploads`
@@ -107,7 +107,7 @@ prisma/  schema, migrations, seed.ts        test/  API e2e tests        public/ 
   - `offers` (আজকের অফার: public `/offers`, `/admin/offers`)
   - `dashboard`
   - `audit` (the history log, `/admin/audit`)
-  - `geo` (`/geo/reverse`: address text for a map pin)
+  - `geo` (`/geo/reverse`: address text for a map pin, public)
   - `health`
 - **Request DTOs.** All of them are in `common/dto.ts`, wrapping the shared schemas.
 - **Errors.** Throw `AppException.badRequest('code')` and similar. `common/all-exceptions.filter.ts` shapes every error, including Prisma P2002/P2025.
@@ -153,10 +153,10 @@ prisma/  schema, migrations, seed.ts        test/  API e2e tests        public/ 
   - The first migration restarts the order-number sequence at 1001.
   - The database must be **UTF8**, or Bangla writes fail, and `PrismaService` refuses to start otherwise. On Windows, create it with `CREATE DATABASE … ENCODING 'UTF8' TEMPLATE template0`.
 - **Offers (আজকের অফার):** the `Offer` table, running from `startsOn` to `endsOn` (Bangladesh days) while `isActive`. Pictures (JPG, PNG or WebP, ≤5 MB, checked by magic bytes) go through the `StorageService` exported by `UploadsModule`, under `offers/…`. `GET /offers` and `GET /offers/:id/image` are public (the landing page), and `imageUrl` carries `?v=` so a replaced picture is never cached. Writes are for managers; `POST /admin/offers/:id/notify` sends an `OFFER` notification to every customer. History: `OFFER_*` on entity `OFFER`.
-- **Saved locations and map pins:**
-  - `SavedLocation` rows (আমার লোকেশন): up to 10 per customer, one default (the first saved, or the one picked; deleting it promotes the newest). Writes lock the customer row, and each writes a `CUSTOMER_LOCATION_*` history entry on the customer.
-  - Orders copy the address text and its optional pin into nullable `*Lat`/`*Lng` columns (`Order.address*`, `ShiftingDetail.loading*`/`unloading*`, `ParcelDetail.pickup*`/`dropoff*`), so editing a saved location never changes an old order.
-  - `GET /geo/reverse` (customers only) asks OpenStreetMap's Nominatim, through the server so the whole app keeps to its policy: one lookup a second, an identifying User-Agent, a 500-entry cache. Any failure answers `{ address: null }` and the customer types the address. Busy production use should move to a paid geocoder.
+- **The customer's location and map pins (owner's rule: every location comes from the map, never typed):**
+  - Each customer has **one** location (আমার লোকেশন) on the `User` row: `location` (the address the map gave), `locationDetails` (the house/flat/road they added) and `locationLat`/`locationLng`. Signup requires it (`customerLocationSchema`), and `PUT /me/location` replaces it with a `CUSTOMER_LOCATION_UPDATED` history entry (only when something changed). `CustomerDto.location` is null while there is no pin (text-only accounts from before). `PATCH /me` no longer takes a location. `CUSTOMER_LOCATION_ADDED`/`_DELETED` remain only for old history rows (the earlier list of saved places).
+  - Every order address needs a pin (`requiredPin`, `location.required`). Orders copy the address text (`joinAddress`: details, then the map address) and the pin into the `*Lat`/`*Lng` columns (`Order.address*`, `ShiftingDetail.loading*`/`unloading*`, `ParcelDetail.pickup*`/`dropoff*`), which stay nullable for older orders, so changing the location never changes an old order.
+  - `GET /geo/reverse` is public, because signup needs it before there is an account, with a per-IP throttle. It asks OpenStreetMap's Nominatim through the server so the whole app keeps to its policy: one lookup a second, an identifying User-Agent, a 500-entry cache. Any failure answers `{ address: null }`, and only then does the map sheet let the customer type the area's name (the pin is still required). Busy production use should move to a paid geocoder.
 - **Uploads.** Prescriptions are checked by their magic bytes (`uploads/file-signature.ts`), not by MIME type. They are stored through the `StorageService` abstraction, currently `LocalDiskStorage` under `UPLOAD_DIR`. Customers can read only their own files; admins use `/admin/uploads/:id`.
 - **Env.** In production, `config/env.ts` refuses the example secrets from `.env.example` (and an `example.com` `VAPID_SUBJECT`).
 - **Dependency pins.** Stay on the NestJS 11 line: Nest 12 and `@nestjs/event-emitter` 12 are ESM-only. `nestjs-zod` needs Nest 11, and Jest can't load ESM-only packages. Keep `@nestjs/event-emitter` at 3.x.
@@ -188,7 +188,7 @@ prisma/  schema, migrations, seed.ts        test/  API e2e tests        public/ 
     - Signed out: a screen goes to its version's login with `?next=`.
     - Signed in: a login, signup or `/app` welcome screen goes to `next` or that version's home (`HOME_PATH` `/bazar` or `APP_HOME_PATH` `/app/bazar`).
 - **Shell.** `components/app-shell.tsx` (sidebar or drawer, top bar with bell, bottom nav, Chat/Call dock) renders only after the customer and catalog queries load. Below it, screens call `useSession()`.
-- **Locations and map.** `components/address-field.tsx` is every order form's address box, with chips for the saved locations, Current location and Pick on map. `components/location-sheet.tsx` is the map sheet (a portal, full height in the phone column, a dialog on the web from 1024px), used by the forms and by Profile's আমার লোকেশন. The Leaflet map (`components/map-picker.tsx`, OpenStreetMap tiles, a fixed centre pin) needs the browser, so it loads through `next/dynamic` with `ssr: false`. `navigator.geolocation` works only on HTTPS or localhost.
+- **Locations and map.** `components/address-field.tsx` is the address box of signup and every order form: a read-only card (nothing is typed into it) with the chips আমার লোকেশন (the customer's own location, where offered), Current location and Pick on map / Change. Bazar, medicine, the shifting loading area and the parcel pickup start from the customer's location. `components/location-sheet.tsx` is the map sheet (a portal, full height in the phone column, a dialog on the web from 1024px): the address comes from the map, and the customer adds only an optional house/flat/road. Signup, the forms and Profile's আমার লোকেশন all use it; `AuthShell` provides `ModeProvider` so it keeps each version's look. The Leaflet map (`components/map-picker.tsx`, OpenStreetMap tiles, a fixed centre pin) needs the browser, so it loads through `next/dynamic` with `ssr: false`. `navigator.geolocation` works only on HTTPS or localhost.
 - **Prices and quotes.** Bazar and medicine forms have no price column: their bill shows the Catalog fees plus "we will send the price" (`QuoteNotice`, which says the charges may change with the distance) and the button sends the order. On the order page a QUOTED order shows a price card with the whole bill, Confirm (sending the `quoteVersion` and total it shows) and Cancel; a price that arrives while the page is open is flagged. While a price is coming, `components/push-prompt.tsx` offers phone notifications; the Notifications screen has the on/off switch. `features/offers.tsx` is আজকের অফার (also used by the landing page), linked from the sidebar with a count of running offers.
 - **Drafts.** Form input survives switching services because `lib/drafts.tsx`'s `useDraft` stores it in the version's layout, which stays mounted.
 - **Screens and data.**

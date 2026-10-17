@@ -4,6 +4,7 @@ import type {
   AdminCustomerDto,
   ChangePasswordInput,
   CustomerDto,
+  CustomerLocationInput,
   ListCustomersQuery,
   Paginated,
   UpdateCustomerInput,
@@ -20,7 +21,7 @@ import { DOMAIN_EVENTS } from '../common/domain-events'
 import { pageArgs, toPage } from '../common/pagination'
 import type { Prisma } from '../generated/prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
-import { toAdminCustomerDto, toCustomerDto } from './user.mapper'
+import { LOCATION_FIELDS, locationColumns, toAdminCustomerDto, toCustomerDto } from './user.mapper'
 
 const withStats = {
   _count: { select: { orders: true } },
@@ -39,13 +40,28 @@ export class UsersService {
   async updateProfile(userId: string, input: UpdateProfileInput, actor: AuditActor): Promise<CustomerDto> {
     const taken = await this.prisma.user.findFirst({ where: { mobile: input.mobile, NOT: { id: userId } }, select: { id: true } })
     if (taken) throw AppException.conflict('mobile.taken')
-    const data = { name: input.name, mobile: input.mobile, location: input.location ?? '', ...(input.lang ? { lang: input.lang } : {}) }
+    const data = { name: input.name, mobile: input.mobile, ...(input.lang ? { lang: input.lang } : {}) }
     const user = await this.prisma.$transaction(async tx => {
       const before = await tx.user.findUniqueOrThrow({ where: { id: userId } })
       const updated = await tx.user.update({ where: { id: userId }, data })
-      const changes = diffChanges(before, data, ['name', 'mobile', 'location', 'lang'])
+      const changes = diffChanges(before, data, ['name', 'mobile', 'lang'])
       if (changes.length) {
         await this.audit.record({ action: 'CUSTOMER_PROFILE_UPDATED', actor, entity: { type: 'CUSTOMER', id: userId, label: updated.name }, changes }, tx)
+      }
+      return updated
+    })
+    return toCustomerDto(user)
+  }
+
+  /** আমার লোকেশন: the customer has one location, picked on the map. Setting it replaces the old one. */
+  async updateLocation(userId: string, input: CustomerLocationInput, actor: AuditActor): Promise<CustomerDto> {
+    const data = locationColumns(input)
+    const user = await this.prisma.$transaction(async tx => {
+      const before = await tx.user.findUniqueOrThrow({ where: { id: userId } })
+      const updated = await tx.user.update({ where: { id: userId }, data })
+      const changes = diffChanges<typeof before>(before, data, LOCATION_FIELDS)
+      if (changes.length) {
+        await this.audit.record({ action: 'CUSTOMER_LOCATION_UPDATED', actor, entity: { type: 'CUSTOMER', id: userId, label: updated.name }, changes }, tx)
       }
       return updated
     })

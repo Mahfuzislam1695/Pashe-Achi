@@ -1,12 +1,14 @@
 import { z } from 'zod'
 
 import { LANGS } from '../enums'
-import { mobile, optionalText, password, requiredText } from './common'
+import { mobile, password, requiredText } from './common'
+import { customerLocationSchema } from './locations'
 
 export const signupSchema = z.object({
   name: requiredText('auth.signup', 80),
   mobile: mobile('auth.signup'),
-  location: optionalText(160),
+  /** Picked on the map; required. */
+  location: customerLocationSchema,
   password: password('auth.signup'),
   lang: z.enum(LANGS).optional(),
 })
@@ -25,7 +27,6 @@ export type RefreshInput = z.infer<typeof refreshSchema>
 export const updateProfileSchema = z.object({
   name: requiredText('profile.name', 80),
   mobile: mobile('profile.mobile'),
-  location: optionalText(160),
   lang: z.enum(LANGS).optional(),
 })
 export type UpdateProfileInput = z.infer<typeof updateProfileSchema>

@@ -1,7 +1,7 @@
 'use client'
 
 import { isApiError } from '@/api-client'
-import type { CatalogDto, CustomerDto, MessageCode, OrderDetail, SavedLocationInput } from '@/shared'
+import type { CatalogDto, CustomerDto, MessageCode, OrderDetail } from '@/shared'
 import { pickIssueCode } from '@/shared'
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
@@ -11,7 +11,6 @@ import { usePaths } from './paths'
 
 export const queryKeys = {
   me: ['me'] as const,
-  locations: ['me', 'locations'] as const,
   catalog: ['catalog'] as const,
   offers: ['offers'] as const,
   orders: ['orders'] as const,
@@ -30,18 +29,6 @@ export const useCatalog = () => useQuery({ queryKey: queryKeys.catalog, queryFn:
 
 /** আজকের অফার running today. Public, so the landing page uses it signed out too. */
 export const useOffers = () => useQuery({ queryKey: queryKeys.offers, queryFn: api.offers.list, staleTime: FIVE_MINUTES })
-
-/** আমার লোকেশন, the default first. */
-export const useLocations = () => useQuery({ queryKey: queryKeys.locations, queryFn: api.me.locations.list, staleTime: FIVE_MINUTES })
-
-/** Saves a new location, or changes the one with `id`, then refreshes the list. */
-export function useSaveLocation() {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: ({ id, ...body }: SavedLocationInput & { id?: string }) => (id ? api.me.locations.update(id, body) : api.me.locations.create(body)),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.locations }),
-  })
-}
 
 /**
  * The signed-in customer and the catalog. Only call this below the (main) layout, which renders

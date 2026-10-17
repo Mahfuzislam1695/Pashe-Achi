@@ -5,7 +5,7 @@ import { type ClientInfo, customerActor } from '../audit/actor'
 import { AuditService } from '../audit/audit.service'
 import { AppException } from '../common/app.exception'
 import { PrismaService } from '../prisma/prisma.service'
-import { toCustomerDto } from '../users/user.mapper'
+import { locationColumns, toCustomerDto } from '../users/user.mapper'
 import { DUMMY_HASH, hashPassword, verifyPassword } from './password'
 import { TokenService } from './token.service'
 
@@ -24,7 +24,7 @@ export class CustomerAuthService {
     const passwordHash = await hashPassword(input.password)
     const user = await this.prisma.$transaction(async tx => {
       const created = await tx.user.create({
-        data: { name: input.name, mobile: input.mobile, location: input.location ?? '', lang: input.lang ?? 'bn', passwordHash },
+        data: { name: input.name, mobile: input.mobile, ...locationColumns(input.location), lang: input.lang ?? 'bn', passwordHash },
       })
       await this.audit.record({
         action: 'CUSTOMER_SIGNED_UP',

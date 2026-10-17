@@ -26,7 +26,6 @@ import type {
   PushKeyDto,
   PushSubscriptionInput,
   QuoteOrderInput,
-  SavedLocationDto,
   SupportSettings,
   SupportSettingsInput,
   UnreadCountDto,
@@ -68,7 +67,6 @@ export function createAdminApi(options: Omit<HttpClientOptions, 'audience'>) {
     customers: {
       list: (query: Partial<ListCustomersQuery> = {}) => http.get<Paginated<AdminCustomerDto>>('/admin/customers', query),
       get: (customerId: string) => http.get<AdminCustomerDto>(`/admin/customers/${id(customerId)}`),
-      locations: (customerId: string) => http.get<SavedLocationDto[]>(`/admin/customers/${id(customerId)}/locations`),
       update: (customerId: string, body: UpdateCustomerInput) => http.patch<AdminCustomerDto>(`/admin/customers/${id(customerId)}`, body),
     },
     catalog: {

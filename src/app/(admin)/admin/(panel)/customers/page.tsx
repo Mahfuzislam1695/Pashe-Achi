@@ -1,5 +1,6 @@
 'use client'
 
+import { joinAddress } from '@/shared'
 import { Search } from 'lucide-react'
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
@@ -67,7 +68,7 @@ export default function CustomersPage() {
                     )}
                   </Td>
                   <Td className="tabular-nums">{customer.mobile}</Td>
-                  <Td className="text-muted">{customer.location || '—'}</Td>
+                  <Td className="text-muted">{customer.location ? joinAddress(customer.location) : '—'}</Td>
                   <Td className="text-right tabular-nums">{digits(customer.orderCount)}</Td>
                   <Td className="text-muted">{customer.lastOrderAt ? formatDate(customer.lastOrderAt) : '—'}</Td>
                   <Td className="text-right tabular-nums">{digits(customer.points)}</Td>

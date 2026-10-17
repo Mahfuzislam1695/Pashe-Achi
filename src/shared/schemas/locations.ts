@@ -1,26 +1,31 @@
 import { z } from 'zod'
 
 import { LANGS } from '../enums'
-import { requiredText } from './common'
+import { optionalText, requiredText } from './common'
 
-/** A map pin. Orders take one per address, always optional: the address text is what's required. */
+/** A map pin. */
 export const geoPointSchema = z.object({
   lat: z.number({ error: 'field.invalid' }).min(-90, { error: 'field.invalid' }).max(90, { error: 'field.invalid' }),
   lng: z.number({ error: 'field.invalid' }).min(-180, { error: 'field.invalid' }).max(180, { error: 'field.invalid' }),
 })
 
-/** আমার লোকেশন: a named place the customer saved on the map. */
-export const savedLocationSchema = z.object({
-  label: requiredText('location.details', 40),
-  address: requiredText('location.details', 300),
-  ...geoPointSchema.shape,
-  /** Make this the default. A customer's first location is the default anyway. */
-  isDefault: z.boolean().optional(),
-})
-export type SavedLocationInput = z.infer<typeof savedLocationSchema>
+/** An order address's pin. Every address is picked on the map, so it is required. */
+export const requiredPin = z.object(geoPointSchema.shape, { error: 'location.required' })
 
-export const updateSavedLocationSchema = savedLocationSchema.partial()
-export type UpdateSavedLocationInput = z.infer<typeof updateSavedLocationSchema>
+/**
+ * A place picked on the map: the customer's own location (signup, PUT /me/location) and the
+ * value of every address box. `address` is what the map gave for the pin; `details` is the
+ * house, flat or road the customer added.
+ */
+export const customerLocationSchema = z.object(
+  {
+    address: requiredText('location.required', 300),
+    details: optionalText(120),
+    ...geoPointSchema.shape,
+  },
+  { error: 'location.required' },
+)
+export type CustomerLocationInput = z.infer<typeof customerLocationSchema>
 
 /** GET /geo/reverse: the address text for a pin. */
 export const reverseGeocodeQuerySchema = z.object({

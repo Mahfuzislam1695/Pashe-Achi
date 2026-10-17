@@ -8,16 +8,31 @@ import { Field, InlineField } from './ui'
 
 export const EMPTY_SCHEDULE: ScheduleInput = { date: '', time: '' }
 
-/** ডেলিভারি তারিখ and ডেলিভারি টাইম, required on every service. `inline` matches the parcel screen's label-left rows. */
-export function DeliverySchedule({ value, onChange, inline = false }: { value: ScheduleInput; onChange: (value: ScheduleInput) => void; inline?: boolean }) {
+/**
+ * ডেলিভারি তারিখ and ডেলিভারি টাইম, required on every service. `inline` matches the parcel screen's
+ * label-left rows; shifting passes its own labels (শিফটিং এর তারিখ / সময়).
+ */
+export function DeliverySchedule({
+  value,
+  onChange,
+  inline = false,
+  dateLabel,
+  timeLabel,
+}: {
+  value: ScheduleInput
+  onChange: (value: ScheduleInput) => void
+  inline?: boolean
+  dateLabel?: string
+  timeLabel?: string
+}) {
   const { t } = useLang()
   const Wrap = inline ? InlineField : Field
   const fields = (
     <>
-      <Wrap label={t('ডেলিভারি তারিখ', 'Delivery date')}>
+      <Wrap label={dateLabel ?? t('ডেলিভারি তারিখ', 'Delivery date')}>
         <input type="date" min={isoDateInBd()} value={value.date} onChange={e => onChange({ ...value, date: e.target.value })} />
       </Wrap>
-      <Wrap label={t('ডেলিভারি টাইম', 'Delivery time')}>
+      <Wrap label={timeLabel ?? t('ডেলিভারি টাইম', 'Delivery time')}>
         <input type="time" value={value.time} onChange={e => onChange({ ...value, time: e.target.value })} />
       </Wrap>
     </>

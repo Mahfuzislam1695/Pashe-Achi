@@ -1,4 +1,4 @@
-import { Body, Controller, HttpCode, Inject, Patch, Post, Res, UseGuards } from '@nestjs/common'
+import { Body, Controller, HttpCode, Inject, Patch, Post, Put, Res, UseGuards } from '@nestjs/common'
 import { ApiBearerAuth, ApiCookieAuth, ApiOperation, ApiTags } from '@nestjs/swagger'
 import type { CustomerDto } from '@/shared'
 import type { Response } from 'express'
@@ -7,7 +7,7 @@ import { Actor, type AuditActor } from '../audit/actor'
 import type { CustomerPrincipal } from '../auth/auth.types'
 import { clearAuthCookies } from '../auth/cookies'
 import { CurrentCustomer, CustomerGuard } from '../auth/guards'
-import { ChangePasswordDto, UpdateProfileDto } from '../common/dto'
+import { ChangePasswordDto, SetLocationDto, UpdateProfileDto } from '../common/dto'
 import { ENV, type Env } from '../config/env'
 import { UsersService } from './users.service'
 
@@ -23,9 +23,15 @@ export class MeController {
   ) {}
 
   @Patch()
-  @ApiOperation({ summary: 'Update name, mobile, location and language' })
+  @ApiOperation({ summary: 'Update name, mobile and language' })
   update(@CurrentCustomer() customer: CustomerPrincipal, @Body() body: UpdateProfileDto, @Actor() actor: AuditActor): Promise<CustomerDto> {
     return this.users.updateProfile(customer.id, body, actor)
+  }
+
+  @Put('location')
+  @ApiOperation({ summary: 'Set my one location (picked on the map), replacing the old one' })
+  setLocation(@CurrentCustomer() customer: CustomerPrincipal, @Body() body: SetLocationDto, @Actor() actor: AuditActor): Promise<CustomerDto> {
+    return this.users.updateLocation(customer.id, body, actor)
   }
 
   @Post('password')

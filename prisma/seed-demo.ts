@@ -110,18 +110,33 @@ const CUSTOMERS = [
   { name: 'Jahid Hasan', mobile: '01411000007', area: 'বসুন্ধরা আ/এ', joined: 33, weight: 1, lang: 'bn' as const, device: { userAgent: DEVICES.androidChrome, ip: '203.0.113.17' } },
   { name: 'Sumaiya Islam', mobile: '01711000008', area: 'মতিঝিল', joined: 32, weight: 1, lang: 'en' as const, device: { userAgent: DEVICES.macFirefox, ip: '203.0.113.18' } },
 ]
-/** The demo customer's saved places (আমার লোকেশন); his orders carry the same pins. */
+/** The demo customer's home: his location (আমার লোকেশন), which his orders carry too. */
 const RAHIM_HOME: GeoPoint = { lat: 23.8069, lng: 90.3687 }
-const RAHIM_PLACES = [
-  { label: 'বাসা', address: 'বাসা ১২, রোড ৩, মিরপুর ১০', ...RAHIM_HOME },
-  { label: 'অফিস', address: 'মতিঝিল বাণিজ্যিক এলাকা, ঢাকা', lat: 23.733, lng: 90.4172 },
-]
+const RAHIM_LOCATION = { location: 'মিরপুর ১০, ঢাকা', locationDetails: 'বাসা ১২, রোড ৩', locationLat: RAHIM_HOME.lat, locationLng: RAHIM_HOME.lng }
 const UTTARA: GeoPoint = { lat: 23.8759, lng: 90.3795 }
 
 /** Jahid is blocked by the manager this many days ago, and orders nothing after that. */
 const BLOCKED_DAYS_AGO = 12
 
-const AREAS = ['মিরপুর ১০', 'মিরপুর ২', 'ধানমন্ডি ২৭', 'উত্তরা সেক্টর ৭', 'মোহাম্মদপুর', 'বনানী', 'গুলশান ১', 'বাড্ডা', 'বসুন্ধরা আ/এ', 'মতিঝিল', 'শ্যামলী', 'খিলগাঁও', 'রামপুরা', 'মালিবাগ']
+/** Every area the demo uses, with a pin near its middle. Customers sign up with their area's pin. */
+const AREA_PINS: Record<string, GeoPoint> = {
+  'মিরপুর ১০': { lat: 23.8069, lng: 90.3687 },
+  'মিরপুর ২': { lat: 23.8052, lng: 90.353 },
+  'ধানমন্ডি ২৭': { lat: 23.756, lng: 90.374 },
+  'উত্তরা সেক্টর ৭': { lat: 23.8687, lng: 90.399 },
+  'মোহাম্মদপুর': { lat: 23.762, lng: 90.358 },
+  'বনানী': { lat: 23.7937, lng: 90.4066 },
+  'গুলশান ১': { lat: 23.7808, lng: 90.4167 },
+  'বাড্ডা': { lat: 23.7806, lng: 90.4258 },
+  'বসুন্ধরা আ/এ': { lat: 23.8193, lng: 90.4526 },
+  'মতিঝিল': { lat: 23.733, lng: 90.4172 },
+  'শ্যামলী': { lat: 23.7741, lng: 90.3655 },
+  'খিলগাঁও': { lat: 23.7516, lng: 90.4255 },
+  'রামপুরা': { lat: 23.7612, lng: 90.42 },
+  'মালিবাগ': { lat: 23.748, lng: 90.413 },
+}
+const AREAS = Object.keys(AREA_PINS)
+const areaPin = (area: string): GeoPoint => AREA_PINS[area] ?? RAHIM_HOME
 
 const BAZAR_ITEMS = [
   { name: 'চাল', quantities: ['5 কেজি', '10 কেজি'], varieties: ['মিনিকেট', 'নাজিরশাইল', 'আটাশ'], price: [350, 800] },
@@ -192,7 +207,7 @@ interface PlannedOrder {
   note: string | null
   items: PlannedItem[]
   shifting?: { loadingArea: string; unloadingArea: string; loadingPin?: GeoPoint; unloadingPin?: GeoPoint; vehicle: Vehicle; labourers: number; loadingFloor: number; unloadingFloor: number }
-  parcel?: { product: string; weight: string | null; pickupAddress: string; dropoffAddress: string; receiverMobile: string }
+  parcel?: { product: string; weight: string | null; pickupAddress: string; dropoffAddress: string; receiverMobile: string; pickupLat?: number; pickupLng?: number; dropoffLat?: number; dropoffLng?: number }
   /** Bazar and medicine: a QUOTED step (staff send the prices), then BOOKED by the customer (their confirm). */
   steps: Step[]
   /** Bazar and medicine: extra delivery charge staff added in the quote (a far address). */
@@ -254,6 +269,7 @@ function planContent(customer: DemoCustomer, service: ServiceId, placedAt: Date,
   }
   if (service === 'bazar') {
     plan.address = homeAddress(customer.area)
+    plan.addressPin = areaPin(customer.area)
     plan.items = sample(BAZAR_ITEMS, int(2, 5)).map(item => ({
       name: item.name,
       quantity: pick(item.quantities),
@@ -262,25 +278,36 @@ function planContent(customer: DemoCustomer, service: ServiceId, placedAt: Date,
     }))
   } else if (service === 'medicine') {
     plan.address = homeAddress(customer.area)
+    plan.addressPin = areaPin(customer.area)
     plan.items = sample(MEDICINES, int(1, 3)).map(medicine => {
       const strips = int(1, 3)
       return { ...medicine, quantity: `${strips} পাতা`, price: medicine.price * strips }
     })
   } else if (service === 'shifting') {
+    const unloadingArea = pick(AREAS.filter(area => area !== customer.area))
     plan.shifting = {
       loadingArea: customer.area,
-      unloadingArea: pick(AREAS.filter(area => area !== customer.area)),
+      unloadingArea,
+      loadingPin: areaPin(customer.area),
+      unloadingPin: areaPin(unloadingArea),
       vehicle: pick(vehicles),
       labourers: int(1, 4),
       loadingFloor: int(0, 6),
       unloadingFloor: int(0, 6),
     }
   } else {
+    const dropoffArea = pick(AREAS.filter(area => area !== customer.area))
+    const pickupPin = areaPin(customer.area)
+    const dropoffPin = areaPin(dropoffArea)
     plan.parcel = {
       product: pick(PARCEL_PRODUCTS),
       weight: pick(PARCEL_WEIGHTS),
       pickupAddress: homeAddress(customer.area),
-      dropoffAddress: homeAddress(pick(AREAS.filter(area => area !== customer.area))),
+      dropoffAddress: homeAddress(dropoffArea),
+      pickupLat: pickupPin.lat,
+      pickupLng: pickupPin.lng,
+      dropoffLat: dropoffPin.lat,
+      dropoffLng: dropoffPin.lng,
       receiverMobile: `017${String(int(10_000_000, 99_999_999))}`,
     }
   }
@@ -533,29 +560,24 @@ export async function seedDemo(prisma: PrismaClient) {
       for (const spec of CUSTOMERS) {
         const joinedAt = bdAt(dayAgo(spec.joined), int(10, 21), int(0, 59))
         const location = `${spec.area}, ঢাকা`
-        const user = await tx.user.create({ data: { name: spec.name, mobile: spec.mobile, location, lang: spec.lang, passwordHash, createdAt: joinedAt } })
+        const pin = areaPin(spec.area)
+        const user = await tx.user.create({ data: { name: spec.name, mobile: spec.mobile, location, locationLat: pin.lat, locationLng: pin.lng, lang: spec.lang, passwordHash, createdAt: joinedAt } })
         const customer: DemoCustomer = { ...spec, id: user.id, location, actor: actorFor(user, spec.device) }
         customers.push(customer)
         audit.push({ action: 'CUSTOMER_SIGNED_UP', actor: customer.actor, entity: { type: 'CUSTOMER', id: user.id, label: user.name }, at: joinedAt })
       }
       const byMobile = (mobile: string) => customers.find(customer => customer.mobile === mobile)!
 
-      // The demo customer saves his home and office on the map the evening after joining.
+      // The demo customer adds his house and road to his location the evening after joining.
       const rahim = byMobile(DEMO_CUSTOMER_MOBILE)
-      for (const [index, place] of RAHIM_PLACES.entries()) {
-        const at = bdAt(dayAgo(rahim.joined - 1), 21, 5 + index * 4)
-        await tx.savedLocation.create({ data: { userId: rahim.id, ...place, isDefault: index === 0, createdAt: at, updatedAt: at } })
-        audit.push({
-          action: 'CUSTOMER_LOCATION_ADDED',
-          actor: rahim.actor,
-          entity: { type: 'CUSTOMER', id: rahim.id, label: rahim.name },
-          changes: [
-            { field: 'label', from: null, to: place.label },
-            { field: 'address', from: null, to: place.address },
-          ],
-          at,
-        })
-      }
+      await tx.user.update({ where: { id: rahim.id }, data: RAHIM_LOCATION })
+      audit.push({
+        action: 'CUSTOMER_LOCATION_UPDATED',
+        actor: rahim.actor,
+        entity: { type: 'CUSTOMER', id: rahim.id, label: rahim.name },
+        changes: [{ field: 'locationDetails', from: '', to: RAHIM_LOCATION.locationDetails }],
+        at: bdAt(dayAgo(rahim.joined - 1), 21, 5),
+      })
 
       // A month of orders, placed in time order so the order numbers rise with the dates.
       const regulars = (daysAgo: number) => customers.filter(customer => customer.weight > 0 && (customer.mobile !== '01411000007' || daysAgo > BLOCKED_DAYS_AGO))
@@ -708,13 +730,19 @@ export async function seedDemo(prisma: PrismaClient) {
       await setPoints('01911000003', [{ daysAgo: 8, to: 50 }])
 
       const ayesha = byMobile('01511000004')
-      const newLocation = 'মোহাম্মদপুর, তাজমহল রোড, ঢাকা'
-      await tx.user.update({ where: { id: ayesha.id }, data: { location: newLocation } })
+      const newLocation = 'তাজমহল রোড, মোহাম্মদপুর, ঢাকা'
+      const oldPin = areaPin(ayesha.area)
+      const newPin = { lat: 23.7662, lng: 90.3641 }
+      await tx.user.update({ where: { id: ayesha.id }, data: { location: newLocation, locationLat: newPin.lat, locationLng: newPin.lng } })
       audit.push({
-        action: 'CUSTOMER_PROFILE_UPDATED',
+        action: 'CUSTOMER_LOCATION_UPDATED',
         actor: ayesha.actor,
         entity: { type: 'CUSTOMER', id: ayesha.id, label: ayesha.name },
-        changes: [{ field: 'location', from: ayesha.location, to: newLocation }],
+        changes: [
+          { field: 'location', from: ayesha.location, to: newLocation },
+          { field: 'locationLat', from: oldPin.lat, to: newPin.lat },
+          { field: 'locationLng', from: oldPin.lng, to: newPin.lng },
+        ],
         at: bdAt(dayAgo(15), 21, 12),
       })
 

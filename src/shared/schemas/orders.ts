@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { ORDER_STATUSES, SERVICE_IDS } from '../enums'
 import type { MessageCode } from '../messages'
 import { amount, count, cursorQuery, mobile, optionalText, requiredText, scheduleSchema } from './common'
-import { geoPointSchema } from './locations'
+import { requiredPin } from './locations'
 
 // The customer sends what they typed; the API computes every fee and total itself. Customers never
 // send a price: staff price bazar and medicine lines in a quote, and the rest comes from the Catalog.
@@ -17,7 +17,7 @@ export const bazarItemSchema = z.object({
 
 export const createBazarOrderSchema = z.object({
   address: requiredText('bazar.details', 300),
-  addressPin: geoPointSchema.optional(),
+  addressPin: requiredPin,
   contactMobile: mobile('bazar.details'),
   schedule: scheduleSchema,
   items: z.array(bazarItemSchema).min(1, { error: 'bazar.details' }).max(60, { error: 'field.invalid' }),
@@ -29,8 +29,8 @@ export type CreateBazarOrderInput = z.infer<typeof createBazarOrderSchema>
 export const createShiftingOrderSchema = z.object({
   loadingArea: requiredText('shifting.areas', 200),
   unloadingArea: requiredText('shifting.areas', 200),
-  loadingPin: geoPointSchema.optional(),
-  unloadingPin: geoPointSchema.optional(),
+  loadingPin: requiredPin,
+  unloadingPin: requiredPin,
   schedule: scheduleSchema,
   vehicleId: z.string({ error: 'shifting.vehicle' }).min(1, { error: 'shifting.vehicle' }).max(64),
   labourers: count('shifting.numbers', 50),
@@ -51,7 +51,7 @@ export const medicineItemSchema = z.object({
 export const createMedicineOrderSchema = z
   .object({
     address: requiredText('medicine.details', 300),
-    addressPin: geoPointSchema.optional(),
+    addressPin: requiredPin,
     contactMobile: mobile('medicine.details'),
     schedule: scheduleSchema,
     prescriptionUploadId: z.string().min(1).max(64).optional(),
@@ -73,8 +73,8 @@ export const createParcelOrderSchema = z.object({
   weight: optionalText(40),
   pickupAddress: requiredText('parcel.details', 300),
   dropoffAddress: requiredText('parcel.details', 300),
-  pickupPin: geoPointSchema.optional(),
-  dropoffPin: geoPointSchema.optional(),
+  pickupPin: requiredPin,
+  dropoffPin: requiredPin,
   receiverMobile: mobile('parcel.details'),
   schedule: scheduleSchema,
   note: optionalText(500),
@@ -83,14 +83,14 @@ export type CreateParcelOrderInput = z.infer<typeof createParcelOrderSchema>
 
 /** The order each form reports its problems in (matches the original screens). */
 export const FORM_ERROR_PRIORITY = {
-  bazar: ['bazar.rows', 'bazar.details', 'mobile.invalid', 'schedule.required', 'schedule.past', 'schedule.hours'],
-  shifting: ['shifting.areas', 'schedule.required', 'schedule.past', 'schedule.hours', 'shifting.vehicle', 'shifting.numbers'],
-  medicine: ['medicine.rows', 'medicine.details', 'mobile.invalid', 'schedule.required', 'schedule.past', 'schedule.hours'],
-  parcel: ['parcel.details', 'mobile.invalid', 'schedule.required', 'schedule.past', 'schedule.hours'],
-  signup: ['auth.signup', 'mobile.invalid', 'password.short'],
+  bazar: ['bazar.rows', 'bazar.details', 'location.required', 'mobile.invalid', 'schedule.required', 'schedule.past', 'schedule.hours'],
+  shifting: ['shifting.areas', 'location.required', 'schedule.required', 'schedule.past', 'schedule.hours', 'shifting.vehicle', 'shifting.numbers'],
+  medicine: ['medicine.rows', 'medicine.details', 'location.required', 'mobile.invalid', 'schedule.required', 'schedule.past', 'schedule.hours'],
+  parcel: ['parcel.details', 'location.required', 'mobile.invalid', 'schedule.required', 'schedule.past', 'schedule.hours'],
+  signup: ['auth.signup', 'mobile.invalid', 'location.required', 'password.short'],
   login: ['auth.login', 'mobile.invalid'],
   profile: ['profile.name', 'profile.mobile', 'mobile.invalid'],
-  location: ['location.details'],
+  location: ['location.required'],
   quote: ['quote.items', 'quote.fees'],
   offer: ['offer.title', 'offer.dates'],
 } as const satisfies Record<string, readonly MessageCode[]>

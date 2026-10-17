@@ -15,16 +15,17 @@ import {
   validateForm,
 } from '@/shared'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, Eye, EyeOff, Headset, LockKeyhole, LogIn, MapPin, Phone, UserPlus, UserRound } from 'lucide-react'
+import { ArrowLeft, Eye, EyeOff, Headset, LockKeyhole, LogIn, Phone, UserPlus, UserRound } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 
+import { AddressField, type AddressValue } from '@/customer/components/address-field'
 import { BillPreviewCard, OrderTrackerCard, SplitHeadline } from '@/customer/components/showcase'
 import { ContactDock, Field, FormError, LangToggle, Logo } from '@/customer/components/ui'
 import { api } from '@/customer/lib/api'
 import { useLang } from '@/customer/lib/i18n'
-import { appPaths, type Mode, type Paths, pathsFor } from '@/customer/lib/paths'
+import { appPaths, type Mode, ModeProvider, type Paths, pathsFor } from '@/customer/lib/paths'
 import { errorCode, queryKeys, useCatalog } from '@/customer/lib/queries'
 import { SERVICE_ICONS } from './orders'
 
@@ -34,19 +35,21 @@ import { SERVICE_ICONS } from './orders'
  */
 function AuthShell({ version, children }: { version: Mode; children: React.ReactNode }) {
   return (
-    <main className={`auth-shell mode-${version}`}>
-      {version === 'web' && <BrandPanel />}
-      <section className="auth-panel">
-        {version === 'web' && <AuthHero />}
-        <div className="auth-form">
-          <div className="mobile-auth-logo">
-            <Logo />
+    <ModeProvider mode={version}>
+      <main className={`auth-shell mode-${version}`}>
+        {version === 'web' && <BrandPanel />}
+        <section className="auth-panel">
+          {version === 'web' && <AuthHero />}
+          <div className="auth-form">
+            <div className="mobile-auth-logo">
+              <Logo />
+            </div>
+            {children}
           </div>
-          {children}
-        </div>
-      </section>
-      <ContactDock />
-    </main>
+        </section>
+        <ContactDock />
+      </main>
+    </ModeProvider>
   )
 }
 
@@ -169,7 +172,9 @@ export function AuthScreen({ mode, version }: { mode: 'login' | 'signup'; versio
   const router = useRouter()
   const queryClient = useQueryClient()
   const isSignup = mode === 'signup'
-  const [form, setForm] = useState({ name: '', mobile: '', location: '', password: '' })
+  const [form, setForm] = useState({ name: '', mobile: '', password: '' })
+  // Picked on the map; signup needs it.
+  const [location, setLocation] = useState<AddressValue>(null)
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState<MessageCode | null>(null)
   const support = useCatalog().data?.support
@@ -178,7 +183,7 @@ export function AuthScreen({ mode, version }: { mode: 'login' | 'signup'; versio
   const submitMutation = useMutation({
     mutationFn: async () => {
       if (isSignup) {
-        const check = validateForm(signupSchema, { ...form, location: form.location || undefined, lang }, priority)
+        const check = validateForm(signupSchema, { ...form, location: location ?? undefined, lang }, priority)
         if (!check.success) throw check.code
         return api.auth.signup(check.data)
       }
@@ -237,12 +242,14 @@ export function AuthScreen({ mode, version }: { mode: 'login' | 'signup'; versio
           </div>
         </Field>
         {isSignup && (
-          <Field label={t('লোকেশন', 'Location')}>
-            <div className="input-wrap">
-              <MapPin size={17} />
-              <input {...bind('location')} placeholder={t('যেমন: মিরপুর ১০, ঢাকা', 'e.g. Mirpur 10, Dhaka')} />
-            </div>
-          </Field>
+          <AddressField
+            label={t('লোকেশন', 'Location')}
+            value={location}
+            onChange={picked => {
+              setLocation(picked)
+              setError(null)
+            }}
+          />
         )}
         <Field label={t('পাসওয়ার্ড', 'Password')}>
           <div className="input-wrap">

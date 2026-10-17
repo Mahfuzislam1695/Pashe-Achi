@@ -5,13 +5,14 @@ import { Plus } from 'lucide-react'
 import { useLang } from '@/customer/lib/i18n'
 
 export type Row = Record<string, string>
-export type Column = { key: string; label: string; placeholder?: string; numeric?: boolean; optional?: boolean }
+/** `disabled` shows a column the customer can't fill (the rate, which staff send in their quote). */
+export type Column = { key: string; label: string; placeholder?: string; numeric?: boolean; optional?: boolean; disabled?: boolean }
 
 const hasValue = (value: string | undefined) => !!value?.trim()
 
 /** A row is "started" once any box has text; started rows must have every required box filled. */
 export const isRowStarted = (row: Row) => Object.values(row).some(hasValue)
-export const isRowComplete = (row: Row | undefined, columns: Column[]) => !!row && columns.every(column => column.optional || hasValue(row[column.key]))
+export const isRowComplete = (row: Row | undefined, columns: Column[]) => !!row && columns.every(column => column.optional || column.disabled || hasValue(row[column.key]))
 
 /**
  * Numbered rows (bazar list, medicines). A table starts with one row; "add more" appears only
@@ -41,7 +42,9 @@ export function LineTable({ columns, template, rows, onChange, addLabel }: { col
               min={column.numeric ? 0 : undefined}
               step={column.numeric ? 1 : undefined}
               placeholder={column.placeholder}
-              value={row[column.key] ?? ''}
+              disabled={column.disabled}
+              tabIndex={column.disabled ? -1 : undefined}
+              value={column.disabled ? '' : (row[column.key] ?? '')}
               onChange={e => update(index, column.key, e.target.value)}
             />
           ))}

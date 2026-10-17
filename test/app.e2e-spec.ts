@@ -17,6 +17,8 @@ import { PrismaService } from '../src/server/prisma/prisma.service'
 
 const ADMIN = { mobile: '01700000000', password: 'admin12345' }
 const schedule = { date: isoDateInBd(), time: '10:00' }
+/** Every address is picked on the map, so orders and signups carry a pin. */
+const PIN = { lat: 23.807, lng: 90.3687 }
 const api = (path: string) => `/${API_PREFIX}${path}`
 
 /** Polls until `check` returns something truthy (notifications and pushes are sent after the response). */
@@ -66,7 +68,7 @@ describe('Pashe Achi API (e2e)', () => {
 
   const signup = async (mobile: string, name = 'করিম') => {
     const agent = request.agent(app.getHttpServer())
-    const response = await agent.post(api('/auth/signup')).send({ name, mobile, password: 'secret12', location: 'উত্তরা' }).expect(201)
+    const response = await agent.post(api('/auth/signup')).send({ name, mobile, password: 'secret12', location: { address: 'উত্তরা, ঢাকা', ...PIN } }).expect(201)
     return { agent, body: response.body as { user: { id: string }; tokens: { accessToken: string; refreshToken: string } } }
   }
   const adminAgent = async () => {
@@ -78,8 +80,9 @@ describe('Pashe Achi API (e2e)', () => {
   describe('auth', () => {
     it('signs up, normalises the mobile and logs in with httpOnly cookies', async () => {
       const agent = request.agent(app.getHttpServer())
-      const response = await agent.post(api('/auth/signup')).send({ name: 'রহিম', mobile: '+880 1712-000001', password: 'secret12' }).expect(201)
-      expect(response.body.user).toMatchObject({ name: 'রহিম', mobile: '01712000001', points: 0 })
+      const location = { address: 'মিরপুর ১০, ঢাকা', details: 'বাসা ১২', ...PIN }
+      const response = await agent.post(api('/auth/signup')).send({ name: 'রহিম', mobile: '+880 1712-000001', password: 'secret12', location }).expect(201)
+      expect(response.body.user).toMatchObject({ name: 'রহিম', mobile: '01712000001', points: 0, location })
       const cookies = ([] as string[]).concat(response.headers['set-cookie'] ?? [])
       expect(cookies.some(cookie => cookie.startsWith('pa_at=') && /HttpOnly/i.test(cookie))).toBe(true)
       expect(cookies.some(cookie => cookie.startsWith('pa_rt=') && /SameSite=Lax/i.test(cookie))).toBe(true)
@@ -106,10 +109,20 @@ describe('Pashe Achi API (e2e)', () => {
 
     it('rejects a duplicate mobile, a wrong password and an empty form with message codes', async () => {
       await signup('01712000002')
-      await request(app.getHttpServer()).post(api('/auth/signup')).send({ name: 'x', mobile: '01712000002', password: 'secret12' }).expect(409).expect(res => expect(res.body.code).toBe('mobile.taken'))
+      await request(app.getHttpServer()).post(api('/auth/signup')).send({ name: 'x', mobile: '01712000002', password: 'secret12', location: { address: 'উত্তরা', ...PIN } }).expect(409).expect(res => expect(res.body.code).toBe('mobile.taken'))
       await request(app.getHttpServer()).post(api('/auth/login')).send({ mobile: '01712000002', password: 'nope-nope' }).expect(401).expect(res => expect(res.body.code).toBe('auth.invalid'))
       const empty = await request(app.getHttpServer()).post(api('/auth/login')).send({}).expect(400)
       expect(empty.body).toMatchObject({ code: 'auth.login', message: { bn: 'মোবাইল নম্বর ও পাসওয়ার্ড দিন।' } })
+    })
+
+    it('needs a location picked on the map to sign up', async () => {
+      const form = { name: 'রহিম', mobile: '01712000007', password: 'secret12' }
+      await request(app.getHttpServer()).post(api('/auth/signup')).send(form).expect(400).expect(res => expect(res.body.code).toBe('location.required'))
+      await request(app.getHttpServer())
+        .post(api('/auth/signup'))
+        .send({ ...form, location: { address: 'মিরপুর' } })
+        .expect(400)
+      expect(await prisma.user.count({ where: { mobile: form.mobile } })).toBe(0)
     })
 
     it('accepts a Bearer token instead of cookies (mobile apps)', async () => {
@@ -141,24 +154,24 @@ describe('Pashe Achi API (e2e)', () => {
       const vehicle = await prisma.vehicle.findFirstOrThrow()
       const bazar = await agent
         .post(api('/orders/bazar'))
-        .send({ address: 'বাসা ১', contactMobile: '01712000010', schedule, total: 1, items: [{ name: 'চাল', quantity: '5 কেজি', price: 450 }, { name: 'আলু', quantity: '1 কেজি', price: 80 }] })
+        .send({ address: 'বাসা ১', addressPin: PIN, contactMobile: '01712000010', schedule, total: 1, items: [{ name: 'চাল', quantity: '5 কেজি', price: 450 }, { name: 'আলু', quantity: '1 কেজি', price: 80 }] })
         .expect(201)
       // Customers never price a bazar order: the prices sent are dropped and staff quote it later.
       expect(bazar.body).toMatchObject({ code: 'PA-1001', total: 230, itemsTotal: 0, serviceFee: 150, deliveryFee: 80, status: 'PENDING', canConfirm: false })
       expect(bazar.body.items.map((item: { price: number | null }) => item.price)).toEqual([null, null])
       const shifting = await agent
         .post(api('/orders/shifting'))
-        .send({ loadingArea: 'মিরপুর', unloadingArea: 'উত্তরা', schedule, vehicleId: vehicle.id, labourers: 1, loadingFloor: 1, unloadingFloor: 1 })
+        .send({ loadingArea: 'মিরপুর', unloadingArea: 'উত্তরা', loadingPin: PIN, unloadingPin: PIN, schedule, vehicleId: vehicle.id, labourers: 1, loadingFloor: 1, unloadingFloor: 1 })
         .expect(201)
       expect(shifting.body.total).toBe(1420)
       const parcel = await agent
         .post(api('/orders/parcel'))
-        .send({ product: 'ব্যাগ', pickupAddress: 'A', dropoffAddress: 'B', receiverMobile: '01711111111', schedule })
+        .send({ product: 'ব্যাগ', pickupAddress: 'A', dropoffAddress: 'B', pickupPin: PIN, dropoffPin: PIN, receiverMobile: '01711111111', schedule })
         .expect(201)
       expect(parcel.body.total).toBe(60)
       const medicine = await agent
         .post(api('/orders/medicine'))
-        .send({ address: 'বাসা ১', contactMobile: '01712000010', schedule, items: [{ name: 'Napa', quantity: '1 পাতা', company: 'Beximco', category: 'জ্বর', price: 100 }] })
+        .send({ address: 'বাসা ১', addressPin: PIN, contactMobile: '01712000010', schedule, items: [{ name: 'Napa', quantity: '1 পাতা', company: 'Beximco', category: 'জ্বর', price: 100 }] })
         .expect(201)
       expect(medicine.body).toMatchObject({ total: 60, itemsTotal: 0, deliveryFee: 60 })
     })
@@ -167,22 +180,22 @@ describe('Pashe Achi API (e2e)', () => {
       const { agent } = await signup('01712000011')
       await agent
         .post(api('/orders/bazar'))
-        .send({ address: 'x', contactMobile: '01712000011', schedule: { date: '2020-01-01', time: '10:00' }, items: [{ name: 'a', quantity: '1' }] })
+        .send({ address: 'x', addressPin: PIN, contactMobile: '01712000011', schedule: { date: '2020-01-01', time: '10:00' }, items: [{ name: 'a', quantity: '1' }] })
         .expect(400)
         .expect(res => expect(res.body.code).toBe('schedule.past'))
       await agent
         .post(api('/orders/bazar'))
-        .send({ address: 'x', contactMobile: '01712000011', schedule: { ...schedule, time: '12:00' }, items: [{ name: 'a', quantity: '1' }] })
+        .send({ address: 'x', addressPin: PIN, contactMobile: '01712000011', schedule: { ...schedule, time: '12:00' }, items: [{ name: 'a', quantity: '1' }] })
         .expect(400)
         .expect(res => expect(res.body.code).toBe('schedule.hours'))
       await agent
         .post(api('/orders/medicine'))
-        .send({ address: 'x', contactMobile: '01712000011', schedule, items: [{ name: 'Napa', quantity: '1', company: '', category: 'জ্বর', price: 5 }] })
+        .send({ address: 'x', addressPin: PIN, contactMobile: '01712000011', schedule, items: [{ name: 'Napa', quantity: '1', company: '', category: 'জ্বর', price: 5 }] })
         .expect(400)
       const hidden = await prisma.vehicle.create({ data: { slug: 'hidden', nameBn: 'x', nameEn: 'x', rate: 1, isActive: false } })
       await agent
         .post(api('/orders/shifting'))
-        .send({ loadingArea: 'a', unloadingArea: 'b', schedule, vehicleId: hidden.id, labourers: 0, loadingFloor: 0, unloadingFloor: 0 })
+        .send({ loadingArea: 'a', unloadingArea: 'b', loadingPin: PIN, unloadingPin: PIN, schedule, vehicleId: hidden.id, labourers: 0, loadingFloor: 0, unloadingFloor: 0 })
         .expect(400)
         .expect(res => expect(res.body.code).toBe('vehicle.unavailable'))
     })
@@ -196,7 +209,7 @@ describe('Pashe Achi API (e2e)', () => {
         .attach('file', Buffer.from('<script>alert(1)</script> pretending'), { filename: 'rx.png', contentType: 'image/png' })
         .expect(400)
         .expect(res => expect(res.body.code).toBe('upload.type'))
-      const order = { address: 'x', contactMobile: '01712000012', schedule, prescriptionUploadId: upload.body.id, items: [] }
+      const order = { address: 'x', addressPin: PIN, contactMobile: '01712000012', schedule, prescriptionUploadId: upload.body.id, items: [] }
       const created = await agent.post(api('/orders/medicine')).send(order).expect(201)
       expect(created.body.prescription.id).toBe(upload.body.id)
       await agent.post(api('/orders/medicine')).send(order).expect(400).expect(res => expect(res.body.code).toBe('upload.missing'))
@@ -209,27 +222,30 @@ describe('Pashe Achi API (e2e)', () => {
     it('lets a customer cancel only while pending, and only their own order', async () => {
       const { agent } = await signup('01712000014')
       const other = await signup('01712000015')
-      const order = (await agent.post(api('/orders/parcel')).send({ product: 'a', pickupAddress: 'A', dropoffAddress: 'B', receiverMobile: '01711111111', schedule })).body as OrderDetail
+      const order = (await agent.post(api('/orders/parcel')).send({ product: 'a', pickupAddress: 'A', dropoffAddress: 'B', pickupPin: PIN, dropoffPin: PIN, receiverMobile: '01711111111', schedule })).body as OrderDetail
       await other.agent.post(api(`/orders/${order.id}/cancel`)).expect(404)
       const cancelled = await agent.post(api(`/orders/${order.id}/cancel`)).expect(200)
       expect(cancelled.body).toMatchObject({ status: 'CANCELLED', canCancel: false })
       await agent.post(api(`/orders/${order.id}/cancel`)).expect(400)
     })
 
-    it('keeps the map pins the customer set, and none when they did not', async () => {
+    it('needs a map pin for every address, and keeps it', async () => {
       const { agent } = await signup('01712000016')
-      const pin = { lat: 23.807, lng: 90.3687 }
+      const uttara = { lat: 23.8759, lng: 90.3795 }
       const bazar = await agent
         .post(api('/orders/bazar'))
-        .send({ address: 'বাসা ১', addressPin: pin, contactMobile: '01712000016', schedule, items: [{ name: 'চাল', quantity: '5 কেজি' }] })
+        .send({ address: 'বাসা ১', addressPin: PIN, contactMobile: '01712000016', schedule, items: [{ name: 'চাল', quantity: '5 কেজি' }] })
         .expect(201)
-      expect(bazar.body.addressPin).toEqual(pin)
-      const parcel = await agent
+      expect(bazar.body.addressPin).toEqual(PIN)
+      const parcel = { product: 'ব্যাগ', pickupAddress: 'A', dropoffAddress: 'B', pickupPin: PIN, receiverMobile: '01711111111', schedule }
+      await agent
         .post(api('/orders/parcel'))
-        .send({ product: 'ব্যাগ', pickupAddress: 'A', dropoffAddress: 'B', pickupPin: pin, receiverMobile: '01711111111', schedule })
-        .expect(201)
-      expect(parcel.body.parcel).toMatchObject({ pickupPin: pin, dropoffPin: null })
-      expect(parcel.body.addressPin).toBeNull()
+        .send(parcel)
+        .expect(400)
+        .expect(res => expect(res.body.code).toBe('location.required'))
+      const placed = await agent.post(api('/orders/parcel')).send({ ...parcel, dropoffPin: uttara }).expect(201)
+      expect(placed.body.parcel).toMatchObject({ pickupPin: PIN, dropoffPin: uttara })
+      expect(placed.body.addressPin).toBeNull()
       await agent
         .post(api('/orders/bazar'))
         .send({ address: 'বাসা ১', addressPin: { lat: 123, lng: 90 }, contactMobile: '01712000016', schedule, items: [{ name: 'চাল', quantity: '1' }] })
@@ -237,70 +253,51 @@ describe('Pashe Achi API (e2e)', () => {
     })
   })
 
-  describe('saved locations', () => {
-    const home = { label: 'বাসা', address: 'বাড়ি ১২, রোড ৩, মিরপুর ১০', lat: 23.807, lng: 90.3687 }
-    const office = { label: 'অফিস', address: 'গুলশান ১', lat: 23.7806, lng: 90.4193 }
+  describe('my location', () => {
+    const home = { address: 'মিরপুর ১০, ঢাকা', details: 'বাসা ১২, রোড ৩', lat: 23.8069, lng: 90.3687 }
 
-    it('saves several, keeps one default first, and writes history', async () => {
+    it('replaces the one location and writes history only for a change', async () => {
       const { agent, body } = await signup('01712000050')
-      const first = await agent.post(api('/me/locations')).send(home).expect(201)
-      expect(first.body).toMatchObject({ ...home, isDefault: true })
-      const second = await agent.post(api('/me/locations')).send(office).expect(201)
-      expect(second.body.isDefault).toBe(false)
+      const me = await agent.get(api('/auth/me')).expect(200)
+      expect(me.body.location).toEqual({ address: 'উত্তরা, ঢাকা', details: '', ...PIN })
 
-      await agent.patch(api(`/me/locations/${second.body.id}`)).send({ isDefault: true }).expect(200)
-      const list = await agent.get(api('/me/locations')).expect(200)
-      expect(list.body.map((location: { label: string; isDefault: boolean }) => [location.label, location.isDefault])).toEqual([
-        ['অফিস', true],
-        ['বাসা', false],
+      const updated = await agent.put(api('/me/location')).send(home).expect(200)
+      expect(updated.body.location).toEqual(home)
+      await agent.put(api('/me/location')).send(home).expect(200)
+
+      const history = await prisma.auditLog.findMany({ where: { entityType: 'CUSTOMER', entityId: body.user.id, action: 'CUSTOMER_LOCATION_UPDATED' } })
+      expect(history).toHaveLength(1)
+      expect(history[0]!.changes).toEqual([
+        { field: 'location', from: 'উত্তরা, ঢাকা', to: home.address },
+        { field: 'locationDetails', from: '', to: home.details },
+        { field: 'locationLat', from: PIN.lat, to: home.lat },
       ])
 
-      // Deleting the default makes the newest remaining location the default.
-      await agent.delete(api(`/me/locations/${second.body.id}`)).expect(204)
-      const after = await agent.get(api('/me/locations')).expect(200)
-      expect(after.body).toEqual([expect.objectContaining({ id: first.body.id, isDefault: true })])
-
-      const history = await prisma.auditLog.findMany({
-        where: { entityType: 'CUSTOMER', entityId: body.user.id, action: { in: ['CUSTOMER_LOCATION_ADDED', 'CUSTOMER_LOCATION_UPDATED', 'CUSTOMER_LOCATION_DELETED'] } },
-      })
-      expect(history.map(entry => entry.action).sort()).toEqual(['CUSTOMER_LOCATION_ADDED', 'CUSTOMER_LOCATION_ADDED', 'CUSTOMER_LOCATION_DELETED', 'CUSTOMER_LOCATION_UPDATED'])
-      const updated = history.find(entry => entry.action === 'CUSTOMER_LOCATION_UPDATED')
-      expect(updated).toMatchObject({ note: 'অফিস', changes: [{ field: 'isDefault', from: false, to: true }] })
-    })
-
-    it('needs a name and address, caps the list, and keeps each customer to their own', async () => {
-      const { agent, body } = await signup('01712000051')
-      const other = await signup('01712000052')
-      await agent
-        .post(api('/me/locations'))
-        .send({ ...home, label: ' ' })
-        .expect(400)
-        .expect(res => expect(res.body.code).toBe('location.details'))
-
-      for (let index = 1; index <= 10; index++) await agent.post(api('/me/locations')).send({ ...home, label: `জায়গা ${index}` }).expect(201)
-      await agent
-        .post(api('/me/locations'))
-        .send(home)
-        .expect(400)
-        .expect(res => expect(res.body.code).toBe('location.limit'))
-
-      const [mine] = (await agent.get(api('/me/locations')).expect(200)).body as { id: string }[]
-      await other.agent.patch(api(`/me/locations/${mine.id}`)).send({ label: 'x' }).expect(404)
-      await other.agent.delete(api(`/me/locations/${mine.id}`)).expect(404)
-      await other.agent.get(api('/me/locations')).expect(200).expect(res => expect(res.body).toEqual([]))
-      await request(app.getHttpServer()).get(api('/me/locations')).expect(401)
-
       const admin = await adminAgent()
-      const seen = await admin.get(api(`/admin/customers/${body.user.id}/locations`)).expect(200)
-      expect(seen.body).toHaveLength(10)
-      await agent.get(api(`/admin/customers/${body.user.id}/locations`)).expect(401)
+      const seen = await admin.get(api(`/admin/customers/${body.user.id}`)).expect(200)
+      expect(seen.body.location).toEqual(home)
     })
 
-    it('looks addresses up for signed-in customers only', async () => {
-      await request(app.getHttpServer()).get(api('/geo/reverse')).query({ lat: 23.8, lng: 90.4 }).expect(401)
-      const { agent } = await signup('01712000053')
+    it('needs the map address and pin, and a signed-in customer', async () => {
+      const { agent } = await signup('01712000051')
+      await agent
+        .put(api('/me/location'))
+        .send({ address: home.address })
+        .expect(400)
+      await agent
+        .put(api('/me/location'))
+        .send({ ...home, address: ' ' })
+        .expect(400)
+        .expect(res => expect(res.body.code).toBe('location.required'))
+      await request(app.getHttpServer()).put(api('/me/location')).send(home).expect(401)
+      // The profile no longer takes a location.
+      await agent.patch(api('/me')).send({ name: 'করিম', mobile: '01712000051', location: 'x' }).expect(200)
+      expect((await agent.get(api('/auth/me')).expect(200)).body.location.address).toBe('উত্তরা, ঢাকা')
+    })
+
+    it('looks addresses up for anyone, since signup needs it', async () => {
       // Bad coordinates fail validation before any lookup, so this needs no network.
-      await agent.get(api('/geo/reverse')).query({ lat: 123, lng: 90.4 }).expect(400)
+      await request(app.getHttpServer()).get(api('/geo/reverse')).query({ lat: 123, lng: 90.4 }).expect(400)
     })
   })
 
@@ -385,7 +382,7 @@ describe('Pashe Achi API (e2e)', () => {
 
       const endpoint = 'https://fcm.googleapis.com/fcm/send/e2e-customer-70'
       await agent.put(api('/notifications/push')).send({ endpoint, keys, lang: 'en', mode: 'app' }).expect(204)
-      const order = (await agent.post(api('/orders/bazar')).send({ address: 'x', contactMobile: '01712000070', schedule, items: [{ name: 'চাল', quantity: '1' }] }).expect(201)).body as OrderDetail
+      const order = (await agent.post(api('/orders/bazar')).send({ address: 'x', addressPin: PIN, contactMobile: '01712000070', schedule, items: [{ name: 'চাল', quantity: '1' }] }).expect(201)).body as OrderDetail
       await admin.put(api(`/admin/orders/${order.id}/quote`)).send({ items: [{ id: order.items[0]!.id, name: 'চাল', quantity: '1', price: 70 }] }).expect(200)
       const price = await waitFor(() => pushedTo(endpoint)[0])
       expect(price).toMatchObject({
@@ -436,7 +433,7 @@ describe('Pashe Achi API (e2e)', () => {
       await admin.get(api('/admin/notifications/push')).expect(200).expect(res => expect(res.body.publicKey).toBeTruthy())
       await admin.put(api('/admin/notifications/push')).send({ endpoint, keys, lang: 'en' }).expect(204)
       const { agent } = await signup('01712000073')
-      const order = (await agent.post(api('/orders/parcel')).send({ product: 'a', pickupAddress: 'A', dropoffAddress: 'B', receiverMobile: '01711111111', schedule }).expect(201)).body as OrderDetail
+      const order = (await agent.post(api('/orders/parcel')).send({ product: 'a', pickupAddress: 'A', dropoffAddress: 'B', pickupPin: PIN, dropoffPin: PIN, receiverMobile: '01711111111', schedule }).expect(201)).body as OrderDetail
       const push = await waitFor(() => pushedTo(endpoint).find(item => item.payload.url === `/admin/orders/${order.id}`))
       expect(push.payload).toMatchObject({ title: `New order ${order.code}`, area: 'admin', tag: `order-${order.id}` })
       await admin.delete(api('/admin/notifications/push')).send({ endpoint }).expect(204)
@@ -459,7 +456,7 @@ describe('Pashe Achi API (e2e)', () => {
     it('moves orders through allowed statuses only, records the timeline and notifies the customer', async () => {
       const { agent } = await signup('01712000021')
       const admin = await adminAgent()
-      const order = (await agent.post(api('/orders/parcel')).send({ product: 'a', pickupAddress: 'A', dropoffAddress: 'B', receiverMobile: '01711111111', schedule })).body as OrderDetail
+      const order = (await agent.post(api('/orders/parcel')).send({ product: 'a', pickupAddress: 'A', dropoffAddress: 'B', pickupPin: PIN, dropoffPin: PIN, receiverMobile: '01711111111', schedule })).body as OrderDetail
       await admin.patch(api(`/admin/orders/${order.id}/status`)).send({ status: 'COMPLETED' }).expect(400)
       await admin.patch(api(`/admin/orders/${order.id}/status`)).send({ status: 'BOOKED', note: 'রাইডার আসছে' }).expect(200)
       const done = await admin.patch(api(`/admin/orders/${order.id}/status`)).send({ status: 'COMPLETED' }).expect(200)
@@ -474,7 +471,7 @@ describe('Pashe Achi API (e2e)', () => {
     it('prices a quote on top of the fees the order was placed with', async () => {
       const { agent } = await signup('01712000022')
       const admin = await adminAgent()
-      const order = (await agent.post(api('/orders/bazar')).send({ address: 'x', contactMobile: '01712000022', schedule, items: [{ name: 'a', quantity: '1' }] })).body as OrderDetail
+      const order = (await agent.post(api('/orders/bazar')).send({ address: 'x', addressPin: PIN, contactMobile: '01712000022', schedule, items: [{ name: 'a', quantity: '1' }] })).body as OrderDetail
       await admin.put(api('/admin/catalog/pricing')).send({ ...DEFAULT_PRICING, bazarShoppingFee: 999 }).expect(200)
       const quoted = await admin.put(api(`/admin/orders/${order.id}/quote`)).send({ items: [{ id: order.items[0]!.id, name: 'a', quantity: '1', price: 300 }] }).expect(200)
       expect(quoted.body).toMatchObject({ itemsTotal: 300, serviceFee: 150, total: 530, status: 'QUOTED' })
@@ -487,7 +484,7 @@ describe('Pashe Achi API (e2e)', () => {
       const order = (
         await agent
           .post(api('/orders/bazar'))
-          .send({ address: 'x', contactMobile: '01712000025', schedule, items: [{ name: 'চাল', quantity: '5 কেজি' }, { name: 'আলু', quantity: '2 কেজি', variety: 'দেশি' }] })
+          .send({ address: 'x', addressPin: PIN, contactMobile: '01712000025', schedule, items: [{ name: 'চাল', quantity: '5 কেজি' }, { name: 'আলু', quantity: '2 কেজি', variety: 'দেশি' }] })
           .expect(201)
       ).body as OrderDetail
       const [rice, potatoes] = order.items
@@ -541,7 +538,7 @@ describe('Pashe Achi API (e2e)', () => {
       const admin = await adminAgent()
       const png = Buffer.from('89504e470d0a1a0a0000000d49484452000000010000000108060000', 'hex')
       const upload = await agent.post(api('/uploads/prescription')).attach('file', png, { filename: 'rx.png', contentType: 'image/png' }).expect(201)
-      const order = (await agent.post(api('/orders/medicine')).send({ address: 'x', contactMobile: '01712000026', schedule, prescriptionUploadId: upload.body.id, items: [] }).expect(201)).body as OrderDetail
+      const order = (await agent.post(api('/orders/medicine')).send({ address: 'x', addressPin: PIN, contactMobile: '01712000026', schedule, prescriptionUploadId: upload.body.id, items: [] }).expect(201)).body as OrderDetail
       expect(order).toMatchObject({ items: [], total: 60 })
 
       await admin.put(api(`/admin/orders/${order.id}/quote`)).send({ items: [{ id: 'not-a-line', name: 'Napa', quantity: '1', price: 12 }] }).expect(400)
@@ -553,14 +550,14 @@ describe('Pashe Achi API (e2e)', () => {
       await agent.post(api(`/orders/${order.id}/confirm`)).send({ total: 160, quoteVersion: 1 }).expect(400).expect(res => expect(res.body.code).toBe('order.bad_transition'))
 
       // Shifting and parcel keep their Catalog prices: there is nothing to quote.
-      const parcel = (await agent.post(api('/orders/parcel')).send({ product: 'a', pickupAddress: 'A', dropoffAddress: 'B', receiverMobile: '01711111111', schedule }).expect(201)).body as OrderDetail
+      const parcel = (await agent.post(api('/orders/parcel')).send({ product: 'a', pickupAddress: 'A', dropoffAddress: 'B', pickupPin: PIN, dropoffPin: PIN, receiverMobile: '01711111111', schedule }).expect(201)).body as OrderDetail
       await admin.put(api(`/admin/orders/${parcel.id}/quote`)).send({ items: [{ name: 'x', quantity: '1', price: 1 }] }).expect(400)
     })
 
     it('lets staff change the charges in a quote, and the customer confirm only the quote they saw', async () => {
       const { agent } = await signup('01712000027')
       const admin = await adminAgent()
-      const order = (await agent.post(api('/orders/bazar')).send({ address: 'দূরের ঠিকানা', contactMobile: '01712000027', schedule, items: [{ name: 'চাল', quantity: '5 কেজি' }] }).expect(201)).body as OrderDetail
+      const order = (await agent.post(api('/orders/bazar')).send({ address: 'দূরের ঠিকানা', addressPin: PIN, contactMobile: '01712000027', schedule, items: [{ name: 'চাল', quantity: '5 কেজি' }] }).expect(201)).body as OrderDetail
       expect(order).toMatchObject({ serviceFee: 150, deliveryFee: 80, total: 230, quoteVersion: 0 })
       const line = { id: order.items[0]!.id, name: 'চাল', quantity: '5 কেজি' }
 
@@ -588,7 +585,7 @@ describe('Pashe Achi API (e2e)', () => {
       await agent.post(api(`/orders/${order.id}/confirm`)).send({ total: 570, quoteVersion: 2 }).expect(200)
 
       // Medicine has no shopping fee; its delivery can be waived.
-      const medicine = (await agent.post(api('/orders/medicine')).send({ address: 'x', contactMobile: '01712000027', schedule, items: [{ name: 'Napa', quantity: '1', company: 'Beximco', category: 'জ্বর' }] }).expect(201)).body as OrderDetail
+      const medicine = (await agent.post(api('/orders/medicine')).send({ address: 'x', addressPin: PIN, contactMobile: '01712000027', schedule, items: [{ name: 'Napa', quantity: '1', company: 'Beximco', category: 'জ্বর' }] }).expect(201)).body as OrderDetail
       const napa = { id: medicine.items[0]!.id, name: 'Napa', quantity: '1', price: 12 }
       await admin.put(api(`/admin/orders/${medicine.id}/quote`)).send({ items: [napa], serviceFee: 50 }).expect(400).expect(res => expect(res.body.code).toBe('quote.fees'))
       await admin.put(api(`/admin/orders/${medicine.id}/quote`)).send({ items: [napa], deliveryFee: -1 }).expect(400).expect(res => expect(res.body.code).toBe('quote.fees'))
@@ -606,7 +603,7 @@ describe('Pashe Achi API (e2e)', () => {
       })
       const received = new Promise<{ code: string }>(resolve => socket.once(SOCKET_EVENTS.orderNew, resolve))
       const { agent } = await signup('01712000023')
-      const order = (await agent.post(api('/orders/parcel')).send({ product: 'a', pickupAddress: 'A', dropoffAddress: 'B', receiverMobile: '01711111111', schedule })).body as OrderDetail
+      const order = (await agent.post(api('/orders/parcel')).send({ product: 'a', pickupAddress: 'A', dropoffAddress: 'B', pickupPin: PIN, dropoffPin: PIN, receiverMobile: '01711111111', schedule })).body as OrderDetail
       await expect(received).resolves.toMatchObject({ code: order.code })
       socket.close()
     })
@@ -677,7 +674,7 @@ describe('Pashe Achi API (e2e)', () => {
       const catalog = await request(app.getHttpServer()).get(api('/catalog')).expect(200)
       expect(catalog.body.deliveryHours).toEqual(hours)
       const { agent } = await signup('01712000040')
-      const parcel = { product: 'ব্যাগ', pickupAddress: 'A', dropoffAddress: 'B', receiverMobile: '01711111111' }
+      const parcel = { product: 'ব্যাগ', pickupAddress: 'A', dropoffAddress: 'B', pickupPin: PIN, dropoffPin: PIN, receiverMobile: '01711111111' }
       await agent.post(api('/orders/parcel')).send({ ...parcel, schedule: { ...schedule, time: '09:00' } }).expect(400).expect(res => expect(res.body.code).toBe('schedule.hours'))
       await agent.post(api('/orders/parcel')).send({ ...parcel, schedule: { ...schedule, time: '18:00' } }).expect(201)
 
@@ -690,7 +687,7 @@ describe('Pashe Achi API (e2e)', () => {
     it("keeps an order's whole history, which operators can read but not the full log", async () => {
       const { agent } = await signup('01712000030', 'হাসান')
       const admin = await adminAgent()
-      const order = (await agent.post(api('/orders/bazar')).send({ address: 'x', contactMobile: '01712000030', schedule, items: [{ name: 'চাল', quantity: '5 কেজি' }] }).expect(201))
+      const order = (await agent.post(api('/orders/bazar')).send({ address: 'x', addressPin: PIN, contactMobile: '01712000030', schedule, items: [{ name: 'চাল', quantity: '5 কেজি' }] }).expect(201))
         .body as OrderDetail
       await admin.put(api(`/admin/orders/${order.id}/quote`)).send({ items: [{ id: order.items[0]!.id, name: 'চাল', quantity: '5 কেজি', price: 400 }], note: 'দোকানের রসিদ' }).expect(200)
       await agent.post(api(`/orders/${order.id}/confirm`)).send({ total: 630, quoteVersion: 1 }).expect(200)
@@ -731,15 +728,15 @@ describe('Pashe Achi API (e2e)', () => {
 
     it("shows a customer's own actions and what staff did to the account", async () => {
       const { agent, body } = await signup('01712000032', 'সুমি')
-      await agent.patch(api('/me')).send({ name: 'সুমি', mobile: '01712000032', location: 'বনানী' }).expect(200)
+      await agent.put(api('/me/location')).send({ address: 'বনানী, ঢাকা', ...PIN }).expect(200)
       const admin = await adminAgent()
       await admin.patch(api(`/admin/customers/${body.user.id}`)).send({ points: 40 }).expect(200)
       await admin.patch(api(`/admin/customers/${body.user.id}`)).send({ isBlocked: true }).expect(200)
 
       const log = (await admin.get(api(`/admin/audit?customerId=${body.user.id}`)).expect(200)).body.items
-      expect(log.map((entry: { action: string }) => entry.action)).toEqual(['CUSTOMER_BLOCKED', 'CUSTOMER_POINTS_CHANGED', 'CUSTOMER_PROFILE_UPDATED', 'CUSTOMER_SIGNED_UP'])
+      expect(log.map((entry: { action: string }) => entry.action)).toEqual(['CUSTOMER_BLOCKED', 'CUSTOMER_POINTS_CHANGED', 'CUSTOMER_LOCATION_UPDATED', 'CUSTOMER_SIGNED_UP'])
       expect(log[1].changes).toEqual([{ field: 'points', from: 0, to: 40 }])
-      expect(log[2].changes).toEqual([{ field: 'location', from: 'উত্তরা', to: 'বনানী' }])
+      expect(log[2].changes).toEqual([{ field: 'location', from: 'উত্তরা, ঢাকা', to: 'বনানী, ঢাকা' }])
     })
   })
 })

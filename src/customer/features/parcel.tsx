@@ -1,9 +1,9 @@
 'use client'
 
-import { createParcelOrderSchema, FORM_ERROR_PRIORITY, type GeoPoint, type ScheduleInput, validateForm, withDeliveryHours } from '@/shared'
+import { createParcelOrderSchema, FORM_ERROR_PRIORITY, type ScheduleInput, validateForm, withDeliveryHours } from '@/shared'
 import { useState } from 'react'
 
-import { AddressField } from '@/customer/components/address-field'
+import { AddressField, addressPin, addressText, type AddressValue, fromMyLocation } from '@/customer/components/address-field'
 import { DeliveryHoursNotice, DeliverySchedule, EMPTY_SCHEDULE } from '@/customer/components/delivery-schedule'
 import { ConfirmButton, CustomerInfo, InlineField, ServiceCard } from '@/customer/components/ui'
 import { api } from '@/customer/lib/api'
@@ -11,15 +11,16 @@ import { useDraft } from '@/customer/lib/drafts'
 import { useLang } from '@/customer/lib/i18n'
 import { errorCode, usePlaceOrder, useSession } from '@/customer/lib/queries'
 
-type ParcelFields = { product: string; weight: string; pickup: string; dropoff: string; receiverMobile: string }
-type ParcelDraft = ParcelFields & { pickupPin: GeoPoint | null; dropoffPin: GeoPoint | null; schedule: ScheduleInput }
-const EMPTY: ParcelDraft = { product: '', weight: '', pickup: '', dropoff: '', pickupPin: null, dropoffPin: null, receiverMobile: '', schedule: EMPTY_SCHEDULE }
+type ParcelFields = { product: string; weight: string; receiverMobile: string }
+type ParcelDraft = ParcelFields & { pickup: AddressValue; dropoff: AddressValue; schedule: ScheduleInput }
 const PRIORITY = FORM_ERROR_PRIORITY.parcel
 
 export function ParcelScreen() {
   const { t, taka } = useLang()
   const { user, catalog } = useSession()
-  const [draft, setDraft] = useDraft<ParcelDraft>('parcel', () => EMPTY)
+  // The pickup starts at the customer's own location.
+  const empty = (): ParcelDraft => ({ product: '', weight: '', pickup: fromMyLocation(user.location), dropoff: null, receiverMobile: '', schedule: EMPTY_SCHEDULE })
+  const [draft, setDraft] = useDraft<ParcelDraft>('parcel', empty)
   const [showError, setShowError] = useState(false)
   const placeOrder = usePlaceOrder(api.orders.createParcel)
 
@@ -34,10 +35,10 @@ export function ParcelScreen() {
     {
       product: draft.product,
       weight: draft.weight || undefined,
-      pickupAddress: draft.pickup,
-      dropoffAddress: draft.dropoff,
-      pickupPin: draft.pickupPin ?? undefined,
-      dropoffPin: draft.dropoffPin ?? undefined,
+      pickupAddress: addressText(draft.pickup),
+      dropoffAddress: addressText(draft.dropoff),
+      pickupPin: addressPin(draft.pickup),
+      dropoffPin: addressPin(draft.dropoff),
       receiverMobile: draft.receiverMobile,
       schedule: draft.schedule,
     },
@@ -49,7 +50,7 @@ export function ParcelScreen() {
     if (!check.success) return setShowError(true)
     placeOrder.mutate(check.data, {
       onSuccess: () => {
-        setDraft(EMPTY)
+        setDraft(empty())
         setShowError(false)
       },
     })
@@ -69,16 +70,16 @@ export function ParcelScreen() {
         <AddressField
           inline
           label={t('গ্রহণের ঠিকানা', 'Pickup address')}
-          value={{ text: draft.pickup, pin: draft.pickupPin }}
-          onChange={next => update({ pickup: next.text, pickupPin: next.pin })}
-          placeholder={t('কোথা থেকে নেওয়া হবে', 'Where to collect it')}
+          value={draft.pickup}
+          onChange={pickup => update({ pickup })}
+          myLocation={user.location}
         />
         <AddressField
           inline
           label={t('পৌঁছানোর ঠিকানা', 'Delivery address')}
-          value={{ text: draft.dropoff, pin: draft.dropoffPin }}
-          onChange={next => update({ dropoff: next.text, dropoffPin: next.pin })}
-          placeholder={t('কোথায় পৌঁছাতে হবে', 'Where to deliver it')}
+          value={draft.dropoff}
+          onChange={dropoff => update({ dropoff })}
+          myLocation={user.location}
         />
         <InlineField label={t('গ্রহীতার মোবা', "Receiver's mobile")}>
           <input type="tel" inputMode="tel" {...bind('receiverMobile')} placeholder="01XXXXXXXXX" />

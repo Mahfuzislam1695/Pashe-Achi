@@ -15,19 +15,17 @@ export interface CustomerDto {
   id: string
   name: string
   mobile: string
-  location: string
+  /** আমার লোকেশন, picked on the map. Null until the customer pins it (accounts from before pins). */
+  location: CustomerLocationDto | null
   points: number
   lang: Lang
   createdAt: string
 }
 
-/** আমার লোকেশন: GET /me/locations (and GET /admin/customers/:id/locations). The default comes first. */
-export interface SavedLocationDto extends GeoPoint {
-  id: string
-  label: string
+/** The customer's one location: the address the map gave, the house/flat/road they added, and the pin. */
+export interface CustomerLocationDto extends GeoPoint {
   address: string
-  isDefault: boolean
-  createdAt: string
+  details: string
 }
 
 /** GET /geo/reverse: the address for a pin, or null when the lookup found nothing or failed. */

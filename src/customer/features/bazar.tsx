@@ -1,9 +1,9 @@
 'use client'
 
-import { calcBazar, createBazarOrderSchema, FORM_ERROR_PRIORITY, type GeoPoint, type ScheduleInput, validateForm, withDeliveryHours } from '@/shared'
+import { calcBazar, createBazarOrderSchema, FORM_ERROR_PRIORITY, type ScheduleInput, validateForm, withDeliveryHours } from '@/shared'
 import { useState } from 'react'
 
-import { AddressField } from '@/customer/components/address-field'
+import { AddressField, addressPin, addressText, type AddressValue, fromMyLocation } from '@/customer/components/address-field'
 import { DeliveryHoursNotice, DeliverySchedule, EMPTY_SCHEDULE } from '@/customer/components/delivery-schedule'
 import { type Column, isRowStarted, LineTable, type Row } from '@/customer/components/line-table'
 import { BillSummary, ConfirmButton, CustomerInfo, Field, QuoteNotice, ServiceCard } from '@/customer/components/ui'
@@ -12,13 +12,13 @@ import { useDraft } from '@/customer/lib/drafts'
 import { useLang } from '@/customer/lib/i18n'
 import { errorCode, usePlaceOrder, useSession } from '@/customer/lib/queries'
 
-type BazarDraft = { address: string; pin: GeoPoint | null; mobile: string; schedule: ScheduleInput; rows: Row[] }
+type BazarDraft = { place: AddressValue; mobile: string; schedule: ScheduleInput; rows: Row[] }
 const PRIORITY = FORM_ERROR_PRIORITY.bazar
 
 export function BazarScreen() {
   const { t, taka } = useLang()
   const { user, catalog } = useSession()
-  const [draft, setDraft] = useDraft<BazarDraft>('bazar', () => ({ address: '', pin: null, mobile: user.mobile, schedule: EMPTY_SCHEDULE, rows: [{}] }))
+  const [draft, setDraft] = useDraft<BazarDraft>('bazar', () => ({ place: fromMyLocation(user.location), mobile: user.mobile, schedule: EMPTY_SCHEDULE, rows: [{}] }))
   const [showError, setShowError] = useState(false)
   const placeOrder = usePlaceOrder(api.orders.createBazar)
 
@@ -31,14 +31,15 @@ export function BazarScreen() {
     { key: 'name', label: t('কাঁচা বাজারের লিস্ট লিখুন', 'Bazar list item'), placeholder: t('আলু', 'Potatoes') },
     { key: 'quantity', label: t('পরিমাণ', 'Quantity'), placeholder: t('1 কেজি', '1 kg') },
     { key: 'variety', label: t('জাত বা ধরণ', 'Variety / type'), placeholder: t('দেশি', 'Local'), optional: true },
+    { key: 'price', label: t('দর', 'Price'), placeholder: '৳', numeric: true, disabled: true },
   ]
   // The customer sends the list only; staff send the prices (see QuoteNotice).
   const bill = calcBazar(catalog.pricing, [])
   const check = validateForm(
     withDeliveryHours(createBazarOrderSchema, catalog.deliveryHours.bazar),
     {
-      address: draft.address,
-      addressPin: draft.pin ?? undefined,
+      address: addressText(draft.place),
+      addressPin: addressPin(draft.place),
       contactMobile: draft.mobile,
       schedule: draft.schedule,
       items: draft.rows.filter(isRowStarted).map(row => ({
@@ -55,7 +56,7 @@ export function BazarScreen() {
     if (!check.success) return setShowError(true)
     placeOrder.mutate(check.data, {
       onSuccess: () => {
-        setDraft(current => ({ ...current, address: '', pin: null, schedule: EMPTY_SCHEDULE, rows: [{}] }))
+        setDraft(current => ({ ...current, place: fromMyLocation(user.location), schedule: EMPTY_SCHEDULE, rows: [{}] }))
         setShowError(false)
       },
     })
@@ -84,17 +85,17 @@ export function BazarScreen() {
       <DeliveryHoursNotice service="bazar" windows={catalog.deliveryHours.bazar} />
       <div className="field-pair">
         <AddressField
-          label={t('ঠিকানা', 'Address')}
-          value={{ text: draft.address, pin: draft.pin }}
-          onChange={next => update({ address: next.text, pin: next.pin })}
-          placeholder={t('বাসা, রোড, এলাকা', 'House, road, area')}
+          label={t('পার্সেল ডেলিভারি ঠিকানা', 'Parcel delivery address')}
+          value={draft.place}
+          onChange={place => update({ place })}
+          myLocation={user.location}
         />
-        <Field label={t('মোবা', 'Mobile')}>
+        <Field label={t('পার্সেল গ্রহীতার মোবাইল', "Parcel receiver's mobile")}>
           <input type="tel" inputMode="tel" value={draft.mobile} onChange={e => update({ mobile: e.target.value })} placeholder="01XXXXXXXXX" />
         </Field>
       </div>
       <DeliverySchedule value={draft.schedule} onChange={schedule => update({ schedule })} />
-      <LineTable template="1.7fr .8fr .9fr" columns={columns} rows={draft.rows} onChange={rows => update({ rows })} addLabel={t('আরো যোগ করতে ক্লিক করুন', 'Click to add more')} />
+      <LineTable template="1.7fr .8fr .9fr .8fr" columns={columns} rows={draft.rows} onChange={rows => update({ rows })} addLabel={t('আরো যোগ করতে ক্লিক করুন', 'Click to add more')} />
     </ServiceCard>
   )
 }

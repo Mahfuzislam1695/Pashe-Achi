@@ -91,6 +91,8 @@ export function describeDeliveryHours(windows: readonly DeliveryWindow[]): Text 
 export function deliveryHoursNotice(service: ServiceId, windows: readonly DeliveryWindow[]): Text | null {
   if (!windows.length) return null
   const hours = describeDeliveryHours(windows)
+  // The shifting page never says ডেলিভারি (owner's wording).
+  if (service === 'shifting') return { bn: `বাসা বদলের সময় সূচী: ${hours.bn} পর্যন্ত।`, en: `House shifting hours: ${hours.en}.` }
   const label = SERVICE_LABELS[service]
   return { bn: `${label.bn} ডেলিভারির সময় সূচী: ${hours.bn} পর্যন্ত।`, en: `${label.en} delivery hours: ${hours.en}.` }
 }

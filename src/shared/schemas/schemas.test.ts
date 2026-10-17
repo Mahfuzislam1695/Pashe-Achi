@@ -3,16 +3,26 @@ import { describe, expect, it } from 'vitest'
 import { isoDateInBd, normalizeMobile } from '../format'
 import { pickIssueCode } from '../messages'
 import { adminNextStatuses, isAwaitingPrice } from '../enums'
-import { mapLink, toGeoPoint } from '../geo'
+import { joinAddress, mapLink, toGeoPoint } from '../geo'
 import { loginSchema, signupSchema } from './auth'
-import { geoPointSchema, reverseGeocodeQuerySchema, savedLocationSchema, updateSavedLocationSchema } from './locations'
+import { customerLocationSchema, geoPointSchema, reverseGeocodeQuerySchema } from './locations'
 import { offerSchema, updateOfferSchema } from './offers'
-import { confirmOrderSchema, createBazarOrderSchema, createMedicineOrderSchema, createParcelOrderSchema, FORM_ERROR_PRIORITY, quoteOrderSchema } from './orders'
+import {
+  confirmOrderSchema,
+  createBazarOrderSchema,
+  createMedicineOrderSchema,
+  createParcelOrderSchema,
+  createShiftingOrderSchema,
+  FORM_ERROR_PRIORITY,
+  quoteOrderSchema,
+} from './orders'
 import { isPushEndpoint, pushSubscriptionSchema } from './push'
 
 const today = isoDateInBd()
 const schedule = { date: today, time: '09:30' }
 const codes = (result: { success: boolean; error?: { issues: { message: string }[] } }) => result.error?.issues.map(issue => issue.message) ?? []
+/** Every address is picked on the map, so orders carry a pin for each one. */
+const pin = { lat: 23.807, lng: 90.368 }
 
 describe('mobile numbers', () => {
   it('normalises +880, spaces and Bengali digits', () => {
@@ -35,14 +45,23 @@ describe('signup', () => {
     expect(pickIssueCode(codes(result), FORM_ERROR_PRIORITY.signup)).toBe('auth.signup')
   })
 
+  const location = { address: 'Mirpur 10, Dhaka', ...pin }
+
   it('requires 6+ character passwords', () => {
-    const result = signupSchema.safeParse({ name: 'Rahim', mobile: '01712345678', password: '123' })
+    const result = signupSchema.safeParse({ name: 'Rahim', mobile: '01712345678', location, password: '123' })
     expect(pickIssueCode(codes(result), FORM_ERROR_PRIORITY.signup)).toBe('password.short')
+  })
+
+  it('requires a location picked on the map', () => {
+    const signup = { name: 'Rahim', mobile: '01712345678', password: 'secret12' }
+    expect(pickIssueCode(codes(signupSchema.safeParse(signup)), FORM_ERROR_PRIORITY.signup)).toBe('location.required')
+    expect(pickIssueCode(codes(signupSchema.safeParse({ ...signup, location: { address: 'Mirpur 10' } })), FORM_ERROR_PRIORITY.signup)).toBe('field.invalid')
+    expect(signupSchema.parse({ ...signup, location }).location).toEqual(location)
   })
 })
 
 describe('bazar order', () => {
-  const valid = { address: 'House 1, Mirpur', contactMobile: '01712345678', schedule, items: [{ name: 'আলু', quantity: '1 কেজি' }] }
+  const valid = { address: 'House 1, Mirpur', addressPin: pin, contactMobile: '01712345678', schedule, items: [{ name: 'আলু', quantity: '1 কেজি' }] }
 
   it('accepts a minimal order', () => {
     expect(createBazarOrderSchema.safeParse(valid).success).toBe(true)
@@ -58,9 +77,9 @@ describe('bazar order', () => {
     expect(pickIssueCode(codes(result), FORM_ERROR_PRIORITY.bazar)).toBe('bazar.details')
   })
 
-  it('takes an optional map pin for the address', () => {
-    expect(createBazarOrderSchema.parse({ ...valid, addressPin: { lat: 23.8, lng: 90.4 } }).addressPin).toEqual({ lat: 23.8, lng: 90.4 })
-    expect(createBazarOrderSchema.parse(valid).addressPin).toBeUndefined()
+  it('requires a map pin for the address', () => {
+    expect(createBazarOrderSchema.parse(valid).addressPin).toEqual(pin)
+    expect(pickIssueCode(codes(createBazarOrderSchema.safeParse({ ...valid, addressPin: undefined })), FORM_ERROR_PRIORITY.bazar)).toBe('location.required')
     expect(codes(createBazarOrderSchema.safeParse({ ...valid, addressPin: { lat: 123, lng: 90.4 } }))).toContain('field.invalid')
   })
 
@@ -73,7 +92,7 @@ describe('bazar order', () => {
 })
 
 describe('medicine order', () => {
-  const base = { address: 'House 1', contactMobile: '01712345678', schedule, items: [] }
+  const base = { address: 'House 1', addressPin: pin, contactMobile: '01712345678', schedule, items: [] }
 
   it('needs a prescription or a medicine row', () => {
     expect(pickIssueCode(codes(createMedicineOrderSchema.safeParse(base)), FORM_ERROR_PRIORITY.medicine)).toBe('medicine.details')
@@ -95,7 +114,7 @@ describe('medicine order', () => {
 
 describe('quotes', () => {
   it('drops any price a customer sends with a bazar line', () => {
-    const parsed = createBazarOrderSchema.parse({ address: 'House 1', contactMobile: '01712345678', schedule, items: [{ name: 'আলু', quantity: '1 কেজি', price: 1 }] })
+    const parsed = createBazarOrderSchema.parse({ address: 'House 1', addressPin: pin, contactMobile: '01712345678', schedule, items: [{ name: 'আলু', quantity: '1 কেজি', price: 1 }] })
     expect(parsed.items[0]).toEqual({ name: 'আলু', quantity: '1 কেজি' })
   })
 
@@ -184,34 +203,50 @@ describe('push subscriptions', () => {
 })
 
 describe('parcel order', () => {
-  it('takes a pin for each address', () => {
-    const order = { product: 'Bag', pickupAddress: 'Mirpur 10', dropoffAddress: 'Uttara', receiverMobile: '01712345678', schedule }
-    const parsed = createParcelOrderSchema.parse({ ...order, pickupPin: { lat: 23.807, lng: 90.368 } })
-    expect(parsed.pickupPin).toEqual({ lat: 23.807, lng: 90.368 })
-    expect(parsed.dropoffPin).toBeUndefined()
+  const order = { product: 'Bag', pickupAddress: 'Mirpur 10', dropoffAddress: 'Uttara', receiverMobile: '01712345678', schedule }
+
+  it('requires a pin for each address', () => {
+    const uttara = { lat: 23.876, lng: 90.38 }
+    const parsed = createParcelOrderSchema.parse({ ...order, pickupPin: pin, dropoffPin: uttara })
+    expect(parsed).toMatchObject({ pickupPin: pin, dropoffPin: uttara })
+    expect(pickIssueCode(codes(createParcelOrderSchema.safeParse({ ...order, pickupPin: pin })), FORM_ERROR_PRIORITY.parcel)).toBe('location.required')
+  })
+
+  it('reports missing details before a missing pin', () => {
+    expect(pickIssueCode(codes(createParcelOrderSchema.safeParse({ ...order, product: '' })), FORM_ERROR_PRIORITY.parcel)).toBe('parcel.details')
   })
 })
 
-describe('saved locations', () => {
-  const home = { label: 'বাসা', address: 'House 1, Road 2, Mirpur 10', lat: 23.807, lng: 90.368 }
+describe('shifting order', () => {
+  it('requires both pins', () => {
+    const order = { loadingArea: 'Mirpur 10', unloadingArea: 'Uttara', loadingPin: pin, schedule, vehicleId: 'v1', labourers: 1, loadingFloor: 1, unloadingFloor: 1 }
+    expect(pickIssueCode(codes(createShiftingOrderSchema.safeParse(order)), FORM_ERROR_PRIORITY.shifting)).toBe('location.required')
+    expect(createShiftingOrderSchema.safeParse({ ...order, unloadingPin: pin }).success).toBe(true)
+  })
+})
 
-  it('accepts a named place with a pin', () => {
-    expect(savedLocationSchema.parse({ ...home, label: '  বাসা  ' }).label).toBe('বাসা')
+describe('customer location', () => {
+  const home = { address: 'Mirpur 10, Dhaka', details: '  House 1, Road 2  ', ...pin }
+
+  it('accepts the map address, optional details and a pin', () => {
+    expect(customerLocationSchema.parse(home)).toEqual({ ...home, details: 'House 1, Road 2' })
+    expect(customerLocationSchema.parse({ ...home, details: undefined }).details).toBeUndefined()
   })
 
-  it('needs a name and an address', () => {
-    expect(pickIssueCode(codes(savedLocationSchema.safeParse({ ...home, label: '' })), FORM_ERROR_PRIORITY.location)).toBe('location.details')
-    expect(pickIssueCode(codes(savedLocationSchema.safeParse({ ...home, address: ' ' })), FORM_ERROR_PRIORITY.location)).toBe('location.details')
+  it('needs the address and the pin', () => {
+    expect(pickIssueCode(codes(customerLocationSchema.safeParse({ ...home, address: ' ' })), FORM_ERROR_PRIORITY.location)).toBe('location.required')
+    expect(customerLocationSchema.safeParse({ address: home.address }).success).toBe(false)
+  })
+
+  it('joins the details and the address into one line', () => {
+    expect(joinAddress({ address: 'Mirpur 10', details: 'House 1' })).toBe('House 1, Mirpur 10')
+    expect(joinAddress({ address: 'Mirpur 10', details: '  ' })).toBe('Mirpur 10')
   })
 
   it('rejects coordinates off the globe', () => {
     expect(geoPointSchema.safeParse({ lat: 91, lng: 0 }).success).toBe(false)
     expect(geoPointSchema.safeParse({ lat: 0, lng: -181 }).success).toBe(false)
     expect(geoPointSchema.safeParse({ lat: '23.8', lng: 90.4 }).success).toBe(false)
-  })
-
-  it('updates any subset of fields', () => {
-    expect(updateSavedLocationSchema.parse({ isDefault: true })).toEqual({ isDefault: true })
   })
 
   it('reads the reverse-geocoding query from strings, Bangla by default', () => {

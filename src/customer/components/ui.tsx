@@ -4,6 +4,7 @@ import {
   APP_LOGO,
   APP_NAME,
   type CustomerDto,
+  joinAddress,
   type Lang,
   type MessageCode,
   MESSAGES,
@@ -124,7 +125,7 @@ export function CustomerInfo({ user, showPoints = true }: { user: CustomerDto; s
       </div>
       <div>
         <dt>{t('লোকেশন', 'Location')}</dt>
-        <dd>{user.location || '—'}</dd>
+        <dd>{user.location ? joinAddress(user.location) : '—'}</dd>
       </div>
       <div>
         <dt>{t('মোবা', 'Mobile')}</dt>

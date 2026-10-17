@@ -1,11 +1,10 @@
 import { Body, Controller, Get, Param, Patch, Query, UseGuards } from '@nestjs/common'
 import { ApiCookieAuth, ApiOperation, ApiTags } from '@nestjs/swagger'
-import type { AdminCustomerDto, Paginated, SavedLocationDto } from '@/shared'
+import type { AdminCustomerDto, Paginated } from '@/shared'
 
 import { Actor, type AuditActor } from '../audit/actor'
 import { AdminGuard, Roles } from '../auth/guards'
 import { IdParamDto, ListCustomersQueryDto, UpdateCustomerDto } from '../common/dto'
-import { SavedLocationsService } from './saved-locations.service'
 import { UsersService } from './users.service'
 
 @ApiTags('Admin: customers')
@@ -13,10 +12,7 @@ import { UsersService } from './users.service'
 @UseGuards(AdminGuard)
 @Controller('admin/customers')
 export class CustomersController {
-  constructor(
-    private readonly users: UsersService,
-    private readonly locations: SavedLocationsService,
-  ) {}
+  constructor(private readonly users: UsersService) {}
 
   @Get()
   @ApiOperation({ summary: 'Search customers by name, mobile or location' })
@@ -27,13 +23,6 @@ export class CustomersController {
   @Get(':id')
   get(@Param() { id }: IdParamDto): Promise<AdminCustomerDto> {
     return this.users.getCustomer(id)
-  }
-
-  @Get(':id/locations')
-  @ApiOperation({ summary: "The customer's saved locations, the default first" })
-  async locationsOf(@Param() { id }: IdParamDto): Promise<SavedLocationDto[]> {
-    await this.users.getCustomer(id)
-    return this.locations.list(id)
   }
 
   @Patch(':id')

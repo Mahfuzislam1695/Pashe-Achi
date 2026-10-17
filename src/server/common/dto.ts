@@ -7,6 +7,7 @@ import {
   createMedicineOrderSchema,
   createParcelOrderSchema,
   createShiftingOrderSchema,
+  customerLocationSchema,
   dashboardQuerySchema,
   deliveryHoursSchema,
   idParamSchema,
@@ -23,7 +24,6 @@ import {
   quoteOrderSchema,
   refreshSchema,
   reverseGeocodeQuerySchema,
-  savedLocationSchema,
   signupSchema,
   supportSettingsSchema,
   updateAdminSchema,
@@ -31,7 +31,6 @@ import {
   updateOfferSchema,
   updateOrderStatusSchema,
   updateProfileSchema,
-  updateSavedLocationSchema,
   updateVehicleSchema,
   vehicleSchema,
 } from '@/shared'
@@ -47,8 +46,7 @@ export class LoginDto extends createZodDto(loginSchema) {}
 export class RefreshDto extends createZodDto(refreshSchema) {}
 export class UpdateProfileDto extends createZodDto(updateProfileSchema) {}
 export class ChangePasswordDto extends createZodDto(changePasswordSchema) {}
-export class CreateSavedLocationDto extends createZodDto(savedLocationSchema) {}
-export class UpdateSavedLocationDto extends createZodDto(updateSavedLocationSchema) {}
+export class SetLocationDto extends createZodDto(customerLocationSchema) {}
 export class ReverseGeocodeQueryDto extends createZodDto(reverseGeocodeQuerySchema) {}
 
 export class CreateBazarOrderDto extends createZodDto(createBazarOrderSchema) {}

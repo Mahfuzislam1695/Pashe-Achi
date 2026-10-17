@@ -13,7 +13,9 @@ export const MESSAGES = {
   'bazar.details': { bn: 'ঠিকানা, মোবাইল নম্বর ও অন্তত একটি বাজারের লাইন দিন।', en: 'Add your address, mobile number and at least one item.' },
   'shifting.areas': { bn: 'Loading Area ও Unloading Area দিন।', en: 'Add the loading and unloading areas.' },
   'shifting.vehicle': { bn: 'একটি গাড়ী বেছে নিন।', en: 'Choose a vehicle.' },
-  'shifting.numbers': { bn: 'লেবার ও ফ্লোর সংখ্যা সঠিকভাবে দিন।', en: 'Enter valid numbers of labourers and floors.' },
+  'shifting.schedule_required': { bn: 'শিফটিং এর তারিখ ও সময় দিন।', en: 'Choose the shifting date and time.' },
+  'shifting.schedule_hours': { bn: 'শিফটিং এর সময় সূচীর মধ্যে একটি সময় দিন।', en: 'Choose a time within the shifting hours.' },
+  'shifting.numbers':{ bn: 'লেবার ও ফ্লোর সংখ্যা সঠিকভাবে দিন।', en: 'Enter valid numbers of labourers and floors.' },
   'medicine.rows': { bn: 'প্রতিটি লাইনের সব ঘর পূরণ করুন।', en: 'Fill every box in each row.' },
   'medicine.details': {
     bn: 'ঠিকানা, মোবাইল নম্বর এবং প্রেসক্রিপশন বা অন্তত একটি ঔষুধের লাইন দিন।',
@@ -31,10 +33,9 @@ export const MESSAGES = {
   'password.wrong': { bn: 'বর্তমান পাসওয়ার্ড ভুল।', en: 'The current password is wrong.' },
   'profile.name': { bn: 'নাম দিন।', en: 'Enter your name.' },
   'profile.mobile': { bn: 'মোবাইল নম্বর দিন।', en: 'Enter your mobile number.' },
-  'location.details': { bn: 'লোকেশনের নাম ও ঠিকানা দিন।', en: 'Add a name and address for the location.' },
+  'location.required': { bn: 'ম্যাপে লোকেশন বাছুন।', en: 'Pick the location on the map.' },
   'location.pin': { bn: 'ম্যাপ সরিয়ে পিনটি ঠিক জায়গায় বসান।', en: 'Move the map to put the pin on the place.' },
   'location.address': { bn: 'ঠিকানা লিখুন।', en: 'Enter the address.' },
-  'location.limit': { bn: 'সর্বোচ্চ ১০টি লোকেশন সেভ করা যায়। একটি মুছে আবার চেষ্টা করুন।', en: 'You can save up to 10 locations. Delete one and try again.' },
   'location.unavailable': {
     bn: 'আপনার লোকেশন পাওয়া যায়নি। ফোনের লোকেশন চালু করে এই সাইটকে অনুমতি দিন, অথবা ম্যাপে পিন সরান।',
     en: "Couldn't get your location. Turn on location and allow it for this site, or move the pin on the map.",

@@ -24,6 +24,13 @@ describe('delivery hours text', () => {
     })
   })
 
+  it('never says delivery on the shifting notice', () => {
+    expect(deliveryHoursNotice('shifting', bazar)).toEqual({
+      bn: 'বাসা বদলের সময় সূচী: সকাল ৮ থেকে ১০ এবং সন্ধ্যা ৬ থেকে ৯ পর্যন্ত।',
+      en: 'House shifting hours: 8–10 am and 6–9 pm.',
+    })
+  })
+
   it('shows no notice for a service without hours', () => {
     expect(deliveryHoursNotice('parcel', [])).toBeNull()
   })
@@ -77,6 +84,7 @@ describe('stored form', () => {
 describe('schemas', () => {
   const order = {
     address: 'Mirpur 10',
+    addressPin: { lat: 23.807, lng: 90.368 },
     contactMobile: '01711111111',
     schedule: { date: isoDateInBd(), time: '12:00' },
     items: [{ name: 'আলু', quantity: '1 কেজি' }],

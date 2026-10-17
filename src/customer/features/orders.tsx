@@ -213,7 +213,7 @@ function OrderDetailBody({ order }: { order: OrderDetail }) {
 
         <section className="detail-section">
           <dl className="detail-grid">
-            <dt>{t('ডেলিভারি', 'Delivery')}</dt>
+            <dt>{order.service === 'shifting' ? t('শিফটিং এর সময়', 'Shifting time') : t('ডেলিভারি', 'Delivery')}</dt>
             <dd>
               {formatDate(order.scheduledDate)} · {order.scheduledTime}
             </dd>

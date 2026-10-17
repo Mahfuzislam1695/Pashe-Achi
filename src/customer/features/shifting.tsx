@@ -1,9 +1,9 @@
 'use client'
 
-import { calcShifting, createShiftingOrderSchema, FORM_ERROR_PRIORITY, type GeoPoint, type ScheduleInput, toAmount, validateForm, withDeliveryHours } from '@/shared'
+import { calcShifting, createShiftingOrderSchema, FORM_ERROR_PRIORITY, type MessageCode, type ScheduleInput, toAmount, validateForm, withDeliveryHours } from '@/shared'
 import { useState } from 'react'
 
-import { AddressField } from '@/customer/components/address-field'
+import { AddressField, addressPin, addressText, type AddressValue, fromMyLocation } from '@/customer/components/address-field'
 import { DeliveryHoursNotice, DeliverySchedule, EMPTY_SCHEDULE } from '@/customer/components/delivery-schedule'
 import { BillSummary, ConfirmButton, CustomerInfo, Field, ServiceCard } from '@/customer/components/ui'
 import { api } from '@/customer/lib/api'
@@ -12,10 +12,8 @@ import { useLang } from '@/customer/lib/i18n'
 import { errorCode, usePlaceOrder, useSession } from '@/customer/lib/queries'
 
 type ShiftingDraft = {
-  loadingArea: string
-  unloadingArea: string
-  loadingPin: GeoPoint | null
-  unloadingPin: GeoPoint | null
+  loading: AddressValue
+  unloading: AddressValue
   schedule: ScheduleInput
   vehicleId: string
   labourers: string
@@ -23,6 +21,8 @@ type ShiftingDraft = {
   unloadingFloor: string
 }
 const PRIORITY = FORM_ERROR_PRIORITY.shifting
+// The shifting page never says ডেলিভারি, so the shared schedule errors get its own wording.
+const SHIFTING_WORDING: Partial<Record<MessageCode, MessageCode>> = { 'schedule.required': 'shifting.schedule_required', 'schedule.hours': 'shifting.schedule_hours' }
 
 function StepRow({ n, label, rateLabel, rate, children }: { n: number; label: string; rateLabel: string; rate: number; children: React.ReactNode }) {
   const { digits, taka } = useLang()
@@ -43,10 +43,8 @@ export function ShiftingScreen() {
   const { user, catalog } = useSession()
   const { pricing, vehicles } = catalog
   const [draft, setDraft] = useDraft<ShiftingDraft>('shifting', () => ({
-    loadingArea: '',
-    unloadingArea: '',
-    loadingPin: null,
-    unloadingPin: null,
+    loading: fromMyLocation(user.location),
+    unloading: null,
     schedule: EMPTY_SCHEDULE,
     vehicleId: vehicles[0]?.id ?? '',
     labourers: '1',
@@ -67,10 +65,10 @@ export function ShiftingScreen() {
   const check = validateForm(
     withDeliveryHours(createShiftingOrderSchema, catalog.deliveryHours.shifting),
     {
-      loadingArea: draft.loadingArea,
-      unloadingArea: draft.unloadingArea,
-      loadingPin: draft.loadingPin ?? undefined,
-      unloadingPin: draft.unloadingPin ?? undefined,
+      loadingArea: addressText(draft.loading),
+      unloadingArea: addressText(draft.unloading),
+      loadingPin: addressPin(draft.loading),
+      unloadingPin: addressPin(draft.unloading),
       schedule: draft.schedule,
       vehicleId: vehicle?.id ?? '',
       labourers: toAmount(draft.labourers),
@@ -79,13 +77,14 @@ export function ShiftingScreen() {
     },
     PRIORITY,
   )
-  const error = placeOrder.isError ? errorCode(placeOrder.error, PRIORITY) : showError && !check.success ? check.code : null
+  const rawError = placeOrder.isError ? errorCode(placeOrder.error, PRIORITY) : showError && !check.success ? check.code : null
+  const error = (rawError && SHIFTING_WORDING[rawError]) ?? rawError
 
   const confirm = () => {
     if (!check.success) return setShowError(true)
     placeOrder.mutate(check.data, {
       onSuccess: () => {
-        setDraft(current => ({ ...current, loadingArea: '', unloadingArea: '', loadingPin: null, unloadingPin: null, schedule: EMPTY_SCHEDULE }))
+        setDraft(current => ({ ...current, loading: fromMyLocation(user.location), unloading: null, schedule: EMPTY_SCHEDULE }))
         setShowError(false)
       },
     })
@@ -106,18 +105,23 @@ export function ShiftingScreen() {
       <div className="field-pair even">
         <AddressField
           label={t('Loading Area', 'Loading area')}
-          value={{ text: draft.loadingArea, pin: draft.loadingPin }}
-          onChange={next => update({ loadingArea: next.text, loadingPin: next.pin })}
-          placeholder={t('যেমন: মিরপুর ১০', 'e.g. Mirpur 10')}
+          value={draft.loading}
+          onChange={loading => update({ loading })}
+          myLocation={user.location}
         />
         <AddressField
           label={t('Unloading Area', 'Unloading area')}
-          value={{ text: draft.unloadingArea, pin: draft.unloadingPin }}
-          onChange={next => update({ unloadingArea: next.text, unloadingPin: next.pin })}
-          placeholder={t('যেমন: উত্তরা', 'e.g. Uttara')}
+          value={draft.unloading}
+          onChange={unloading => update({ unloading })}
+          myLocation={user.location}
         />
       </div>
-      <DeliverySchedule value={draft.schedule} onChange={schedule => update({ schedule })} />
+      <DeliverySchedule
+        value={draft.schedule}
+        onChange={schedule => update({ schedule })}
+        dateLabel={t('শিফটিং এর তারিখ', 'Shifting date')}
+        timeLabel={t('শিফটিং এর সময়', 'Shifting time')}
+      />
       <div className="steps">
         <StepRow n={1} label={t('গাড়ী', 'Vehicle')} rateLabel={t('রেট', 'Rate')} rate={vehicle?.rate ?? 0}>
           <select value={vehicle?.id ?? ''} onChange={e => update({ vehicleId: e.target.value })} disabled={!vehicles.length}>

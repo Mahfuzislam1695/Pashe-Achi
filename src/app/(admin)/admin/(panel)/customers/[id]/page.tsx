@@ -1,6 +1,6 @@
 'use client'
 
-import { type AdminCustomerDto, mapLink } from '@/shared'
+import { type AdminCustomerDto, type CustomerLocationDto, joinAddress, mapLink } from '@/shared'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, Ban, CheckCircle2, MapPin, Save } from 'lucide-react'
 import Link from 'next/link'
@@ -12,7 +12,7 @@ import { OrderTable } from '@/admin/components/order-table'
 import { Badge, Button, Card, Empty, ErrorNote, Field, Input, Loading } from '@/admin/components/ui'
 import { api } from '@/admin/lib/api'
 import { useLang } from '@/admin/lib/i18n'
-import { queryKeys, useAuditList, useCurrentAdmin, useCustomer, useCustomerLocations, useOrderList } from '@/admin/lib/queries'
+import { queryKeys, useAuditList, useCurrentAdmin, useCustomer, useOrderList } from '@/admin/lib/queries'
 import { canManage, errorCode } from '@/admin/lib/utils'
 
 export default function CustomerPage({ params }: { params: Promise<{ id: string }> }) {
@@ -67,7 +67,7 @@ function CustomerView({ customer }: { customer: AdminCustomerDto }) {
             <a href={`tel:${customer.mobile}`} className="tabular-nums hover:underline">
               {customer.mobile}
             </a>
-            {customer.location ? ` · ${customer.location}` : ''} · {t('যোগ দিয়েছেন', 'Joined')} {formatDate(customer.createdAt)}
+            {customer.location ? ` · ${joinAddress(customer.location)}` : ''} · {t('যোগ দিয়েছেন', 'Joined')} {formatDate(customer.createdAt)}
           </p>
         </div>
         {canManage(admin.role) &&
@@ -115,7 +115,7 @@ function CustomerView({ customer }: { customer: AdminCustomerDto }) {
               <p className="text-2xl font-semibold tabular-nums">{digits(customer.points)}</p>
             )}
           </Card>
-          <SavedLocations customerId={customer.id} />
+          <CustomerLocation location={customer.location} />
         </div>
         <Card title={t(`অর্ডার (${digits(customer.orderCount)})`, `Orders (${customer.orderCount})`)}>
           {orders.isPending && <Loading />}
@@ -136,32 +136,21 @@ function CustomerView({ customer }: { customer: AdminCustomerDto }) {
   )
 }
 
-/** The places the customer saved on the map (আমার লোকেশন), each with a link to open it. */
-function SavedLocations({ customerId }: { customerId: string }) {
+/** The customer's one location (আমার লোকেশন), picked on the map, with a link to open it. */
+function CustomerLocation({ location }: { location: CustomerLocationDto | null }) {
   const { t } = useLang()
-  const locations = useCustomerLocations(customerId)
-  const items = locations.data ?? []
   return (
-    <Card title={t('সেভ করা লোকেশন', 'Saved locations')}>
-      {locations.isPending && <Loading />}
-      <ErrorNote code={locations.isError ? errorCode(locations.error) : null} />
-      {locations.isSuccess && !items.length && <Empty>{t('কোনো লোকেশন সেভ করা নেই।', 'No saved locations.')}</Empty>}
-      {items.length > 0 && (
-        <ul className="grid gap-3">
-          {items.map(location => (
-            <li key={location.id} className="grid gap-1 text-sm">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="font-semibold">{location.label}</span>
-                {location.isDefault && <Badge tone="brand">{t('ডিফল্ট', 'Default')}</Badge>}
-              </div>
-              <p className="text-muted">{location.address}</p>
-              <a href={mapLink(location)} target="_blank" rel="noopener noreferrer" className="inline-flex w-fit items-center gap-1 text-xs font-semibold text-brand-700 hover:underline">
-                <MapPin className="size-3.5" />
-                {t('ম্যাপে দেখুন', 'Open in map')}
-              </a>
-            </li>
-          ))}
-        </ul>
+    <Card title={t('লোকেশন', 'Location')}>
+      {!location && <Empty>{t('ম্যাপে লোকেশন দেওয়া হয়নি।', 'No location on the map yet.')}</Empty>}
+      {location && (
+        <div className="grid gap-1 text-sm">
+          {location.details && <p className="font-semibold">{location.details}</p>}
+          <p className="text-muted">{location.address}</p>
+          <a href={mapLink(location)} target="_blank" rel="noopener noreferrer" className="inline-flex w-fit items-center gap-1 text-xs font-semibold text-brand-700 hover:underline">
+            <MapPin className="size-3.5" />
+            {t('ম্যাপে দেখুন', 'Open in map')}
+          </a>
+        </div>
       )}
     </Card>
   )
