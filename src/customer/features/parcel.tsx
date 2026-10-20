@@ -73,14 +73,12 @@ export function ParcelScreen() {
           label={t('গ্রহণের ঠিকানা', 'Pickup address')}
           value={draft.pickup}
           onChange={pickup => update({ pickup })}
-          myLocation={user.location}
         />
         <AddressField
           inline
           label={t('পৌঁছানোর ঠিকানা', 'Delivery address')}
           value={draft.dropoff}
           onChange={dropoff => update({ dropoff })}
-          myLocation={user.location}
         />
         <InlineField label={t('গ্রহীতার মোবা', "Receiver's mobile")}>
           <input type="tel" inputMode="tel" {...bind('receiverMobile')} placeholder="01XXXXXXXXX" />

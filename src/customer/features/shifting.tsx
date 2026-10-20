@@ -109,13 +109,11 @@ export function ShiftingScreen() {
           label={t('Loading Area', 'Loading area')}
           value={draft.loading}
           onChange={loading => update({ loading })}
-          myLocation={user.location}
         />
         <AddressField
           label={t('Unloading Area', 'Unloading area')}
           value={draft.unloading}
           onChange={unloading => update({ unloading })}
-          myLocation={user.location}
         />
       </div>
       <DeliverySchedule

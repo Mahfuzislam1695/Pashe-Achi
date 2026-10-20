@@ -118,7 +118,6 @@ export function MedicineScreen() {
           label={t('গ্রহীতার ঠিকানা', "Receiver's address")}
           value={draft.place}
           onChange={place => update({ place })}
-          myLocation={user.location}
         />
         <Field label={t('গ্রহীতার মোবা', "Receiver's mobile")}>
           <input type="tel" inputMode="tel" value={draft.mobile} onChange={e => update({ mobile: e.target.value })} placeholder="01XXXXXXXXX" />

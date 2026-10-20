@@ -14,7 +14,3 @@ export function getCurrentPosition(): Promise<GeoPoint> {
     )
   })
 }
-
-/** Two pins closer than about a metre count as the same place. */
-export const samePoint = (a: GeoPoint | null | undefined, b: GeoPoint | null | undefined) =>
-  !!a && !!b && Math.abs(a.lat - b.lat) < 1e-5 && Math.abs(a.lng - b.lng) < 1e-5

@@ -90,7 +90,6 @@ export function BazarScreen() {
           label={t('পার্সেল ডেলিভারি ঠিকানা', 'Parcel delivery address')}
           value={draft.place}
           onChange={place => update({ place })}
-          myLocation={user.location}
         />
         <Field label={t('পার্সেল গ্রহীতার মোবাইল', "Parcel receiver's mobile")}>
           <input type="tel" inputMode="tel" value={draft.mobile} onChange={e => update({ mobile: e.target.value })} placeholder="01XXXXXXXXX" />

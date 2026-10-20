@@ -757,10 +757,8 @@ input::placeholder { color: var(--muted-3); }
 .chip { display: inline-flex; align-items: center; gap: 5px; min-height: 32px; padding: 0 11px; border: 1px solid var(--line-strong); border-radius: 999px; background: var(--surface); color: var(--ink-2); font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; transition: border-color var(--ease), background-color var(--ease), color var(--ease); }
 .chip:hover { border-color: var(--blue-line); color: var(--blue); }
 .chip.active { border-color: var(--blue); background: var(--blue-soft); color: var(--blue); }
-.chip.locate { color: var(--blue); }
 .chip svg { flex-shrink: 0; }
 .address-field > .field-label { display: block; margin-bottom: 7px; }
-.address-tools { margin-top: 8px; }
 .field-row.address-field { align-items: start; }
 .field-row.address-field > .field-label { margin: 0; padding-top: 15px; }
 .address-control { min-width: 0; }
@@ -770,6 +768,7 @@ input::placeholder { color: var(--muted-3); }
 .address-card > svg { flex-shrink: 0; margin-top: 2px; color: var(--blue); }
 .address-card > span { display: grid; gap: 1px; min-width: 0; overflow-wrap: anywhere; }
 .address-card strong { color: var(--navy); font-weight: 600; }
+.address-card > .address-card-open { margin-left: auto; color: var(--muted); }
 .address-card.empty { border-style: dashed; background: var(--blue-tint); color: var(--blue-ink); font-weight: 600; }
 
 .sheet-layer { position: fixed; inset: 0; z-index: 40; display: flex; align-items: stretch; justify-content: center; background: #10213a66; overscroll-behavior: contain; }
