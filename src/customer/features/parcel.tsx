@@ -1,6 +1,6 @@
 'use client'
 
-import { createParcelOrderSchema, FORM_ERROR_PRIORITY, type ScheduleInput, validateForm, withDeliveryHours } from '@/shared'
+import { createParcelOrderSchema, FORM_ERROR_PRIORITY, type ScheduleInput, validateForm } from '@/shared'
 import { useState } from 'react'
 
 import { AddressField, addressPin, addressText, type AddressValue, fromMyLocation } from '@/customer/components/address-field'
@@ -32,7 +32,7 @@ export function ParcelScreen() {
   const bind = (key: keyof ParcelFields) => ({ value: draft[key], onChange: (e: React.ChangeEvent<HTMLInputElement>) => update({ [key]: e.target.value }) })
 
   const check = validateForm(
-    withDeliveryHours(createParcelOrderSchema, catalog.deliveryHours.parcel),
+    createParcelOrderSchema,
     {
       product: draft.product,
       weight: draft.weight || undefined,
@@ -83,7 +83,7 @@ export function ParcelScreen() {
         <InlineField label={t('গ্রহীতার মোবা', "Receiver's mobile")}>
           <input type="tel" inputMode="tel" {...bind('receiverMobile')} placeholder="01XXXXXXXXX" />
         </InlineField>
-        <DeliverySchedule inline windows={catalog.deliveryHours.parcel} value={draft.schedule} onChange={schedule => update({ schedule })} />
+        <DeliverySchedule inline value={draft.schedule} onChange={schedule => update({ schedule })} />
         <div className="field-row charge">
           <span>{t('ডেলিভারী খরচ', 'Delivery charge')}</span>
           <div className="fixed-rate">{taka(catalog.pricing.parcelDeliveryFee)}</div>

@@ -184,7 +184,7 @@ function DeliveryHoursCard({ hours, editable }: { hours: DeliveryHours; editable
         }}
       >
         <p className="text-xs text-muted">
-          {t('গ্রাহক শুধু এই সময়ের মধ্যে ডেলিভারি টাইম দিতে পারবেন। কোনো সময় না দিলে যেকোনো সময় চলবে।', 'Customers can only pick a delivery time inside these windows. With no windows, any time is accepted.')}
+          {t('এই সময় সূচী গ্রাহকের ফর্মে নোটিশ হিসেবে দেখানো হয়; গ্রাহক যেকোনো সময় দিতে পারবেন। কোনো সময় না দিলে নোটিশ দেখাবে না।', 'Shown to customers as a notice on the order form; they can still pick any time. With no windows, no notice is shown.')}
         </p>
         {SERVICE_IDS.map(service => {
           const windows = form[service]

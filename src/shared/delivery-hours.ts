@@ -1,5 +1,3 @@
-import type { z } from 'zod'
-
 import type { ServiceId, Text } from './enums'
 import { TIME_PATTERN, toBnDigits } from './format'
 import { SERVICE_LABELS } from './labels'
@@ -7,7 +5,10 @@ import { SERVICE_LABELS } from './labels'
 /** One delivery window, HH:mm to HH:mm, both ends included. */
 export type DeliveryWindow = { from: string; to: string }
 
-/** The windows a customer may pick a ডেলিভারি টাইম in, per service. No windows means any time. */
+/**
+ * The delivery hours each service's notice shows, per service. They only inform: the customer may
+ * still pick any ডেলিভারি টাইম. No windows means no notice.
+ */
 export type DeliveryHours = Record<ServiceId, DeliveryWindow[]>
 
 /** The sketch's কাঁচা বাজার hours; the other services take any time until an admin sets hours in Catalog. */
@@ -39,24 +40,6 @@ export const parseDeliveryWindows = (value: string): DeliveryWindow[] =>
     .map(([from, to]) => ({ from, to }))
     .sort(byStart)
 
-/**
- * Whether a ডেলিভারি টাইম is allowed. With no windows any time is. A missing or malformed
- * time also passes here, because the schedule schema already reports it as schedule.required.
- */
-export const isWithinDeliveryHours = (windows: readonly DeliveryWindow[], time: unknown) =>
-  !windows.length || typeof time !== 'string' || !TIME_PATTERN.test(time) || windows.some(window => window.from <= time && time <= window.to)
-
-/**
- * Adds the `schedule.hours` check to an order schema. `when` makes it run even if other fields
- * failed, so the form can still report it in the right order (see FORM_ERROR_PRIORITY).
- */
-export const withDeliveryHours = <TSchema extends z.ZodType>(schema: TSchema, windows: readonly DeliveryWindow[]) =>
-  schema.refine(value => isWithinDeliveryHours(windows, (value as { schedule?: { time?: unknown } } | undefined)?.schedule?.time), {
-    error: 'schedule.hours',
-    path: ['schedule', 'time'],
-    when: () => true,
-  })
-
 const clock = (time: string) => {
   const [hour, minute] = time.split(':').map(Number) as [number, number]
   return { hour, minute, label: `${hour % 12 || 12}${minute ? `:${String(minute).padStart(2, '0')}` : ''}` }
@@ -65,31 +48,6 @@ const clock = (time: string) => {
 /** The Bangla part of day an hour falls in. */
 const banglaPeriod = (hour: number) =>
   hour >= 4 && hour < 6 ? 'ভোর' : hour >= 6 && hour < 12 ? 'সকাল' : hour >= 12 && hour < 15 ? 'দুপুর' : hour >= 15 && hour < 18 ? 'বিকাল' : hour >= 18 && hour < 20 ? 'সন্ধ্যা' : 'রাত'
-
-const toMinutes = (time: string) => {
-  const [hour, minute] = time.split(':').map(Number) as [number, number]
-  return hour * 60 + minute
-}
-const fromMinutes = (total: number) => `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`
-
-/**
- * The times a ডেলিভারি টাইম box offers: every `stepMinutes` from each window's start to its end,
- * both included, sorted. No windows gives none (the box then takes any time).
- */
-export function deliverySlots(windows: readonly DeliveryWindow[], stepMinutes = 30): string[] {
-  const slots = new Set<string>()
-  for (const window of windows) {
-    for (let minutes = toMinutes(window.from); minutes <= toMinutes(window.to); minutes += stepMinutes) slots.add(fromMinutes(minutes))
-  }
-  return [...slots].sort()
-}
-
-/** "সকাল ৮:৩০" / "8:30 am" for one HH:mm time. */
-export function describeTime(time: string): Text {
-  const { hour, minute } = clock(time)
-  const label = `${hour % 12 || 12}:${String(minute).padStart(2, '0')}`
-  return { bn: `${banglaPeriod(hour)} ${toBnDigits(label)}`, en: `${label} ${hour < 12 ? 'am' : 'pm'}` }
-}
 
 const join = (parts: string[], and: string) => (parts.length > 1 ? `${parts.slice(0, -1).join(', ')} ${and} ${parts.at(-1)}` : (parts[0] ?? ''))
 

@@ -1,6 +1,6 @@
 'use client'
 
-import { type DeliveryWindow, deliveryHoursNotice, deliverySlots, describeTime, isoDateInBd, type ScheduleInput, type ServiceId } from '@/shared'
+import { type DeliveryWindow, deliveryHoursNotice, isoDateInBd, type ScheduleInput, type ServiceId } from '@/shared'
 import { Clock } from 'lucide-react'
 
 import { useLang } from '@/customer/lib/i18n'
@@ -10,47 +10,30 @@ export const EMPTY_SCHEDULE: ScheduleInput = { date: '', time: '' }
 
 /**
  * ডেলিভারি তারিখ and ডেলিভারি টাইম, required on every service. `inline` matches the parcel screen's
- * label-left rows; shifting passes its own labels (শিফটিং এর তারিখ / সময়). With delivery hours
- * (`windows`) the time is picked from the slots inside them; with none any time can be typed.
+ * label-left rows; shifting passes its own labels (শিফটিং এর তারিখ / সময়).
  */
 export function DeliverySchedule({
   value,
   onChange,
-  windows = [],
   inline = false,
   dateLabel,
   timeLabel,
 }: {
   value: ScheduleInput
   onChange: (value: ScheduleInput) => void
-  windows?: readonly DeliveryWindow[]
   inline?: boolean
   dateLabel?: string
   timeLabel?: string
 }) {
-  const { t, text } = useLang()
+  const { t } = useLang()
   const Wrap = inline ? InlineField : Field
-  const slots = deliverySlots(windows)
-  const setTime = (time: string) => onChange({ ...value, time })
   const fields = (
     <>
       <Wrap label={dateLabel ?? t('ডেলিভারি তারিখ', 'Delivery date')}>
         <input type="date" min={isoDateInBd()} value={value.date} onChange={e => onChange({ ...value, date: e.target.value })} />
       </Wrap>
       <Wrap label={timeLabel ?? t('ডেলিভারি টাইম', 'Delivery time')}>
-        {slots.length ? (
-          // A time outside the slots (an old draft, or hours changed in Catalog) shows as unpicked.
-          <select value={slots.includes(value.time) ? value.time : ''} onChange={e => setTime(e.target.value)}>
-            <option value="">{t('টাইম বাছুন', 'Choose a time')}</option>
-            {slots.map(slot => (
-              <option key={slot} value={slot}>
-                {text(describeTime(slot))}
-              </option>
-            ))}
-          </select>
-        ) : (
-          <input type="time" value={value.time} onChange={e => setTime(e.target.value)} />
-        )}
+        <input type="time" value={value.time} onChange={e => onChange({ ...value, time: e.target.value })} />
       </Wrap>
     </>
   )

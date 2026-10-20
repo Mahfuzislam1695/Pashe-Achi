@@ -15,7 +15,6 @@ import {
   CUSTOMER_CANCELLABLE,
   type GeoPoint,
   isQuotedService,
-  isWithinDeliveryHours,
   type ListMyOrdersQuery,
   type ListOrdersQuery,
   type OrderDetail,
@@ -26,7 +25,6 @@ import {
   QUOTE_EDITABLE,
   type QuoteOrderInput,
   type ScheduleInput,
-  type ServiceId,
   type UpdateOrderStatusInput,
 } from '@/shared'
 
@@ -65,7 +63,7 @@ export class OrdersService {
   // Customer: place orders
 
   async createBazar(userId: string, input: CreateBazarOrderInput, actor: AuditActor): Promise<OrderDetail> {
-    const [pricing] = await Promise.all([this.catalog.getPricing(), this.checkDeliveryTime('bazar', input.schedule)])
+    const pricing = await this.catalog.getPricing()
     // No prices yet: the bill is the fees until staff send the quote.
     const bill = calcBazar(pricing, [])
     return this.place({
@@ -95,7 +93,6 @@ export class OrdersService {
       this.catalog.getPricing(),
       this.prisma.vehicle.findFirst({ where: { id: input.vehicleId, isActive: true } }),
       this.prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { mobile: true } }),
-      this.checkDeliveryTime('shifting', input.schedule),
     ])
     if (!vehicle) throw AppException.badRequest('vehicle.unavailable')
 
@@ -130,7 +127,7 @@ export class OrdersService {
   }
 
   async createMedicine(userId: string, input: CreateMedicineOrderInput, actor: AuditActor): Promise<OrderDetail> {
-    const [pricing] = await Promise.all([this.catalog.getPricing(), this.checkDeliveryTime('medicine', input.schedule)])
+    const pricing = await this.catalog.getPricing()
     const bill = calcMedicine(pricing, [])
     const names = input.items.map(item => item.name).join(', ')
     return this.place(
@@ -164,7 +161,6 @@ export class OrdersService {
     const [pricing, user] = await Promise.all([
       this.catalog.getPricing(),
       this.prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { mobile: true } }),
-      this.checkDeliveryTime('parcel', input.schedule),
     ])
     return this.place({
       user: { connect: { id: userId } },
@@ -186,12 +182,6 @@ export class OrdersService {
         },
       },
     }, actor)
-  }
-
-  /** The ডেলিভারি টাইম must fall inside the service's current delivery hours (set in Catalog). */
-  private async checkDeliveryTime(service: ServiceId, schedule: ScheduleInput) {
-    const hours = await this.catalog.getDeliveryHours()
-    if (!isWithinDeliveryHours(hours[service], schedule.time)) throw AppException.badRequest('schedule.hours')
   }
 
   /** Writes the order, its first timeline entry, its history entry and (for medicine) claims the prescription upload, atomically. */

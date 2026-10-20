@@ -3,13 +3,9 @@ import { describe, expect, it } from 'vitest'
 import {
   DEFAULT_DELIVERY_HOURS,
   deliveryHoursNotice,
-  deliverySlots,
   describeDeliveryHours,
-  describeTime,
   formatDeliveryWindows,
-  isWithinDeliveryHours,
   parseDeliveryWindows,
-  withDeliveryHours,
 } from './delivery-hours'
 import { isoDateInBd } from './format'
 import { deliveryHoursSchema } from './schemas/admin'
@@ -51,25 +47,6 @@ describe('delivery hours text', () => {
   })
 })
 
-describe('isWithinDeliveryHours', () => {
-  it('includes both ends of a window', () => {
-    expect(isWithinDeliveryHours(bazar, '08:00')).toBe(true)
-    expect(isWithinDeliveryHours(bazar, '10:00')).toBe(true)
-    expect(isWithinDeliveryHours(bazar, '21:00')).toBe(true)
-  })
-
-  it('rejects times between and outside the windows', () => {
-    expect(isWithinDeliveryHours(bazar, '10:01')).toBe(false)
-    expect(isWithinDeliveryHours(bazar, '12:00')).toBe(false)
-    expect(isWithinDeliveryHours(bazar, '07:59')).toBe(false)
-  })
-
-  it('accepts any time when the service has no windows, and leaves a missing time to schedule.required', () => {
-    expect(isWithinDeliveryHours([], '03:00')).toBe(true)
-    expect(isWithinDeliveryHours(bazar, '')).toBe(true)
-  })
-})
-
 describe('stored form', () => {
   it('round-trips through the Setting value, sorted', () => {
     const value = formatDeliveryWindows([...bazar].reverse())
@@ -92,15 +69,9 @@ describe('schemas', () => {
     items: [{ name: 'আলু', quantity: '1 কেজি' }],
   }
 
-  it('reports schedule.hours for an order outside the delivery hours', () => {
-    const check = validateForm(withDeliveryHours(createBazarOrderSchema, bazar), order, FORM_ERROR_PRIORITY.bazar)
-    expect(check).toEqual({ success: false, code: 'schedule.hours' })
-    expect(validateForm(withDeliveryHours(createBazarOrderSchema, bazar), { ...order, schedule: { ...order.schedule, time: '09:00' } }, FORM_ERROR_PRIORITY.bazar).success).toBe(true)
-  })
-
-  it('still reports earlier problems first', () => {
-    const check = validateForm(withDeliveryHours(createBazarOrderSchema, bazar), { ...order, address: '' }, FORM_ERROR_PRIORITY.bazar)
-    expect(check).toEqual({ success: false, code: 'bazar.details' })
+  it('takes any time of the day; the hours are only a notice', () => {
+    expect(validateForm(createBazarOrderSchema, order, FORM_ERROR_PRIORITY.bazar).success).toBe(true)
+    expect(validateForm(createBazarOrderSchema, { ...order, schedule: { ...order.schedule, time: '03:00' } }, FORM_ERROR_PRIORITY.bazar).success).toBe(true)
   })
 
   it('rejects admin windows that end before they start or overlap', () => {
@@ -109,22 +80,5 @@ describe('schemas', () => {
     expect(deliveryHoursSchema.safeParse({ ...base, bazar: [{ from: '10:00', to: '08:00' }] }).success).toBe(false)
     expect(deliveryHoursSchema.safeParse({ ...base, bazar: [{ from: '08:00', to: '12:00' }, { from: '11:00', to: '13:00' }] }).success).toBe(false)
     expect(deliveryHoursSchema.safeParse({ ...base, bazar: [{ from: '', to: '' }] }).success).toBe(false)
-  })
-})
-
-describe('delivery time slots', () => {
-  it('offers every half hour inside the default bazar hours, both ends included', () => {
-    const slots = deliverySlots(bazar)
-    expect(slots).toEqual(['08:00', '08:30', '09:00', '09:30', '10:00', '18:00', '18:30', '19:00', '19:30', '20:00', '20:30', '21:00'])
-    expect(slots.every(slot => isWithinDeliveryHours(bazar, slot))).toBe(true)
-  })
-
-  it('offers no slots when the service takes any time', () => {
-    expect(deliverySlots([])).toEqual([])
-  })
-
-  it('names each slot in both languages', () => {
-    expect(describeTime('18:30')).toEqual({ bn: 'সন্ধ্যা ৬:৩০', en: '6:30 pm' })
-    expect(describeTime('08:00')).toEqual({ bn: 'সকাল ৮:০০', en: '8:00 am' })
   })
 })

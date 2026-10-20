@@ -1,6 +1,6 @@
 'use client'
 
-import { calcMedicine, createMedicineOrderSchema, FORM_ERROR_PRIORITY, type MessageCode, type ScheduleInput, validateForm, withDeliveryHours } from '@/shared'
+import { calcMedicine, createMedicineOrderSchema, FORM_ERROR_PRIORITY, type MessageCode, type ScheduleInput, validateForm } from '@/shared'
 import { useMutation } from '@tanstack/react-query'
 import { Upload } from 'lucide-react'
 import { useState } from 'react'
@@ -62,7 +62,7 @@ export function MedicineScreen() {
   // The customer sends the list (or a prescription) only; staff send the prices (see QuoteNotice).
   const bill = calcMedicine(catalog.pricing, [])
   const check = validateForm(
-    withDeliveryHours(createMedicineOrderSchema, catalog.deliveryHours.medicine),
+    createMedicineOrderSchema,
     {
       address: addressText(draft.place),
       addressPin: addressPin(draft.place),
@@ -123,7 +123,7 @@ export function MedicineScreen() {
           <input type="tel" inputMode="tel" value={draft.mobile} onChange={e => update({ mobile: e.target.value })} placeholder="01XXXXXXXXX" />
         </Field>
       </div>
-      <DeliverySchedule windows={catalog.deliveryHours.medicine} value={draft.schedule} onChange={schedule => update({ schedule })} />
+      <DeliverySchedule value={draft.schedule} onChange={schedule => update({ schedule })} />
       <div className="invoice-upload">
         <input key={fileInputKey} id="prescription" type="file" accept="image/*,.pdf" onChange={e => pickFile(e.target.files?.[0])} />
         <label htmlFor="prescription" aria-busy={upload.isPending}>

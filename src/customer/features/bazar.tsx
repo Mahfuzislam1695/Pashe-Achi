@@ -1,6 +1,6 @@
 'use client'
 
-import { calcBazar, createBazarOrderSchema, FORM_ERROR_PRIORITY, type ScheduleInput, validateForm, withDeliveryHours } from '@/shared'
+import { calcBazar, createBazarOrderSchema, FORM_ERROR_PRIORITY, type ScheduleInput, validateForm } from '@/shared'
 import { useState } from 'react'
 
 import { AddressField, addressPin, addressText, type AddressValue, fromMyLocation } from '@/customer/components/address-field'
@@ -37,7 +37,7 @@ export function BazarScreen() {
   // The customer sends the list only; staff send the prices (see QuoteNotice).
   const bill = calcBazar(catalog.pricing, [])
   const check = validateForm(
-    withDeliveryHours(createBazarOrderSchema, catalog.deliveryHours.bazar),
+    createBazarOrderSchema,
     {
       address: addressText(draft.place),
       addressPin: addressPin(draft.place),
@@ -95,7 +95,7 @@ export function BazarScreen() {
           <input type="tel" inputMode="tel" value={draft.mobile} onChange={e => update({ mobile: e.target.value })} placeholder="01XXXXXXXXX" />
         </Field>
       </div>
-      <DeliverySchedule windows={catalog.deliveryHours.bazar} value={draft.schedule} onChange={schedule => update({ schedule })} />
+      <DeliverySchedule value={draft.schedule} onChange={schedule => update({ schedule })} />
       <LineTable template="1.7fr .8fr .9fr .8fr" columns={columns} rows={draft.rows} onChange={rows => update({ rows })} addLabel={t('আরো যোগ করতে ক্লিক করুন', 'Click to add more')} />
     </ServiceCard>
   )

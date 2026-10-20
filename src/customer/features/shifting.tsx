@@ -1,6 +1,6 @@
 'use client'
 
-import { calcShifting, createShiftingOrderSchema, FORM_ERROR_PRIORITY, type MessageCode, type ScheduleInput, toAmount, validateForm, withDeliveryHours } from '@/shared'
+import { calcShifting, createShiftingOrderSchema, FORM_ERROR_PRIORITY, type MessageCode, type ScheduleInput, toAmount, validateForm } from '@/shared'
 import { useState } from 'react'
 
 import { AddressField, addressPin, addressText, type AddressValue, fromMyLocation } from '@/customer/components/address-field'
@@ -23,7 +23,7 @@ type ShiftingDraft = {
 }
 const PRIORITY = FORM_ERROR_PRIORITY.shifting
 // The shifting page never says ডেলিভারি, so the shared schedule errors get its own wording.
-const SHIFTING_WORDING: Partial<Record<MessageCode, MessageCode>> = { 'schedule.required': 'shifting.schedule_required', 'schedule.hours': 'shifting.schedule_hours' }
+const SHIFTING_WORDING: Partial<Record<MessageCode, MessageCode>> = { 'schedule.required': 'shifting.schedule_required' }
 
 function StepRow({ n, label, rateLabel, rate, children }: { n: number; label: string; rateLabel: string; rate: number; children: React.ReactNode }) {
   const { digits, taka } = useLang()
@@ -64,7 +64,7 @@ export function ShiftingScreen() {
   const vehicle = vehicles.find(option => option.id === draft.vehicleId) ?? vehicles[0]
   const bill = calcShifting(pricing, { vehicleRate: vehicle?.rate ?? 0, ...draft })
   const check = validateForm(
-    withDeliveryHours(createShiftingOrderSchema, catalog.deliveryHours.shifting),
+    createShiftingOrderSchema,
     {
       loadingArea: addressText(draft.loading),
       unloadingArea: addressText(draft.unloading),
@@ -117,7 +117,7 @@ export function ShiftingScreen() {
         />
       </div>
       <DeliverySchedule
-        windows={catalog.deliveryHours.shifting}
+       
         value={draft.schedule}
         onChange={schedule => update({ schedule })}
         dateLabel={t('শিফটিং এর তারিখ', 'Shifting date')}

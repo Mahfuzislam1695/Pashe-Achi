@@ -8,13 +8,11 @@ import type { Text } from './enums'
 export const MESSAGES = {
   'schedule.required': { bn: 'ডেলিভারি তারিখ ও টাইম দিন।', en: 'Choose the delivery date and time.' },
   'schedule.past': { bn: 'আজ বা পরের কোনো তারিখ দিন।', en: 'Choose today or a later date.' },
-  'schedule.hours': { bn: 'ডেলিভারির সময় সূচীর মধ্যে একটি টাইম দিন।', en: 'Choose a time within the delivery hours.' },
   'bazar.rows': { bn: 'প্রতিটি লাইনে বাজারের নাম ও পরিমাণ লিখুন।', en: 'Fill in the item and quantity in each row.' },
   'bazar.details': { bn: 'ঠিকানা, মোবাইল নম্বর ও অন্তত একটি বাজারের লাইন দিন।', en: 'Add your address, mobile number and at least one item.' },
   'shifting.areas': { bn: 'Loading Area ও Unloading Area দিন।', en: 'Add the loading and unloading areas.' },
   'shifting.vehicle': { bn: 'একটি গাড়ী বেছে নিন।', en: 'Choose a vehicle.' },
   'shifting.schedule_required': { bn: 'শিফটিং এর তারিখ ও সময় দিন।', en: 'Choose the shifting date and time.' },
-  'shifting.schedule_hours': { bn: 'শিফটিং এর সময় সূচীর মধ্যে একটি সময় দিন।', en: 'Choose a time within the shifting hours.' },
   'shifting.numbers':{ bn: 'লেবার ও ফ্লোর সংখ্যা সঠিকভাবে দিন।', en: 'Enter valid numbers of labourers and floors.' },
   'medicine.rows': { bn: 'প্রতিটি লাইনের সব ঘর পূরণ করুন।', en: 'Fill every box in each row.' },
   'medicine.details': {

@@ -83,10 +83,10 @@ export type CreateParcelOrderInput = z.infer<typeof createParcelOrderSchema>
 
 /** The order each form reports its problems in (matches the original screens). */
 export const FORM_ERROR_PRIORITY = {
-  bazar: ['bazar.rows', 'bazar.details', 'location.required', 'mobile.invalid', 'schedule.required', 'schedule.past', 'schedule.hours'],
-  shifting: ['shifting.areas', 'location.required', 'schedule.required', 'schedule.past', 'schedule.hours', 'shifting.vehicle', 'shifting.numbers'],
-  medicine: ['medicine.rows', 'medicine.details', 'location.required', 'mobile.invalid', 'schedule.required', 'schedule.past', 'schedule.hours'],
-  parcel: ['parcel.details', 'location.required', 'mobile.invalid', 'schedule.required', 'schedule.past', 'schedule.hours'],
+  bazar: ['bazar.rows', 'bazar.details', 'location.required', 'mobile.invalid', 'schedule.required', 'schedule.past'],
+  shifting: ['shifting.areas', 'location.required', 'schedule.required', 'schedule.past', 'shifting.vehicle', 'shifting.numbers'],
+  medicine: ['medicine.rows', 'medicine.details', 'location.required', 'mobile.invalid', 'schedule.required', 'schedule.past'],
+  parcel: ['parcel.details', 'location.required', 'mobile.invalid', 'schedule.required', 'schedule.past'],
   signup: ['auth.signup', 'mobile.invalid', 'location.required', 'password.short'],
   login: ['auth.login', 'mobile.invalid'],
   profile: ['profile.name', 'profile.mobile', 'mobile.invalid'],

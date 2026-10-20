@@ -186,8 +186,7 @@ describe('Pashe Achi API (e2e)', () => {
       await agent
         .post(api('/orders/bazar'))
         .send({ address: 'x', addressPin: PIN, contactMobile: '01712000011', schedule: { ...schedule, time: '12:00' }, items: [{ name: 'a', quantity: '1' }] })
-        .expect(400)
-        .expect(res => expect(res.body.code).toBe('schedule.hours'))
+        .expect(201) // any time of the day: the delivery hours are only a notice
       await agent
         .post(api('/orders/medicine'))
         .send({ address: 'x', addressPin: PIN, contactMobile: '01712000011', schedule, items: [{ name: 'Napa', quantity: '1', company: '', category: 'জ্বর', price: 5 }] })
@@ -659,7 +658,7 @@ describe('Pashe Achi API (e2e)', () => {
       expect(log.body.items[0].changes).toEqual([{ field: 'bazarShoppingFee', from: 999, to: 150 }])
     })
 
-    it('lets managers set the delivery hours, which every order then has to fall in', async () => {
+    it('lets managers set the delivery hours, which inform but never restrict the order time', async () => {
       const manager = await staffAgent({ name: 'Nila', mobile: '01912000032', password: 'manager1', role: 'MANAGER' })
       const operator = await staffAgent({ name: 'Sumon', mobile: '01912000033', password: 'operator1', role: 'OPERATOR' })
       const hours = { ...DEFAULT_DELIVERY_HOURS, parcel: [{ from: '10:00', to: '18:00' }] }
@@ -675,7 +674,7 @@ describe('Pashe Achi API (e2e)', () => {
       expect(catalog.body.deliveryHours).toEqual(hours)
       const { agent } = await signup('01712000040')
       const parcel = { product: 'ব্যাগ', pickupAddress: 'A', dropoffAddress: 'B', pickupPin: PIN, dropoffPin: PIN, receiverMobile: '01711111111' }
-      await agent.post(api('/orders/parcel')).send({ ...parcel, schedule: { ...schedule, time: '09:00' } }).expect(400).expect(res => expect(res.body.code).toBe('schedule.hours'))
+      await agent.post(api('/orders/parcel')).send({ ...parcel, schedule: { ...schedule, time: '09:00' } }).expect(201)
       await agent.post(api('/orders/parcel')).send({ ...parcel, schedule: { ...schedule, time: '18:00' } }).expect(201)
 
       const log = await manager.agent.get(api(`/admin/audit?entityType=DELIVERY_HOURS&adminId=${manager.id}`)).expect(200)
