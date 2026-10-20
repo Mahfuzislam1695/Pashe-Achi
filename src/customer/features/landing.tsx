@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { useEffect, useState } from 'react'
 
 import { Photo, useServiceBlurbs, useServiceCharges } from '@/customer/components/banner'
+import { DeveloperCredit } from '@/customer/components/developer-credit'
 import { ServiceSwitcher } from '@/customer/components/service-switcher'
 import { QuotePreviewCard } from '@/customer/components/showcase'
 import { ContactDock, LangToggle, Logo } from '@/customer/components/ui'
@@ -270,7 +271,10 @@ export function LandingScreen({ signedIn, fontClass = '' }: { signedIn: boolean;
           </div>
         </div>
         <div className="lp-container lp-copyright">
-          © {new Date().getFullYear()} {APP_NAME[lang]}
+          <span>
+            © {new Date().getFullYear()} {APP_NAME[lang]}
+          </span>
+          <DeveloperCredit tone="dark" />
         </div>
       </footer>
       <ContactDock />

@@ -1106,3 +1106,26 @@ html[lang='bn'] .auth-message h1, html[lang='bn'] .landing h1, html[lang='bn'] .
   .auth-shell.mode-web .switch-auth { margin-top: 22px; padding-top: 20px; border-top: 1px solid var(--line); }
 }
 html[lang='bn'] .auth-shell.mode-web .auth-message .eyebrow { letter-spacing: 0; }
+
+/* Developer credit ("Developed by Aethrasoft", components/developer-credit.tsx): the landing footer, the sign-in
+   screens and the sidebar, in both versions. A pill with the name in the brand gradient and a clear focus ring.
+   On white the gradient starts from --teal-ink, since teal is too light for text there. */
+.dev-credit { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border: 1px solid color-mix(in srgb, var(--blue) 18%, transparent); border-radius: 999px; background: color-mix(in srgb, var(--blue-soft) 60%, transparent); color: var(--muted); font-size: 12px; font-weight: 500; line-height: 1.2; white-space: nowrap; text-decoration: none; transition: transform var(--ease), border-color var(--ease), background-color var(--ease), box-shadow var(--ease); }
+.dev-credit strong { background: linear-gradient(120deg, var(--teal-ink), var(--blue)); -webkit-background-clip: text; background-clip: text; color: transparent; font-size: 13px; font-weight: 700; }
+.dev-credit-mark { flex-shrink: 0; color: var(--teal-ink); }
+.dev-credit-arrow { flex-shrink: 0; opacity: .6; transition: opacity var(--ease), transform var(--ease); }
+.dev-credit:hover { border-color: color-mix(in srgb, var(--blue) 40%, transparent); background: var(--blue-soft); box-shadow: 0 6px 16px color-mix(in srgb, var(--blue) 16%, transparent); transform: translateY(-1px); }
+.dev-credit:hover .dev-credit-arrow { opacity: 1; transform: translate(1px, -1px); }
+.dev-credit:focus-visible { outline: 2px solid var(--blue); outline-offset: 3px; }
+.dev-credit.tone-dark { border-color: color-mix(in srgb, #fff 16%, transparent); background: color-mix(in srgb, #fff 8%, transparent); color: var(--on-navy); }
+.dev-credit.tone-dark strong { background-image: linear-gradient(120deg, color-mix(in srgb, var(--teal) 75%, #fff), color-mix(in srgb, var(--sky) 55%, #fff)); }
+.dev-credit.tone-dark .dev-credit-mark { color: var(--teal); }
+.dev-credit.tone-dark:hover { border-color: color-mix(in srgb, #fff 36%, transparent); background: color-mix(in srgb, #fff 13%, transparent); box-shadow: none; }
+.dev-credit.tone-dark:focus-visible { outline-color: var(--sun); }
+.dev-credit.compact { align-self: center; margin-top: 12px; padding: 5px 10px; font-size: 11px; }
+.dev-credit.compact strong { font-size: 12px; }
+@media (prefers-reduced-motion: reduce) { .dev-credit, .dev-credit-arrow { transition: none; } .dev-credit:hover, .dev-credit:hover .dev-credit-arrow { transform: none; } }
+.lp-copyright { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 24px; }
+.auth-credit { display: flex; justify-content: center; margin-top: 24px; }
+.welcome .auth-credit { margin-top: 20px; }
+@media (min-width: 1024px) { .auth-shell.mode-web .auth-credit { display: none; } }

@@ -6,6 +6,7 @@ import { LogIn } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 
+import { DeveloperCredit } from '@/admin/components/developer-credit'
 import { Button, ErrorNote, Field, Input, LangSwitch } from '@/admin/components/ui'
 import { api } from '@/admin/lib/api'
 import { useLang } from '@/admin/lib/i18n'
@@ -59,43 +60,50 @@ export default function LoginPage() {
             {t('অর্ডার, দাম, গ্রাহক আর অফার — সব এক জায়গা থেকে সামলান।', 'Orders, prices, customers and offers, all handled from one place.')}
           </p>
         </div>
-        <small className="text-white/60">
-          © {new Date().getFullYear()} {APP_NAME.en}
-        </small>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <small className="text-white/60">
+            © {new Date().getFullYear()} {APP_NAME.en}
+          </small>
+          <DeveloperCredit tone="dark" />
+        </div>
       </aside>
       <div className="grid place-items-center bg-[radial-gradient(circle_at_85%_10%,var(--color-teal-soft)_0,transparent_40%),linear-gradient(160deg,var(--color-brand-50),var(--color-canvas))] p-4">
-        <form
-          noValidate
-          className="grid w-full max-w-sm gap-4 rounded-2xl border border-line bg-surface p-6 shadow-raised sm:p-7"
-          onSubmit={event => {
-            event.preventDefault()
-            setError(null)
-            login.mutate()
-          }}
-        >
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
-              <img src={APP_LOGO} alt="" className="size-12 object-contain drop-shadow-sm" />
-              <div className="leading-tight">
-                <strong className="block font-bold text-navy">{APP_NAME.en}</strong>
-                <span className="text-xs font-medium text-brand-600">{t('অ্যাডমিন প্যানেল', 'Admin panel')}</span>
+        <div className="grid w-full max-w-sm justify-items-center gap-5">
+          <form
+            noValidate
+            className="grid w-full gap-4 rounded-2xl border border-line bg-surface p-6 shadow-raised sm:p-7"
+            onSubmit={event => {
+              event.preventDefault()
+              setError(null)
+              login.mutate()
+            }}
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <img src={APP_LOGO} alt="" className="size-12 object-contain drop-shadow-sm" />
+                <div className="leading-tight">
+                  <strong className="block font-bold text-navy">{APP_NAME.en}</strong>
+                  <span className="text-xs font-medium text-brand-600">{t('অ্যাডমিন প্যানেল', 'Admin panel')}</span>
+                </div>
               </div>
+              <LangSwitch />
             </div>
-            <LangSwitch />
-          </div>
-          <h1 className="mt-1 text-xl font-bold text-navy">{t('লগইন', 'Sign in')}</h1>
-          <Field label={t('মোবাইল নম্বর', 'Mobile number')}>
-            <Input type="tel" inputMode="tel" autoComplete="username" placeholder="01XXXXXXXXX" value={form.mobile} onChange={e => setForm({ ...form, mobile: e.target.value })} />
-          </Field>
-          <Field label={t('পাসওয়ার্ড', 'Password')}>
-            <Input type="password" autoComplete="current-password" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} />
-          </Field>
-          <ErrorNote code={error} />
-          <Button type="submit" loading={login.isPending}>
-            <LogIn className="size-4" />
-            {t('লগইন', 'Sign in')}
-          </Button>
-        </form>
+            <h1 className="mt-1 text-xl font-bold text-navy">{t('লগইন', 'Sign in')}</h1>
+            <Field label={t('মোবাইল নম্বর', 'Mobile number')}>
+              <Input type="tel" inputMode="tel" autoComplete="username" placeholder="01XXXXXXXXX" value={form.mobile} onChange={e => setForm({ ...form, mobile: e.target.value })} />
+            </Field>
+            <Field label={t('পাসওয়ার্ড', 'Password')}>
+              <Input type="password" autoComplete="current-password" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} />
+            </Field>
+            <ErrorNote code={error} />
+            <Button type="submit" loading={login.isPending}>
+              <LogIn className="size-4" />
+              {t('লগইন', 'Sign in')}
+            </Button>
+          </form>
+          {/* Wide screens show the credit in the photo panel. */}
+          <DeveloperCredit className="lg:hidden" />
+        </div>
       </div>
     </main>
   )

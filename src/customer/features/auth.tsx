@@ -22,6 +22,7 @@ import { useState } from 'react'
 
 import { AddressField, type AddressValue } from '@/customer/components/address-field'
 import { Photo } from '@/customer/components/banner'
+import { DeveloperCredit } from '@/customer/components/developer-credit'
 import { BillPreviewCard, OrderTrackerCard, SplitHeadline } from '@/customer/components/showcase'
 import { ContactDock, Field, FormError, LangToggle, Logo } from '@/customer/components/ui'
 import { api } from '@/customer/lib/api'
@@ -94,6 +95,7 @@ function BrandPanel() {
         <small>
           © {new Date().getFullYear()} {APP_NAME[lang]}
         </small>
+        <DeveloperCredit tone="dark" />
       </div>
     </aside>
   )
@@ -160,6 +162,9 @@ export function WelcomeScreen() {
               </div>
             )
           })}
+        </div>
+        <div className="auth-credit">
+          <DeveloperCredit />
         </div>
       </div>
     </AuthShell>
@@ -294,6 +299,10 @@ export function AuthScreen({ mode, version }: { mode: 'login' | 'signup'; versio
             {isSignup ? t('সাহায্য দরকার?', 'Need help?') : t('লগইনে সমস্যা?', 'Trouble logging in?')} <a href={`tel:${support.phone}`}>{t(`কল করুন ${support.phone}`, `Call ${support.phone}`)}</a>
           </p>
         )}
+        {/* The web brand panel carries the credit from 1024px, so this one shows only below it (and always in the app). */}
+        <div className="auth-credit">
+          <DeveloperCredit />
+        </div>
       </form>
     </AuthShell>
   )

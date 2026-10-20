@@ -14,6 +14,7 @@ import { forgetAdminPush, PushProvider, usePush } from '@/admin/lib/push'
 import { useAdmin, useUnreadCount } from '@/admin/lib/queries'
 import { RealtimeProvider, useOrderSound } from '@/admin/lib/realtime'
 import { canManage, cn, isSuperAdmin } from '@/admin/lib/utils'
+import { DeveloperCredit } from './developer-credit'
 import { Button, ErrorNote, LangSwitch, Loading } from './ui'
 
 /** Waits for the signed-in admin, then renders the panel frame with live updates. */
@@ -128,6 +129,7 @@ function Frame({ children }: { children: React.ReactNode }) {
           <LogOut className="size-4" />
           {t('সাইন আউট', 'Sign out')}
         </Button>
+        <DeveloperCredit className="justify-self-center" />
       </div>
     </div>
   )

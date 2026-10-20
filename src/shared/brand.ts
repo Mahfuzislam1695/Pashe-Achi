@@ -8,6 +8,10 @@ export const APP_LOGO_LARGE = '/logo/logo-256.webp'
 export const APP_LOGO_HERO = '/logo/logo-512.webp'
 export const ORDER_PREFIX = 'PA'
 
+// The developer credit (a link to the developer's site) in the landing footer, the sign-in screens and both sidebars.
+export const DEVELOPER = { name: 'Aethrasoft', url: 'https://www.aethrasoft.com/' } as const
+export const DEVELOPED_BY = { bn: 'ডেভেলপ করেছে', en: 'Developed by' } as const
+
 // These phrases depend on the name's wording and grammar, so they live with it.
 export const APP_WELCOME = { bn: 'কিংফিশার-এ স্বাগতম', en: 'WELCOME TO KINGFISHER' } as const
 export const APP_TAGLINE = { bn: 'উন্নত জীবনের – সহজ সমাধান', en: 'Better living – simple solutions' } as const

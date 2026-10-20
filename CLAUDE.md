@@ -91,6 +91,7 @@ prisma/  schema, migrations, seed.ts        test/  API e2e tests        public/ 
 - `labels.ts`: bilingual service and status labels.
 - `brand.ts`: app name, logo paths, `PA-` order prefix and the banner photos.
   - The logo source is the transparent `public/logo/logo.png`, a kingfisher with no wordmark, so the name shows as text beside it. `logo-mark`/`logo-256`/`logo-512`, the icons and `public/og-image.jpg` (the share banner) are made from it, so re-render them if the logo changes.
+  - `DEVELOPER` / `DEVELOPED_BY` are the developer credit ("Developed by Aethrasoft", linking to aethrasoft.com). `DeveloperCredit` (`src/customer/components/developer-credit.tsx`, `.dev-credit` CSS; `src/admin/components/developer-credit.tsx`) shows it in the landing footer, the sign-in and welcome screens and both sidebars.
   - `PHOTOS` and `photo(name)` give the `src`/`srcSet` of the photos in `public/images` (`{name}-800.webp` and `-1600.webp`, Unsplash License, sources listed in the file).
 - `geo.ts`: `GeoPoint`, `DHAKA_CENTER`, `joinAddress` (details, then the map address, as one line) and `mapLink` (a Google Maps URL, no key, for staff and riders to open a pin). `schemas/locations.ts` has `customerLocationSchema` (the customer's one location, and the value of every address box) and `requiredPin` (the order pins `addressPin`, `loadingPin`/`unloadingPin`, `pickupPin`/`dropoffPin`, all required).
 - `schemas/offers.ts`: আজকের অফার (`offerSchema`, `updateOfferSchema`); `OfferDto` / `AdminOfferDto` are in `types.ts`.

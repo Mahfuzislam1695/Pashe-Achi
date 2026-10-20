@@ -14,6 +14,7 @@ import { type Mode, ModeProvider, usePaths } from '@/customer/lib/paths'
 import { forgetCustomerPush, PushProvider } from '@/customer/lib/push'
 import { useCatalog, useMe, useOffers, useUnreadCount } from '@/customer/lib/queries'
 import { RealtimeProvider } from '@/customer/lib/realtime'
+import { DeveloperCredit } from './developer-credit'
 import { ContactDock, FormError, LangToggle, Logo } from './ui'
 
 /**
@@ -166,6 +167,7 @@ function Frame({ mode, children }: { mode: Mode; children: React.ReactNode }) {
         <button className="logout" onClick={() => void signOut()}>
           {t('সাইন আউট', 'Sign out')}
         </button>
+        <DeveloperCredit compact />
       </aside>
       {menuOpen && <button className="scrim" aria-label={t('মেনু বন্ধ করুন', 'Close menu')} onClick={() => setMenuOpen(false)} />}
       <section className="content">
