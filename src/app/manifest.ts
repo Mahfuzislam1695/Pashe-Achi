@@ -21,6 +21,8 @@ export default function manifest(): MetadataRoute.Manifest {
       { src: '/icon-192x192.png', sizes: '192x192', type: 'image/png' },
       { src: APP_LOGO_HERO, sizes: '512x512', type: 'image/webp' },
       { src: '/apple-icon.png', sizes: '180x180', type: 'image/png' },
+      // On a white square with the bird inside the safe zone, for launchers that crop icons to a shape.
+      { src: '/icon-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
     ],
   }
 }

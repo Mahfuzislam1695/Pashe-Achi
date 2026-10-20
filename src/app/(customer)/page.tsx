@@ -4,6 +4,7 @@ import { cookies } from 'next/headers'
 
 import { SESSION_COOKIE } from '@/customer/lib/constants'
 import { LandingScreen } from '@/customer/features/landing'
+import { displayFont } from '../fonts'
 
 export const metadata: Metadata = {
   title: `${APP_NAME.en} — ${APP_TAGLINE.en}`,
@@ -14,5 +15,5 @@ export const metadata: Metadata = {
 // Signed-in visitors still see the landing page; they just get "Open app" instead of Sign up / Login.
 export default async function LandingPage() {
   const signedIn = (await cookies()).has(SESSION_COOKIE)
-  return <LandingScreen signedIn={signedIn} />
+  return <LandingScreen signedIn={signedIn} fontClass={displayFont.variable} />
 }

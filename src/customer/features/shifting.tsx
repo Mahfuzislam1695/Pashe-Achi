@@ -4,6 +4,7 @@ import { calcShifting, createShiftingOrderSchema, FORM_ERROR_PRIORITY, type Mess
 import { useState } from 'react'
 
 import { AddressField, addressPin, addressText, type AddressValue, fromMyLocation } from '@/customer/components/address-field'
+import { ServiceBanner } from '@/customer/components/banner'
 import { DeliveryHoursNotice, DeliverySchedule, EMPTY_SCHEDULE } from '@/customer/components/delivery-schedule'
 import { BillSummary, ConfirmButton, CustomerInfo, Field, ServiceCard } from '@/customer/components/ui'
 import { api } from '@/customer/lib/api'
@@ -93,6 +94,7 @@ export function ShiftingScreen() {
   return (
     <ServiceCard
       id="shifting"
+      banner={<ServiceBanner id="shifting" />}
       summary={
         <>
           <BillSummary lines={[]} totalLabel={t('Total cost', 'Total cost')} total={bill.total} />

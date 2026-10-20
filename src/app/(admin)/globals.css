@@ -4,7 +4,7 @@
 @source '.';
 
 /*
- * Admin panel theme. Same Kingfisher brand as the customer site (blue primary, navy headings,
+ * Admin panel theme. Same Kingfisher brand as the customer site (blue primary, indigo-navy headings, teal accents,
  * Inter for Latin and Hind Siliguri for Bangla), expressed as Tailwind tokens: bg-brand-600,
  * text-ink, text-navy, border-line, bg-canvas, bg-success-soft and so on.
  */
@@ -25,8 +25,17 @@
   --color-surface: #ffffff;
   --color-line: #e4eaf2;
   --color-ink: #172033;
-  --color-navy: #10213a;
+  --color-navy: #0e1c48;
   --color-muted: #65748b;
+
+  /* The logo's other colours (public/logo/logo.png): teal crest, azure feathers, sun-to-coral breast. */
+  --color-teal: #0fb98c;
+  --color-teal-soft: #e3f8f1;
+  --color-teal-ink: #08745a;
+  --color-sky: #1a9ee8;
+  --color-sun: #ffc21a;
+  --color-accent: #ff8738;
+  --color-coral: #ef4a2b;
 
   /* Tones for status badges and dashboard tiles: a soft fill with readable text on it. */
   --color-success: #168447;

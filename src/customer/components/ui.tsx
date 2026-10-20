@@ -72,10 +72,11 @@ export function PageCard({ icon: Icon, title, subtitle, children }: { icon: Luci
  * service is open. `summary` (the bill and Confirm) follows the form on a phone and becomes a sticky
  * column beside it on a wide screen.
  */
-export function ServiceCard({ id, summary, children }: { id: ServiceId; summary?: React.ReactNode; children: React.ReactNode }) {
+export function ServiceCard({ id, banner, summary, children }: { id: ServiceId; banner?: React.ReactNode; summary?: React.ReactNode; children: React.ReactNode }) {
   const { text } = useLang()
   return (
-    <section className={`page-card service-card ${summary ? 'has-summary' : ''}`} aria-label={text(SERVICE_LABELS[id])}>
+    <section className={`page-card service-card ${summary ? 'has-summary' : ''} ${banner ? 'has-banner' : ''}`} aria-label={text(SERVICE_LABELS[id])}>
+      {banner}
       <div className="service-main">{children}</div>
       {summary && <div className="service-summary">{summary}</div>}
     </section>

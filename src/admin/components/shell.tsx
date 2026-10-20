@@ -49,7 +49,7 @@ export function PanelShell({ children }: { children: React.ReactNode }) {
 function Brand({ compact = false }: { compact?: boolean }) {
   return (
     <div className="flex items-center gap-2.5">
-      <img src={APP_LOGO} alt="" className="size-10 rounded-full bg-white object-cover shadow-xs ring-1 ring-line" />
+      <img src={APP_LOGO} alt="" className="size-11 object-contain drop-shadow-sm" />
       <div className={cn('leading-tight', compact && 'hidden sm:block')}>
         <strong className="block text-[15px] font-bold text-navy">{APP_NAME.en}</strong>
         <span className="text-xs font-medium text-brand-600">Admin</span>
@@ -107,7 +107,7 @@ function Frame({ children }: { children: React.ReactNode }) {
             className={cn(
               'relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors',
               isActive(item.href)
-                ? 'bg-brand-50 font-semibold text-brand-700 before:absolute before:inset-y-2.5 before:left-0 before:w-0.75 before:rounded-r-full before:bg-brand-600'
+                ? 'bg-brand-50 font-semibold text-brand-700 before:absolute before:inset-y-2.5 before:left-0 before:w-0.75 before:rounded-r-full before:bg-linear-to-b before:from-teal before:to-brand-600'
                 : 'text-muted hover:bg-canvas hover:text-navy',
             )}
           >

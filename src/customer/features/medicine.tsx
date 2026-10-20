@@ -6,6 +6,7 @@ import { Upload } from 'lucide-react'
 import { useState } from 'react'
 
 import { AddressField, addressPin, addressText, type AddressValue, fromMyLocation } from '@/customer/components/address-field'
+import { ServiceBanner } from '@/customer/components/banner'
 import { DeliveryHoursNotice, DeliverySchedule, EMPTY_SCHEDULE } from '@/customer/components/delivery-schedule'
 import { type Column, isRowStarted, LineTable, type Row } from '@/customer/components/line-table'
 import { BillSummary, ConfirmButton, CustomerInfo, Field, FormError, QuoteNotice, ServiceCard } from '@/customer/components/ui'
@@ -94,6 +95,7 @@ export function MedicineScreen() {
   return (
     <ServiceCard
       id="medicine"
+      banner={<ServiceBanner id="medicine" />}
       summary={
         <>
           <BillSummary

@@ -1,10 +1,11 @@
 import type { Metadata } from 'next'
 
-import { APP_NAME } from '@/shared'
+import { APP_LOGO_LARGE, APP_NAME } from '@/shared'
 import { fontVariables } from './fonts'
 
 export const metadata: Metadata = {
   title: `404 · ${APP_NAME.en}`,
+  icons: { icon: [{ url: '/icon-32x32.png', sizes: '32x32', type: 'image/png' }], apple: '/apple-icon.png' },
 }
 
 /**
@@ -27,8 +28,9 @@ export default function GlobalNotFound() {
         }}
       >
         <main style={{ textAlign: 'center', maxWidth: 360 }}>
+          <img src={APP_LOGO_LARGE} alt={APP_NAME.en} width={120} height={120} style={{ display: 'block', margin: '0 auto 12px', objectFit: 'contain' }} />
           <p style={{ margin: 0, fontSize: 56, fontWeight: 700, color: '#1265d8', lineHeight: 1 }}>404</p>
-          <h1 style={{ margin: '16px 0 4px', fontSize: 22, color: '#10213a' }}>পাতাটি পাওয়া যায়নি</h1>
+          <h1 style={{ margin: '16px 0 4px', fontSize: 22, color: '#0e1c48' }}>পাতাটি পাওয়া যায়নি</h1>
           <p style={{ margin: 0, color: '#65748b' }}>This page could not be found.</p>
           <a
             href="/"

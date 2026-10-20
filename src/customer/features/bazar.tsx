@@ -4,6 +4,7 @@ import { calcBazar, createBazarOrderSchema, FORM_ERROR_PRIORITY, type ScheduleIn
 import { useState } from 'react'
 
 import { AddressField, addressPin, addressText, type AddressValue, fromMyLocation } from '@/customer/components/address-field'
+import { PromoSlider } from '@/customer/components/banner'
 import { DeliveryHoursNotice, DeliverySchedule, EMPTY_SCHEDULE } from '@/customer/components/delivery-schedule'
 import { type Column, isRowStarted, LineTable, type Row } from '@/customer/components/line-table'
 import { BillSummary, ConfirmButton, CustomerInfo, Field, QuoteNotice, ServiceCard } from '@/customer/components/ui'
@@ -65,6 +66,7 @@ export function BazarScreen() {
   return (
     <ServiceCard
       id="bazar"
+      banner={<PromoSlider current="bazar" />}
       summary={
         <>
           <BillSummary

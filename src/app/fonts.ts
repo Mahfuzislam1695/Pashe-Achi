@@ -1,4 +1,4 @@
-import { Hind_Siliguri, Inter } from 'next/font/google'
+import { Anek_Bangla, Hind_Siliguri, Inter } from 'next/font/google'
 
 /** The brand font (Bangla and Latin) for the customer site, the admin panel and the 404 page. */
 export const hindSiliguri = Hind_Siliguri({
@@ -14,6 +14,16 @@ export const hindSiliguri = Hind_Siliguri({
 export const inter = Inter({
   subsets: ['latin'],
   variable: '--font-latin',
+})
+
+/**
+ * The landing page's headline face (Bangla and Latin, with a width axis for condensed headlines).
+ * Only the landing page's root carries its variable, so the app screens never load it.
+ */
+export const displayFont = Anek_Bangla({
+  subsets: ['bengali', 'latin'],
+  axes: ['wdth'],
+  variable: '--font-display',
 })
 
 /** Both font variables, for the <html> class of every root layout. */

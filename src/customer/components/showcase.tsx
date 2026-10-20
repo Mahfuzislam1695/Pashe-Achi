@@ -67,6 +67,63 @@ export function BillPreviewCard({ className = '' }: { className?: string }) {
   )
 }
 
+/**
+ * What a bazar price looks like when it arrives: example goods priced by staff, the live catalog's
+ * fees, the total, and Confirm / Cancel. An illustration (marked "Example"), not a real order.
+ */
+export function QuotePreviewCard({ className = '' }: { className?: string }) {
+  const { t, taka } = useLang()
+  const pricing = useCatalog().data?.pricing
+  if (!pricing) return null
+  const goods: [string, string, number][] = [
+    [t('আলু', 'Potatoes'), t('২ কেজি', '2 kg'), 90],
+    [t('পেঁয়াজ (দেশি)', 'Onions (local)'), t('১ কেজি', '1 kg'), 110],
+    [t('রুই মাছ', 'Rui fish'), t('১ কেজি', '1 kg'), 380],
+  ]
+  const goodsTotal = goods.reduce((sum, [, , price]) => sum + price, 0)
+  const total = goodsTotal + pricing.bazarShoppingFee + pricing.bazarDeliveryFee
+  return (
+    <div className={`showcase-card lp-quote-card ${className}`} aria-hidden="true">
+      <div className="lp-quote-head">
+        <span className="showcase-card-icon tone-green">
+          <ReceiptText size={16} />
+        </span>
+        <span>
+          <strong>{t('দাম জানানো হয়েছে', 'Your price is ready')}</strong>
+          <small>{t('দেখে কনফার্ম করুন', 'Check it, then confirm')}</small>
+        </span>
+        <em>{t('উদাহরণ', 'Example')}</em>
+      </div>
+      <dl>
+        {goods.map(([name, quantity, price]) => (
+          <div key={name}>
+            <dt>
+              {name} <small>{quantity}</small>
+            </dt>
+            <dd>{taka(price)}</dd>
+          </div>
+        ))}
+        <div className="lp-quote-fee">
+          <dt>{t('বাজার ক্রয় বাবদ মজুরী', 'Shopping fee')}</dt>
+          <dd>{taka(pricing.bazarShoppingFee)}</dd>
+        </div>
+        <div className="lp-quote-fee">
+          <dt>{t('ডেলিভারী খরচ', 'Delivery charge')}</dt>
+          <dd>{taka(pricing.bazarDeliveryFee)}</dd>
+        </div>
+        <div className="lp-quote-total">
+          <dt>{t('মোট বিল', 'Total bill')}</dt>
+          <dd>{taka(total)}</dd>
+        </div>
+      </dl>
+      <div className="lp-quote-actions">
+        <span className="lp-quote-confirm">{t('কনফার্ম করুন', 'Confirm')}</span>
+        <span className="lp-quote-cancel">{t('বাতিল করুন', 'Cancel')}</span>
+      </div>
+    </div>
+  )
+}
+
 /** The headline split at its dash: the second half is highlighted with a hand-drawn underline. */
 export function SplitHeadline({ text, as: Tag = 'h1' }: { text: string; as?: 'h1' | 'h2' }) {
   const [first, second] = text.split(/\s+[–-]\s+/)

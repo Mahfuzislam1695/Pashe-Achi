@@ -89,7 +89,9 @@ prisma/  schema, migrations, seed.ts        test/  API e2e tests        public/ 
 - `delivery-hours.ts`: the ডেলিভারি টাইম windows per service, set by managers in Catalog and stored as `Setting` rows (`delivery.bazar` = `08:00-10:00,18:00-21:00`; empty means any time). `deliveryHoursNotice` builds each screen's "… ডেলিভারির সময় সূচী" notice from them (the defaults reproduce the sketch sentence). Forms wrap their schema in `withDeliveryHours`, and `OrdersService` checks the same windows, so a time outside them fails with `schedule.hours` on both sides.
 - `enums.ts`: services, statuses, `ORDER_TRANSITIONS` and `adminNextStatuses` (the moves staff may make), `QUOTED_SERVICES` / `isAwaitingPrice` (bazar and medicine are priced by staff), `CUSTOMER_CANCELLABLE`, `QUOTE_EDITABLE`, roles, `API_PREFIX` (`api/v1`), `SOCKET_NAMESPACE` and `SOCKET_EVENTS`.
 - `labels.ts`: bilingual service and status labels.
-- `brand.ts`: app name, logo paths (resized from `public/logo/logo.jpeg`), `PA-` order prefix.
+- `brand.ts`: app name, logo paths, `PA-` order prefix and the banner photos.
+  - The logo source is the transparent `public/logo/logo.png`, a kingfisher with no wordmark, so the name shows as text beside it. `logo-mark`/`logo-256`/`logo-512`, the icons and `public/og-image.jpg` (the share banner) are made from it, so re-render them if the logo changes.
+  - `PHOTOS` and `photo(name)` give the `src`/`srcSet` of the photos in `public/images` (`{name}-800.webp` and `-1600.webp`, Unsplash License, sources listed in the file).
 - `geo.ts`: `GeoPoint`, `DHAKA_CENTER`, `joinAddress` (details, then the map address, as one line) and `mapLink` (a Google Maps URL, no key, for staff and riders to open a pin). `schemas/locations.ts` has `customerLocationSchema` (the customer's one location, and the value of every address box) and `requiredPin` (the order pins `addressPin`, `loadingPin`/`unloadingPin`, `pickupPin`/`dropoffPin`, all required).
 - `schemas/offers.ts`: আজকের অফার (`offerSchema`, `updateOfferSchema`); `OfferDto` / `AdminOfferDto` are in `types.ts`.
 - `types.ts`: response DTOs.
@@ -181,7 +183,21 @@ prisma/  schema, migrations, seed.ts        test/  API e2e tests        public/ 
   | Web | `/` (landing, `features/landing.tsx`), `/login`, `/signup` | `(web)/…`: `/bazar`, `/shifting`, `/medicine`, `/parcel`, `/orders`, `/orders/[id]`, `/notifications`, `/offers`, `/profile` | Desktop layout from 1024px, phone layout below |
   | App | `app/(entry)/…`: `/app` (welcome screen), `/app/login`, `/app/signup` | `app/(main)/…`: `/app/bazar` … `/app/profile` | The original phone design at every width |
 
-  - The landing page shows live pricing from `GET /catalog`, and an আজকের অফার section from the public `GET /offers` while an offer runs. Signed-in visitors see "Open app" in place of Sign up / Login.
+  - **The landing page.** It has a deep indigo hero. Its one bold element is `components/service-switcher.tsx`, an ARIA tablist of the four services. Each tab shows that service's photo, its live Catalog charges and delivery hours, and an order link.
+    - The sections after the hero:
+      - a promises strip;
+      - আজকের অফার from the public `GET /offers`, while an offer runs;
+      - a services bento;
+      - how it works, beside `QuotePreviewCard` (an example price card marked "Example");
+      - the app, shown as a real screenshot `public/images/app-{bn,en}.webp` in a phone frame;
+      - a pricing ledger;
+      - the FAQ;
+      - the closing band.
+    - Every number on the page is live; there are no made-up reviews or counts.
+    - Below 1024px a sticky bar (Sign up, Chat, Call) replaces the Chat/Call dock.
+    - Headlines use Anek Bangla (`displayFont` in `src/app/fonts.ts`). Only the landing root carries its variable, passed from `app/(customer)/page.tsx`.
+    - Its CSS is the "Landing page" section, with `lp-` classes.
+    - Signed-in visitors see "Open app" in place of Sign up / Login.
   - Each layout renders `<AppShell mode="web|app">`. `AuthScreen` and `AuthShell` take `version`.
   - Build every customer URL with `usePaths()` from `lib/paths.tsx` (inside a shell) or `webPaths` / `appPaths`, never a string literal. That way a link never leaves its version.
   - `src/proxy.ts` keeps each version separate:
@@ -190,6 +206,11 @@ prisma/  schema, migrations, seed.ts        test/  API e2e tests        public/ 
 - **Shell.** `components/app-shell.tsx` (sidebar or drawer, top bar with bell, bottom nav, Chat/Call dock) renders only after the customer and catalog queries load. Below it, screens call `useSession()`.
 - **Locations and map.** `components/address-field.tsx` is the address box of signup and every order form: a read-only card (nothing is typed into it) with the chips আমার লোকেশন (the customer's own location, where offered), Current location and Pick on map / Change. Bazar, medicine, the shifting loading area and the parcel pickup start from the customer's location. `components/location-sheet.tsx` is the map sheet (a portal, full height in the phone column, a dialog on the web from 1024px): the address comes from the map, and the customer adds only an optional house/flat/road. Signup, the forms and Profile's আমার লোকেশন all use it; `AuthShell` provides `ModeProvider` so it keeps each version's look. The Leaflet map (`components/map-picker.tsx`, OpenStreetMap tiles, a fixed centre pin) needs the browser, so it loads through `next/dynamic` with `ssr: false`. `navigator.geolocation` works only on HTTPS or localhost.
 - **Prices and quotes.** Bazar and medicine forms have no price column: their bill shows the Catalog fees plus "we will send the price" (`QuoteNotice`, which says the charges may change with the distance) and the button sends the order. On the order page a QUOTED order shows a price card with the whole bill, Confirm (sending the `quoteVersion` and total it shows) and Cancel; a price that arrives while the page is open is flagged. While a price is coming, `components/push-prompt.tsx` offers phone notifications; the Notifications screen has the on/off switch. `features/offers.tsx` is আজকের অফার (also used by the landing page), linked from the sidebar with a count of running offers.
+- **Photos and banners** (`components/banner.tsx`).
+  - `Photo` is an `<img>` with the srcSet from `photo()`.
+  - `ServiceBanner` (photo, name, blurb, charge) tops the shifting, medicine and parcel forms, passed as `ServiceCard`'s `banner`.
+  - `PromoSlider` is the home screen's banner on the bazar form: running offers, then the four services. It uses scroll-snap, dots and arrows, and auto-advances except on hover, on focus, in a hidden tab or under reduced motion.
+  - `useServiceBlurbs` and `useServiceCharges` are shared with the landing page, which also uses the photos in its switcher, services bento and closing band. The web login/signup panels and the `/app` welcome screen use the Old Dhaka photo.
 - **Drafts.** Form input survives switching services because `lib/drafts.tsx`'s `useDraft` stores it in the version's layout, which stays mounted.
 - **Screens and data.**
   - Screens live in `features/*.tsx`; the pieces they share live in `components/ui.tsx`, `line-table.tsx` and `delivery-schedule.tsx`.
@@ -202,8 +223,8 @@ prisma/  schema, migrations, seed.ts        test/  API e2e tests        public/ 
 - **Line tables.** A table starts with one row, and "add more" appears once the last row's required boxes are filled. Bazar requires item and quantity; medicine requires all four columns. Neither has a price column: staff price the lines. Fully empty rows are ignored.
 - **Styling:**
   - Screens use the hand-written classes in `globals.css` (`.page-card`, `.field`, `.line-table`, `.bill` and so on), not Tailwind utilities.
-  - The file is minified old v0 CSS, then "Screens from the paper sketches", then "Live data screens (API)", then "Landing page", then "Kingfisher theme", then "Web version". Later rules win.
-  - Colours are tokens on `:root` (the Kingfisher palette from the logo): `--blue` is the primary `#1265d8`, `--navy` the headings, `--ink` the text, `--green`/`--orange` support it. Use tokens, never raw hex.
+  - The file is minified old v0 CSS, then "Screens from the paper sketches", then "Live data screens (API)", then "Landing page", then "Kingfisher theme", then "Photos and banners", then "Web version". Later rules win.
+  - Colours are tokens on `:root` (the Kingfisher palette from the logo): `--blue` is the primary `#1265d8`, `--navy` (indigo, the logo's head) the headings, `--ink` the text, and `--green` success. The logo's other colours are `--teal`, `--sky`, `--sun`, `--orange` and `--coral`, plus `--brand-gradient` and `--warm-gradient`. Teal is too light for text on white, so text uses `--teal-ink`. Use tokens (or `color-mix` on them), never raw hex.
   - The "Kingfisher theme" section sets colours, type and shape for both versions. Service tints come from `.svc-bazar` / `.svc-shifting` / `.svc-medicine` / `.svc-parcel` (or `.tone-*`), which set `--svc`, `--svc-soft` and `--svc-ink`.
   - Bangla needs `letter-spacing: 0` (via `html[lang='bn']`) to keep the headstroke (মাত্রা).
   - Everything before the "Web version" section is the app version's look: a 430px phone column at every width. Leave it alone.
@@ -216,7 +237,7 @@ prisma/  schema, migrations, seed.ts        test/  API e2e tests        public/ 
 
 ### Admin panel (src/admin, src/app/(admin)/admin)
 
-- **Stack.** Tailwind v4 utilities, with brand tokens in the `@theme` block of its `globals.css` (`brand-*` blue, `navy`, `ink`, `muted`, `line`, `canvas`, `chart`, the `success`/`warning`/`violet`/`danger` tones with `-soft` and `-ink`, and `shadow-card`/`shadow-raised`). UI primitives are in `components/ui.tsx` (cva and tailwind-merge) and toasts use `sonner`.
+- **Stack.** Tailwind v4 utilities, with brand tokens in the `@theme` block of its `globals.css` (`brand-*` blue, `navy`, `ink`, `muted`, `line`, `canvas`, `chart`, the logo's `teal` (`-soft`, `-ink`), `sky`, `sun`, `accent` and `coral`, the `success`/`warning`/`violet`/`danger` tones with `-soft` and `-ink`, and `shadow-card`/`shadow-raised`). UI primitives are in `components/ui.tsx` (cva and tailwind-merge) and toasts use `sonner`.
 - **Routes.** `/admin/login`, then `(panel)/…` for `/admin` (dashboard), orders, customers, catalog, offers (আজকের অফার), notifications, history, staff and profile. Every link and redirect in the panel starts with `/admin`.
 - **History.** `components/audit-feed.tsx` renders history entries everywhere. That means `/admin/history` (managers and up, filters in the URL), the order page's History card, the customer page's History card and the dashboard's Recent activity.
 - **Quotes.** On a bazar or medicine order, the Items card is the quote editor while PENDING or QUOTED (price every line, remove lines, add lines, change the shopping fee and delivery charge, a note for the customer, Send price). Once the customer confirms, it is read-only.

@@ -4,6 +4,7 @@ import { createParcelOrderSchema, FORM_ERROR_PRIORITY, type ScheduleInput, valid
 import { useState } from 'react'
 
 import { AddressField, addressPin, addressText, type AddressValue, fromMyLocation } from '@/customer/components/address-field'
+import { ServiceBanner } from '@/customer/components/banner'
 import { DeliveryHoursNotice, DeliverySchedule, EMPTY_SCHEDULE } from '@/customer/components/delivery-schedule'
 import { ConfirmButton, CustomerInfo, InlineField, ServiceCard } from '@/customer/components/ui'
 import { api } from '@/customer/lib/api'
@@ -57,7 +58,7 @@ export function ParcelScreen() {
   }
 
   return (
-    <ServiceCard id="parcel">
+    <ServiceCard id="parcel" banner={<ServiceBanner id="parcel" />}>
       <CustomerInfo user={user} />
       <DeliveryHoursNotice service="parcel" windows={catalog.deliveryHours.parcel} />
       <div className="field-rows">

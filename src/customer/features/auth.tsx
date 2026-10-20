@@ -21,6 +21,7 @@ import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 
 import { AddressField, type AddressValue } from '@/customer/components/address-field'
+import { Photo } from '@/customer/components/banner'
 import { BillPreviewCard, OrderTrackerCard, SplitHeadline } from '@/customer/components/showcase'
 import { ContactDock, Field, FormError, LangToggle, Logo } from '@/customer/components/ui'
 import { api } from '@/customer/lib/api'
@@ -59,6 +60,7 @@ function BrandPanel() {
   const support = useCatalog().data?.support
   return (
     <aside className="auth-visual">
+      <Photo name="welcome" className="auth-visual-photo" sizes="55vw" priority />
       <Link href={pathsFor('web').entry} className="auth-visual-brand">
         <Logo />
       </Link>
@@ -102,6 +104,7 @@ function AuthHero() {
   const { lang, text } = useLang()
   return (
     <div className="auth-hero">
+      <Photo name="welcome" className="auth-hero-photo" sizes="100vw" />
       <Link href={pathsFor('web').entry} className="auth-hero-brand">
         <img src={APP_LOGO_LARGE} alt="" />
         <span>
@@ -129,7 +132,10 @@ export function WelcomeScreen() {
   return (
     <AuthShell version="app">
       <div className="welcome">
-        <img className="welcome-logo" src={APP_LOGO_LARGE} alt={APP_NAME[lang]} />
+        <div className="welcome-banner">
+          <Photo name="welcome" sizes="430px" alt={t('পুরান ঢাকায় ফলের দোকান', 'Fruit stalls in Old Dhaka')} priority />
+          <img className="welcome-logo" src={APP_LOGO_LARGE} alt={APP_NAME[lang]} />
+        </div>
         <p className="eyebrow">{APP_WELCOME[lang]}</p>
         <h2>{APP_TAGLINE[lang]}</h2>
         <p className="auth-subtitle">{t('কাঁচা বাজার, বাসা বদল, জরুরী ঔষুধ ও পণ্য আদান প্রদান।', 'Fresh market, house shifting, emergency medicine and parcel delivery.')}</p>
