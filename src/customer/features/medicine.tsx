@@ -123,7 +123,7 @@ export function MedicineScreen() {
           <input type="tel" inputMode="tel" value={draft.mobile} onChange={e => update({ mobile: e.target.value })} placeholder="01XXXXXXXXX" />
         </Field>
       </div>
-      <DeliverySchedule value={draft.schedule} onChange={schedule => update({ schedule })} />
+      <DeliverySchedule windows={catalog.deliveryHours.medicine} value={draft.schedule} onChange={schedule => update({ schedule })} />
       <div className="invoice-upload">
         <input key={fileInputKey} id="prescription" type="file" accept="image/*,.pdf" onChange={e => pickFile(e.target.files?.[0])} />
         <label htmlFor="prescription" aria-busy={upload.isPending}>

@@ -3,7 +3,9 @@ import { describe, expect, it } from 'vitest'
 import {
   DEFAULT_DELIVERY_HOURS,
   deliveryHoursNotice,
+  deliverySlots,
   describeDeliveryHours,
+  describeTime,
   formatDeliveryWindows,
   isWithinDeliveryHours,
   parseDeliveryWindows,
@@ -107,5 +109,22 @@ describe('schemas', () => {
     expect(deliveryHoursSchema.safeParse({ ...base, bazar: [{ from: '10:00', to: '08:00' }] }).success).toBe(false)
     expect(deliveryHoursSchema.safeParse({ ...base, bazar: [{ from: '08:00', to: '12:00' }, { from: '11:00', to: '13:00' }] }).success).toBe(false)
     expect(deliveryHoursSchema.safeParse({ ...base, bazar: [{ from: '', to: '' }] }).success).toBe(false)
+  })
+})
+
+describe('delivery time slots', () => {
+  it('offers every half hour inside the default bazar hours, both ends included', () => {
+    const slots = deliverySlots(bazar)
+    expect(slots).toEqual(['08:00', '08:30', '09:00', '09:30', '10:00', '18:00', '18:30', '19:00', '19:30', '20:00', '20:30', '21:00'])
+    expect(slots.every(slot => isWithinDeliveryHours(bazar, slot))).toBe(true)
+  })
+
+  it('offers no slots when the service takes any time', () => {
+    expect(deliverySlots([])).toEqual([])
+  })
+
+  it('names each slot in both languages', () => {
+    expect(describeTime('18:30')).toEqual({ bn: 'সন্ধ্যা ৬:৩০', en: '6:30 pm' })
+    expect(describeTime('08:00')).toEqual({ bn: 'সকাল ৮:০০', en: '8:00 am' })
   })
 })

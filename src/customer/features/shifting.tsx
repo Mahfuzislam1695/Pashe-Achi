@@ -117,6 +117,7 @@ export function ShiftingScreen() {
         />
       </div>
       <DeliverySchedule
+        windows={catalog.deliveryHours.shifting}
         value={draft.schedule}
         onChange={schedule => update({ schedule })}
         dateLabel={t('শিফটিং এর তারিখ', 'Shifting date')}

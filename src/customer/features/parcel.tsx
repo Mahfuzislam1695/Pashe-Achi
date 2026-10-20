@@ -83,7 +83,7 @@ export function ParcelScreen() {
         <InlineField label={t('গ্রহীতার মোবা', "Receiver's mobile")}>
           <input type="tel" inputMode="tel" {...bind('receiverMobile')} placeholder="01XXXXXXXXX" />
         </InlineField>
-        <DeliverySchedule inline value={draft.schedule} onChange={schedule => update({ schedule })} />
+        <DeliverySchedule inline windows={catalog.deliveryHours.parcel} value={draft.schedule} onChange={schedule => update({ schedule })} />
         <div className="field-row charge">
           <span>{t('ডেলিভারী খরচ', 'Delivery charge')}</span>
           <div className="fixed-rate">{taka(catalog.pricing.parcelDeliveryFee)}</div>

@@ -95,7 +95,7 @@ export function BazarScreen() {
           <input type="tel" inputMode="tel" value={draft.mobile} onChange={e => update({ mobile: e.target.value })} placeholder="01XXXXXXXXX" />
         </Field>
       </div>
-      <DeliverySchedule value={draft.schedule} onChange={schedule => update({ schedule })} />
+      <DeliverySchedule windows={catalog.deliveryHours.bazar} value={draft.schedule} onChange={schedule => update({ schedule })} />
       <LineTable template="1.7fr .8fr .9fr .8fr" columns={columns} rows={draft.rows} onChange={rows => update({ rows })} addLabel={t('আরো যোগ করতে ক্লিক করুন', 'Click to add more')} />
     </ServiceCard>
   )

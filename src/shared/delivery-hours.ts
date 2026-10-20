@@ -66,6 +66,31 @@ const clock = (time: string) => {
 const banglaPeriod = (hour: number) =>
   hour >= 4 && hour < 6 ? 'ভোর' : hour >= 6 && hour < 12 ? 'সকাল' : hour >= 12 && hour < 15 ? 'দুপুর' : hour >= 15 && hour < 18 ? 'বিকাল' : hour >= 18 && hour < 20 ? 'সন্ধ্যা' : 'রাত'
 
+const toMinutes = (time: string) => {
+  const [hour, minute] = time.split(':').map(Number) as [number, number]
+  return hour * 60 + minute
+}
+const fromMinutes = (total: number) => `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`
+
+/**
+ * The times a ডেলিভারি টাইম box offers: every `stepMinutes` from each window's start to its end,
+ * both included, sorted. No windows gives none (the box then takes any time).
+ */
+export function deliverySlots(windows: readonly DeliveryWindow[], stepMinutes = 30): string[] {
+  const slots = new Set<string>()
+  for (const window of windows) {
+    for (let minutes = toMinutes(window.from); minutes <= toMinutes(window.to); minutes += stepMinutes) slots.add(fromMinutes(minutes))
+  }
+  return [...slots].sort()
+}
+
+/** "সকাল ৮:৩০" / "8:30 am" for one HH:mm time. */
+export function describeTime(time: string): Text {
+  const { hour, minute } = clock(time)
+  const label = `${hour % 12 || 12}:${String(minute).padStart(2, '0')}`
+  return { bn: `${banglaPeriod(hour)} ${toBnDigits(label)}`, en: `${label} ${hour < 12 ? 'am' : 'pm'}` }
+}
+
 const join = (parts: string[], and: string) => (parts.length > 1 ? `${parts.slice(0, -1).join(', ')} ${and} ${parts.at(-1)}` : (parts[0] ?? ''))
 
 /** "সকাল ৮ থেকে ১০ এবং সন্ধ্যা ৬ থেকে ৯" / "8–10 am and 6–9 pm". */
