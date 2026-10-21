@@ -35,7 +35,7 @@ export function useServiceBlurbs(): Record<ServiceId, string> {
   const { t } = useLang()
   return {
     bazar: t('বাজারের লিস্ট লিখে দিন, আমরা বাজার করে বাসায় পৌঁছে দেব।', 'Write your list; we do the shopping and bring it home.'),
-    shifting: t('গাড়ী, লেবার আর ফ্লোর বেছে নিন, খরচ আগেই জেনে নিন।', 'Pick a vehicle, labourers and floors, and see the cost first.'),
+    shifting: t('গাড়ী, লেবার আর ফ্লোর বেছে নিন; দূরত্ব দেখে গাড়ী ভাড়া জানিয়ে দেব।', 'Pick a vehicle, labourers and floors; we price the vehicle by distance.'),
     medicine: t('প্রেসক্রিপশন আপলোড করুন, ঔষুধ পৌঁছে যাবে আপনার ঠিকানায়।', 'Upload your prescription and we deliver the medicine.'),
     parcel: t('পণ্য এক ঠিকানা থেকে নিয়ে আরেক ঠিকানায় পৌঁছে দিই।', 'We collect a parcel from one address and deliver it to another.'),
   }

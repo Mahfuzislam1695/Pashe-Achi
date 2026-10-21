@@ -125,7 +125,8 @@ export interface ShiftingDetailDto {
   unloadingPin: GeoPoint | null
   vehicleId: string | null
   vehicleName: Text
-  vehicleRate: number
+  /** The vehicle rent staff set by distance; null until they send the price. */
+  vehicleRate: number | null
   labourers: number
   wagePerLabourer: number
   loadingFloor: number

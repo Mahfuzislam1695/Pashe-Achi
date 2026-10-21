@@ -16,6 +16,7 @@ import {
   ListMyOrdersQueryDto,
   ListOrdersQueryDto,
   QuoteOrderDto,
+  ShiftingQuoteDto,
   UpdateOrderStatusDto,
 } from '../common/dto'
 import { OrdersService } from './orders.service'
@@ -35,7 +36,7 @@ export class OrdersController {
   }
 
   @Post('shifting')
-  @ApiOperation({ summary: 'বাসা বদল: book a house shifting' })
+  @ApiOperation({ summary: 'বাসা বদল: order a house shifting (staff send the vehicle rent by distance)' })
   shifting(@CurrentCustomer() customer: CustomerPrincipal, @Body() body: CreateShiftingOrderDto, @Actor() actor: AuditActor): Promise<OrderDetail> {
     return this.orders.createShifting(customer.id, body, actor)
   }
@@ -72,7 +73,7 @@ export class OrdersController {
 
   @Post(':id/confirm')
   @HttpCode(200)
-  @ApiOperation({ summary: "Accept the staff's prices for a bazar or medicine order (send the total you saw); the order is booked" })
+  @ApiOperation({ summary: "Accept the staff's prices for a bazar, medicine or shifting order (send the total and quoteVersion you saw); the order is booked" })
   confirm(@CurrentCustomer() customer: CustomerPrincipal, @Param() { id }: IdParamDto, @Body() body: ConfirmOrderDto, @Actor() actor: AuditActor): Promise<OrderDetail> {
     return this.orders.confirmMine(customer.id, id, body, actor)
   }
@@ -115,5 +116,11 @@ export class AdminOrdersController {
   @ApiOperation({ summary: 'Price a bazar or medicine order (the whole list of lines); the customer is asked to confirm or cancel' })
   quote(@Actor() actor: AuditActor, @Param() { id }: IdParamDto, @Body() body: QuoteOrderDto): Promise<OrderDetail> {
     return this.orders.quote(actor, id, body)
+  }
+
+  @Put(':id/shifting-quote')
+  @ApiOperation({ summary: "Price a shifting order's vehicle by distance; the customer is asked to confirm or cancel" })
+  quoteShifting(@Actor() actor: AuditActor, @Param() { id }: IdParamDto, @Body() body: ShiftingQuoteDto): Promise<OrderDetail> {
+    return this.orders.quoteShifting(actor, id, body)
   }
 }

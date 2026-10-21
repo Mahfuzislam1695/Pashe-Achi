@@ -142,7 +142,7 @@ function OrderDetailBody({ order }: { order: OrderDetail }) {
           ]
         : order.service === 'shifting'
           ? [
-              [t('গাড়ী', 'Vehicle'), order.itemsTotal],
+              [t('গাড়ী ভাড়া', 'Vehicle rent'), goods],
               [t('লেবার ও ফ্লোর', 'Labour and floors'), order.serviceFee],
             ]
           : [[t('ডেলিভারী খরচ', 'Delivery charge'), order.deliveryFee]]
@@ -159,10 +159,15 @@ function OrderDetailBody({ order }: { order: OrderDetail }) {
         {awaitingPrice && (
           <>
             <p className="quote-notice">
-              {t(
-                'আমরা দাম যাচাই করছি। দাম জানালেই নোটিফিকেশন পাবেন, তারপর অর্ডারটি কনফার্ম বা বাতিল করতে পারবেন।',
-                'We are checking the prices. You will get a notification with the bill, then you can confirm or cancel the order.',
-              )}
+              {order.service === 'shifting'
+                ? t(
+                    'আমরা দূরত্ব দেখে গাড়ী ভাড়া ঠিক করছি। ভাড়া জানালেই নোটিফিকেশন পাবেন, তারপর অর্ডারটি কনফার্ম বা বাতিল করতে পারবেন।',
+                    'We are pricing the vehicle by distance. You will get a notification with the bill, then you can confirm or cancel the order.',
+                  )
+                : t(
+                    'আমরা দাম যাচাই করছি। দাম জানালেই নোটিফিকেশন পাবেন, তারপর অর্ডারটি কনফার্ম বা বাতিল করতে পারবেন।',
+                    'We are checking the prices. You will get a notification with the bill, then you can confirm or cancel the order.',
+                  )}
             </p>
             <PushPrompt />
           </>
@@ -242,7 +247,8 @@ function OrderDetailBody({ order }: { order: OrderDetail }) {
                 </dd>
                 <dt>{t('গাড়ী', 'Vehicle')}</dt>
                 <dd>
-                  {text(order.shifting.vehicleName)} · {taka(order.shifting.vehicleRate)}
+                  {text(order.shifting.vehicleName)}
+                  {order.shifting.vehicleRate !== null && ` · ${taka(order.shifting.vehicleRate)}`}
                 </dd>
                 <dt>{t('লেবার', 'Labourers')}</dt>
                 <dd>{order.shifting.labourers}</dd>
@@ -308,7 +314,13 @@ function OrderDetailBody({ order }: { order: OrderDetail }) {
             <BillSummary
               lines={billLines}
               totalLabel={t('Total Bill', 'Total bill')}
-              total={awaitingPrice ? t(`${taka(order.total)} + পণ্যের দাম`, `${taka(order.total)} + goods`) : order.total}
+              total={
+                !awaitingPrice
+                  ? order.total
+                  : order.service === 'shifting'
+                    ? t(`${taka(order.total)} + গাড়ী ভাড়া`, `${taka(order.total)} + vehicle rent`)
+                    : t(`${taka(order.total)} + পণ্যের দাম`, `${taka(order.total)} + goods`)
+              }
             />
           </section>
         )}

@@ -33,7 +33,7 @@ export interface QuotedBill {
   total: number
 }
 
-/** Staff sent a bazar or medicine order's price (from PENDING) or a new one (from QUOTED). */
+/** Staff sent a bazar, medicine or shifting order's price (from PENDING) or a new one (from QUOTED). */
 export interface OrderQuotedEvent {
   order: OrderWithRelations
   from: OrderStatus

@@ -6,7 +6,8 @@ import { amount, count, cursorQuery, mobile, optionalText, requiredText, schedul
 import { requiredPin } from './locations'
 
 // The customer sends what they typed; the API computes every fee and total itself. Customers never
-// send a price: staff price bazar and medicine lines in a quote, and the rest comes from the Catalog.
+// send a price: staff price bazar and medicine lines and shifting's vehicle rent in a quote, and the
+// rest comes from the Catalog.
 
 /** কাঁচা বাজার: item and quantity are required, variety is optional. */
 export const bazarItemSchema = z.object({
@@ -25,7 +26,7 @@ export const createBazarOrderSchema = z.object({
 })
 export type CreateBazarOrderInput = z.infer<typeof createBazarOrderSchema>
 
-/** বাসা বদল */
+/** বাসা বদল: the vehicle is chosen here; staff send its rent by distance in a quote. */
 export const createShiftingOrderSchema = z.object({
   loadingArea: requiredText('shifting.areas', 200),
   unloadingArea: requiredText('shifting.areas', 200),
@@ -92,6 +93,7 @@ export const FORM_ERROR_PRIORITY = {
   profile: ['profile.name', 'profile.mobile', 'mobile.invalid'],
   location: ['location.required'],
   quote: ['quote.items', 'quote.fees'],
+  shiftingQuote: ['quote.vehicle'],
   offer: ['offer.title', 'offer.dates'],
 } as const satisfies Record<string, readonly MessageCode[]>
 
@@ -148,6 +150,17 @@ export const quoteOrderSchema = z.object({
 })
 export type QuoteOrderInput = z.infer<typeof quoteOrderSchema>
 export type QuoteItemInput = z.infer<typeof quoteItemSchema>
+
+/**
+ * Staff price a shifting order (PUT /admin/orders/:id/shifting-quote): the vehicle rent, set by the
+ * distance between the loading and unloading areas. Labour and floors keep the Catalog rates the
+ * order was placed with. The note is shown to the customer.
+ */
+export const shiftingQuoteSchema = z.object({
+  vehicleRate: amount('quote.vehicle'),
+  note: optionalText(500),
+})
+export type ShiftingQuoteInput = z.infer<typeof shiftingQuoteSchema>
 
 /**
  * The customer confirms a quote (POST /orders/:id/confirm) with the quote they saw: its version

@@ -6,7 +6,7 @@ import { useState } from 'react'
 import { AddressField, addressPin, addressText, type AddressValue, fromMyLocation } from '@/customer/components/address-field'
 import { ServiceBanner } from '@/customer/components/banner'
 import { DeliveryHoursNotice, DeliverySchedule, EMPTY_SCHEDULE } from '@/customer/components/delivery-schedule'
-import { BillSummary, ConfirmButton, CustomerInfo, Field, ServiceCard } from '@/customer/components/ui'
+import { BillSummary, ConfirmButton, CustomerInfo, Field, QuoteNotice, ServiceCard } from '@/customer/components/ui'
 import { api } from '@/customer/lib/api'
 import { useDraft } from '@/customer/lib/drafts'
 import { useLang } from '@/customer/lib/i18n'
@@ -25,7 +25,8 @@ const PRIORITY = FORM_ERROR_PRIORITY.shifting
 // The shifting page never says ডেলিভারি, so the shared schedule errors get its own wording.
 const SHIFTING_WORDING: Partial<Record<MessageCode, MessageCode>> = { 'schedule.required': 'shifting.schedule_required' }
 
-function StepRow({ n, label, rateLabel, rate, children }: { n: number; label: string; rateLabel: string; rate: number; children: React.ReactNode }) {
+/** One choice and its Catalog rate; `rate` as text is shown as it is (the vehicle's starting rate). */
+function StepRow({ n, label, rateLabel, rate, children }: { n: number; label: string; rateLabel: string; rate: number | string; children: React.ReactNode }) {
   const { digits, taka } = useLang()
   return (
     <div className="step-row">
@@ -33,14 +34,14 @@ function StepRow({ n, label, rateLabel, rate, children }: { n: number; label: st
       <Field label={label}>{children}</Field>
       <div className="field">
         <span>{rateLabel}</span>
-        <div className="fixed-rate">{taka(rate)}</div>
+        <div className="fixed-rate">{typeof rate === 'number' ? taka(rate) : rate}</div>
       </div>
     </div>
   )
 }
 
 export function ShiftingScreen() {
-  const { t, text } = useLang()
+  const { t, text, taka } = useLang()
   const { user, catalog } = useSession()
   const { pricing, vehicles } = catalog
   const [draft, setDraft] = useDraft<ShiftingDraft>('shifting', () => ({
@@ -62,7 +63,8 @@ export function ShiftingScreen() {
 
   // A vehicle the admin has since disabled falls back to the first available one.
   const vehicle = vehicles.find(option => option.id === draft.vehicleId) ?? vehicles[0]
-  const bill = calcShifting(pricing, { vehicleRate: vehicle?.rate ?? 0, ...draft })
+  // Staff send the vehicle rent by distance (see QuoteNotice); labour and floors are priced here.
+  const bill = calcShifting(pricing, { ...draft, vehicleRate: null })
   const check = validateForm(
     createShiftingOrderSchema,
     {
@@ -97,8 +99,16 @@ export function ShiftingScreen() {
       banner={<ServiceBanner id="shifting" />}
       summary={
         <>
-          <BillSummary lines={[]} totalLabel={t('Total cost', 'Total cost')} total={bill.total} />
-          <ConfirmButton error={error} pending={placeOrder.isPending} onConfirm={confirm} />
+          <BillSummary
+            lines={[
+              [t('গাড়ী ভাড়া', 'Vehicle rent'), t('দূরত্ব দেখে জানানো হবে', 'We will send it')],
+              [t('লেবার ও ফ্লোর', 'Labour and floors'), bill.serviceFee],
+            ]}
+            totalLabel={t('Total cost', 'Total cost')}
+            total={t(`${taka(bill.total)} + গাড়ী ভাড়া`, `${taka(bill.total)} + vehicle rent`)}
+          />
+          <QuoteNotice service="shifting" />
+          <ConfirmButton error={error} pending={placeOrder.isPending} onConfirm={confirm} label={t('অর্ডার পাঠান', 'Send order')} />
         </>
       }
     >
@@ -124,7 +134,7 @@ export function ShiftingScreen() {
         timeLabel={t('শিফটিং এর সময়', 'Shifting time')}
       />
       <div className="steps">
-        <StepRow n={1} label={t('গাড়ী', 'Vehicle')} rateLabel={t('রেট', 'Rate')} rate={vehicle?.rate ?? 0}>
+        <StepRow n={1} label={t('গাড়ী', 'Vehicle')} rateLabel={t('রেট', 'Rate')} rate={vehicle ? t(`${taka(vehicle.rate)} থেকে`, `from ${taka(vehicle.rate)}`) : '—'}>
           <select value={vehicle?.id ?? ''} onChange={e => update({ vehicleId: e.target.value })} disabled={!vehicles.length}>
             {vehicles.map(option => (
               <option key={option.id} value={option.id}>

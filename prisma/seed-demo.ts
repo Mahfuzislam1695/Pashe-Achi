@@ -7,9 +7,10 @@
  * - About 60 orders over the last 30 days across all four services and every status. Totals come
  *   from the shared calculators and the current pricing row; every step has a sensible later time,
  *   the right admin, a timeline event, a history entry and the notifications the app would send.
- * - Bazar and medicine orders follow the quote flow: placed without prices, priced by staff
- *   (QUOTED, sometimes with a higher delivery charge for a far address), then confirmed by the
- *   customer (BOOKED); some still wait for a price or a confirm.
+ * - Bazar, medicine and shifting orders follow the quote flow: placed without prices, priced by
+ *   staff (QUOTED, sometimes with a higher delivery charge for a far address; shifting gets its
+ *   vehicle rent by distance), then confirmed by the customer (BOOKED); some still wait for a price
+ *   or a confirm.
  * - Admin sign-ins (and two failed ones), points, a blocked customer, a profile change, the demo
  *   customer's two saved map locations (with pins on his orders), an announcement and two running
  *   offers (আজকের অফার), all in the history log.
@@ -208,10 +209,12 @@ interface PlannedOrder {
   items: PlannedItem[]
   shifting?: { loadingArea: string; unloadingArea: string; loadingPin?: GeoPoint; unloadingPin?: GeoPoint; vehicle: Vehicle; labourers: number; loadingFloor: number; unloadingFloor: number }
   parcel?: { product: string; weight: string | null; pickupAddress: string; dropoffAddress: string; receiverMobile: string; pickupLat?: number; pickupLng?: number; dropoffLat?: number; dropoffLng?: number }
-  /** Bazar and medicine: a QUOTED step (staff send the prices), then BOOKED by the customer (their confirm). */
+  /** Bazar, medicine and shifting: a QUOTED step (staff send the prices), then BOOKED by the customer (their confirm). */
   steps: Step[]
   /** Bazar and medicine: extra delivery charge staff added in the quote (a far address). */
   deliveryExtra?: number
+  /** Shifting: what staff added to the vehicle's starting rate for the distance. */
+  vehicleExtra?: number
 }
 
 const actorFor = (row: { id: string; name: string; role?: Admin['role'] }, device: Device): AuditActor => ({
@@ -225,8 +228,9 @@ const actorFor = (row: { id: string; name: string; role?: Admin['role'] }, devic
 const homeAddress = (area: string) => `বাসা ${int(2, 98)}, রোড ${int(1, 18)}, ${area}`
 
 /**
- * The bill: for bazar and medicine, `priced` false gives the fees only (before staff send the
- * quote); priced, it has the lines' prices and any delivery charge staff added in the quote.
+ * The bill: for bazar, medicine and shifting, `priced` false gives the fees only (before staff send
+ * the quote); priced, it has the lines' prices (or the vehicle rent for the distance) and any
+ * delivery charge staff added in the quote.
  */
 function billFor(plan: PlannedOrder, pricing: Pricing, priced: boolean) {
   const prices = priced ? plan.items.map(item => item.price) : []
@@ -236,7 +240,7 @@ function billFor(plan: PlannedOrder, pricing: Pricing, priced: boolean) {
       : plan.service === 'medicine'
         ? calcMedicine(pricing, prices)
         : plan.service === 'shifting'
-          ? calcShifting(pricing, { vehicleRate: plan.shifting!.vehicle.rate, ...plan.shifting! })
+          ? calcShifting(pricing, { ...plan.shifting!, vehicleRate: priced ? plan.shifting!.vehicle.rate + (plan.vehicleExtra ?? 0) : null })
           : calcParcel(pricing)
   if (!priced || !plan.deliveryExtra) return bill
   return { ...bill, deliveryFee: bill.deliveryFee + plan.deliveryExtra, total: bill.total + plan.deliveryExtra }
@@ -369,13 +373,22 @@ function planRandomOrder(
           ? 'PENDING'
           : 'BOOKED'
 
-  // Bazar and medicine: staff send the price first (QUOTED) and the customer's confirm, a few minutes
-  // later, is the booking. Shifting and parcel are booked by staff.
+  // Bazar, medicine and shifting: staff send the price first (QUOTED) and the customer's confirm, a
+  // few minutes later, is the booking. Parcel is booked by staff.
   const quoted = isQuotedService(service)
   const quotedAt = later(placedAt, 4, 25)
   // Now and then the address is far, so staff charge more delivery in the quote (and say why).
-  if (quoted && chance(0.15)) plan.deliveryExtra = 40
-  const quoteNote = () => (plan.deliveryExtra ? 'দূরত্ব বেশি, তাই ডেলিভারী খরচ 40 টাকা বেশি' : chance(0.3) ? pick(QUOTE_NOTES) : undefined)
+  if ((service === 'bazar' || service === 'medicine') && chance(0.15)) plan.deliveryExtra = 40
+  // Shifting: the vehicle rent goes up from the starting rate with the distance.
+  if (service === 'shifting') plan.vehicleExtra = pick([0, 0, 200, 300, 500])
+  const quoteNote = () =>
+    plan.vehicleExtra
+      ? `দূরত্ব অনুযায়ী গাড়ী ভাড়া ${plan.vehicleExtra} টাকা বেশি`
+      : plan.deliveryExtra
+        ? 'দূরত্ব বেশি, তাই ডেলিভারী খরচ 40 টাকা বেশি'
+        : service !== 'shifting' && chance(0.3)
+          ? pick(QUOTE_NOTES)
+          : undefined
   const quote = (at: Date): Step => ({ to: 'QUOTED', at, by: handler, note: quoteNote() })
   const booked = quoted ? later(quotedAt, 3, 40) : later(placedAt, 5, 45)
   const scheduledAt = bdAt(plan.scheduledDate, Number(plan.scheduledTime.slice(0, 2)), Number(plan.scheduledTime.slice(3)))
@@ -384,7 +397,7 @@ function planRandomOrder(
   const bookedNote = chance(0.35) ? pick(STATUS_NOTES.BOOKED!) : undefined
 
   if (outcome === 'customer_cancel') {
-    // Bazar and medicine: the customer saw the price and said no.
+    // Bazar, medicine and shifting: the customer saw the price and said no.
     plan.steps = quoted ? [quote(quotedAt), { to: 'CANCELLED', at: later(quotedAt, 3, 40), by: customer.actor }] : [{ to: 'CANCELLED', at: later(placedAt, 3, 30), by: customer.actor }]
   } else if (outcome === 'cancel_pending') plan.steps = [{ to: 'CANCELLED', at: later(placedAt, 10, 60), by: handler, note: pick(CANCEL_NOTES) }]
   else if (outcome === 'cancel_booked') {
@@ -394,7 +407,7 @@ function planRandomOrder(
       { to: 'CANCELLED', at: later(booked, 30, 180), by: handler, note: pick(CANCEL_NOTES) },
     ]
   } else if (outcome === 'PENDING') {
-    // Today's waiting orders: half the bazar and medicine ones are already priced, waiting for the customer.
+    // Today's waiting orders: half the quoted ones are already priced, waiting for the customer.
     if (quoted && chance(0.5)) plan.steps = [quote(quotedAt)]
   } else {
     if (quoted) plan.steps.push(quote(quotedAt))
@@ -429,8 +442,9 @@ function liveOrders(pickCustomer: () => DemoCustomer, now: Date, vehicles: Vehic
 
 /**
  * The three orders of the original prototype, for the demo customer: 760, 1420 and 160 taka with the
- * sketch prices. The bazar order was priced, confirmed and delivered; the medicine order has just been
- * priced and waits for him to confirm or cancel it.
+ * sketch prices. The bazar order was priced, confirmed and delivered; the shifting order got its
+ * vehicle rent (the sketch's 1200) and was confirmed; the medicine order has just been priced and
+ * waits for the customer to confirm or cancel it.
  */
 function prototypeOrders(rahim: DemoCustomer, now: Date, today: string, vehicles: Vehicle[], staff: { operator: AuditActor; manager: AuditActor }): PlannedOrder[] {
   const threeDaysAgo = addDays(today, -3)
@@ -471,7 +485,10 @@ function prototypeOrders(rahim: DemoCustomer, now: Date, today: string, vehicles
       note: null,
       items: [],
       shifting: { loadingArea: 'মিরপুর ১০', unloadingArea: 'উত্তরা', loadingPin: RAHIM_HOME, unloadingPin: UTTARA, vehicle: { ...vehicle, rate: 1200 }, labourers: 1, loadingFloor: 1, unloadingFloor: 1 },
-      steps: [{ to: 'BOOKED', at: bdAt(yesterday, 19, 40), by: staff.manager, note: 'গাড়ী ঠিক করা হয়েছে' }],
+      steps: [
+        { to: 'QUOTED', at: bdAt(yesterday, 19, 28), by: staff.manager, note: 'মিরপুর ১০ থেকে উত্তরা, গাড়ী ঠিক করা হয়েছে' },
+        { to: 'BOOKED', at: bdAt(yesterday, 19, 40), by: rahim.actor },
+      ],
     },
     {
       customer: rahim,
@@ -595,7 +612,8 @@ export async function seedDemo(prisma: PrismaClient) {
       plans.sort((a, b) => a.placedAt.getTime() - b.placedAt.getTime())
 
       for (const plan of plans) {
-        // Bazar and medicine are placed without prices (the fees only); the quote adds the lines' prices.
+        // Bazar, medicine and shifting are placed without prices (the fees only); the quote adds the
+        // lines' prices or the vehicle rent.
         const quoted = plan.steps.some(step => step.to === 'QUOTED')
         const placed = billFor(plan, pricing, !isQuotedService(plan.service))
         const final = billFor(plan, pricing, !isQuotedService(plan.service) || quoted)
@@ -651,7 +669,7 @@ export async function seedDemo(prisma: PrismaClient) {
                       vehicleId: plan.shifting.vehicle.id,
                       vehicleNameBn: plan.shifting.vehicle.nameBn,
                       vehicleNameEn: plan.shifting.vehicle.nameEn,
-                      vehicleRate: plan.shifting.vehicle.rate,
+                      vehicleRate: quoted ? final.itemsTotal : null,
                       labourers: plan.shifting.labourers,
                       wagePerLabourer: pricing.wagePerLabourer,
                       loadingFloor: plan.shifting.loadingFloor,
@@ -685,9 +703,13 @@ export async function seedDemo(prisma: PrismaClient) {
 
         let previous: OrderStatus = 'PENDING'
         for (const step of plan.steps) {
-          // The quote: every line's price, any charge staff changed, then the move to QUOTED (as OrdersService.quote writes them).
+          // The quote: every line's price (or the vehicle rent), any charge staff changed, then the move
+          // to QUOTED (as OrdersService.quote and quoteShifting write them).
           if (step.to === 'QUOTED') {
-            const changes: AuditChange[] = plan.items.map(item => ({ field: 'item.price', label: item.name, from: null, to: item.price }))
+            const changes: AuditChange[] =
+              plan.service === 'shifting'
+                ? [{ field: 'vehicleRate', from: null, to: final.itemsTotal }]
+                : plan.items.map(item => ({ field: 'item.price', label: item.name, from: null, to: item.price }))
             if (final.deliveryFee !== placed.deliveryFee) changes.push({ field: 'deliveryFee', from: placed.deliveryFee, to: final.deliveryFee })
             changes.push({ field: 'total', from: placed.total, to: final.total })
             audit.push({ action: 'ORDER_BILL_UPDATED', actor: step.by, entity, changes, note: step.note, at: step.at })

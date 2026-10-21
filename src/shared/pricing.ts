@@ -22,7 +22,10 @@ export const DEFAULT_PRICING: Pricing = {
   unloadingRatePerFloor: 20,
 }
 
-/** The sketch gives one vehicle rate (1200), so every seeded vehicle starts with it. */
+/**
+ * The sketch gives one vehicle rate (1200), so every seeded vehicle starts with it. A vehicle's rate
+ * is its starting rate: staff set each order's vehicle rent by distance in a quote.
+ */
 export const DEFAULT_VEHICLES = [
   { slug: 'covered-van', nameBn: 'কাভার্ড ভ্যান', nameEn: 'Covered van', rate: 1200 },
   { slug: 'pickup', nameBn: 'পিকআপ ভ্যান', nameEn: 'Pickup van', rate: 1200 },
@@ -60,7 +63,8 @@ export const calcMedicine = (pricing: Pricing, prices: readonly (number | string
   bill(sum(prices), 0, pricing.medicineDeliveryFee)
 
 export interface ShiftingInput {
-  vehicleRate: number
+  /** Null until staff price the vehicle by distance: the bill is then labour and floors only. */
+  vehicleRate: number | null
   labourers: number | string
   loadingFloor: number | string
   unloadingFloor: number | string

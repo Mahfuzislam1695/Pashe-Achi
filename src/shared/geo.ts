@@ -20,3 +20,7 @@ export const toGeoPoint = (lat: number | null | undefined, lng: number | null | 
 
 /** Opens the pin in Google Maps (no key needed), which on a phone hands it to the Maps app for directions. */
 export const mapLink = ({ lat, lng }: GeoPoint) => `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`
+
+/** Google Maps directions between two pins (no key needed): staff read the road distance from it. */
+export const directionsLink = (from: GeoPoint, to: GeoPoint) =>
+  `https://www.google.com/maps/dir/?api=1&origin=${from.lat},${from.lng}&destination=${to.lat},${to.lng}`

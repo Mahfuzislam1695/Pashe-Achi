@@ -387,7 +387,7 @@ function ServicesBento() {
               {vehicles.slice(0, 3).map(vehicle => (
                 <div key={vehicle.id}>
                   <dt>{text(vehicle.name)}</dt>
-                  <dd>{taka(vehicle.rate)}</dd>
+                  <dd>{t(`${taka(vehicle.rate)} থেকে`, `from ${taka(vehicle.rate)}`)}</dd>
                 </div>
               ))}
             </dl>
@@ -422,8 +422,8 @@ function Steps() {
     [
       t('দাম জেনে কনফার্ম করুন', 'Get the price, then confirm'),
       t(
-        'বাজার ও ঔষুধের দাম আমরা যাচাই করে পাঠাই; বাসা বদল ও পার্সেলের বিল সাথে সাথেই দেখা যায়।',
-        'We check and send bazar and medicine prices; shifting and parcel bills show as you fill in the form.',
+        'বাজার ও ঔষুধের দাম আর বাসা বদলের গাড়ী ভাড়া আমরা যাচাই করে পাঠাই; পার্সেলের বিল সাথে সাথেই দেখা যায়।',
+        'We check and send bazar and medicine prices and the shifting vehicle rent; parcel bills show as you fill in the form.',
       ),
     ],
     [t('অর্ডার ট্র্যাক করুন', 'Track your order'), t('অর্ডারের প্রতিটি ধাপ নোটিফিকেশনে জানতে পারবেন।', 'You get a notification at every step of the order.')],
@@ -537,12 +537,12 @@ function PricingLedger() {
             </dl>
             {service === 'shifting' && active.length > 0 && (
               <>
-                <p className="lp-price-sub">{t('গাড়ী ভাড়া', 'Vehicle rent')}</p>
+                <p className="lp-price-sub">{t('গাড়ী ভাড়া (দূরত্ব অনুযায়ী)', 'Vehicle rent (by distance)')}</p>
                 <dl>
                   {active.map(vehicle => (
                     <div key={vehicle.id}>
                       <dt>{text(vehicle.name)}</dt>
-                      <dd>{taka(vehicle.rate)}</dd>
+                      <dd>{t(`${taka(vehicle.rate)} থেকে`, `from ${taka(vehicle.rate)}`)}</dd>
                     </div>
                   ))}
                 </dl>
@@ -587,15 +587,15 @@ function Faq() {
     [
       t('কীভাবে অর্ডার করব?', 'How do I place an order?'),
       t(
-        'অ্যাকাউন্ট খুলে সেবা বেছে নিন ও ফর্মে তথ্য দিন। বাসা বদল ও পার্সেলে বিল দেখে “অর্ডার নিশ্চিত করুন” চাপুন। বাজার ও ঔষুধে লিস্ট পাঠান; আমরা দাম জানালে অর্ডারের পাতায় “কনফার্ম করুন” চাপুন।',
-        'Create an account, pick a service and fill in the form. For shifting and parcels, check the bill and tap “Confirm order”. For bazar and medicine, send your list; when we send the price, tap “Confirm” on the order’s page.',
+        'অ্যাকাউন্ট খুলে সেবা বেছে নিন ও ফর্মে তথ্য দিন। পার্সেলে বিল দেখে “অর্ডার নিশ্চিত করুন” চাপুন। বাজার, ঔষুধ ও বাসা বদলে অর্ডার পাঠান; আমরা দাম জানালে অর্ডারের পাতায় “কনফার্ম করুন” চাপুন।',
+        'Create an account, pick a service and fill in the form. For parcels, check the bill and tap “Confirm order”. For bazar, medicine and shifting, send the order; when we send the price, tap “Confirm” on the order’s page.',
       ),
     ],
     [
       t('বিল কীভাবে হিসাব হয়?', 'How is the bill worked out?'),
       t(
-        'বিলে আমাদের সেবা ও ডেলিভারি খরচ যোগ হয়, যা খরচ অংশে দেওয়া আছে। বাজার ও ঔষুধের দাম আমরা যাচাই করে জানাই; দূরত্ব বা বাজারের পরিমাণ অনুযায়ী মজুরী ও ডেলিভারি খরচ বদলালে সেটাও বিলে দেখাই। আপনি কনফার্ম করলে সেই বিলই চূড়ান্ত।',
-        'The bill adds our service and delivery charges, listed under Pricing. We check and send the price of the goods or medicine, and if the distance or the size of the bazar changes the shopping fee or delivery charge, the bill shows that too. Once you confirm it, that bill is final.',
+        'বিলে আমাদের সেবা ও ডেলিভারি খরচ যোগ হয়, যা খরচ অংশে দেওয়া আছে। বাজার ও ঔষুধের দাম আমরা যাচাই করে জানাই; দূরত্ব বা বাজারের পরিমাণ অনুযায়ী মজুরী ও ডেলিভারি খরচ বদলালে সেটাও বিলে দেখাই। বাসা বদলের গাড়ী ভাড়া দূরত্ব দেখে জানাই। আপনি কনফার্ম করলে সেই বিলই চূড়ান্ত।',
+        'The bill adds our service and delivery charges, listed under Pricing. We check and send the price of the goods or medicine, and if the distance or the size of the bazar changes the shopping fee or delivery charge, the bill shows that too. For shifting, we send the vehicle rent by distance. Once you confirm it, that bill is final.',
       ),
     ],
     [

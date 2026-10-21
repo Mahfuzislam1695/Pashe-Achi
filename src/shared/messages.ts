@@ -47,6 +47,7 @@ export const MESSAGES = {
   'order.quote_changed': { bn: 'দাম বদলানো হয়েছে। নতুন দাম দেখে আবার কনফার্ম করুন।', en: 'The price has changed. Check the new price and confirm again.' },
   'quote.items': { bn: 'প্রতিটি লাইনে নাম, পরিমাণ ও দাম দিন।', en: 'Give every line a name, quantity and price.' },
   'quote.fees': { bn: 'মজুরী ও ডেলিভারী খরচ সঠিক অঙ্কে দিন (ঔষুধে মজুরী নেই)।', en: 'Enter valid amounts for the shopping fee and delivery charge (medicine has no shopping fee).' },
+  'quote.vehicle': { bn: 'গাড়ী ভাড়া সঠিক অঙ্কে দিন।', en: 'Enter a valid vehicle rent.' },
   'push.endpoint': { bn: 'এই ব্রাউজারে নোটিফিকেশন চালু করা যাচ্ছে না।', en: "Notifications can't be turned on in this browser." },
   'offer.title': { bn: 'অফারের শিরোনাম দিন।', en: 'Enter a title for the offer.' },
   'offer.dates': { bn: 'শুরু ও শেষের তারিখ দিন; শেষ তারিখ শুরুর আগে হতে পারবে না।', en: 'Give a start and end date; the end cannot be before the start.' },

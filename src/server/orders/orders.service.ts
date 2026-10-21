@@ -25,6 +25,8 @@ import {
   QUOTE_EDITABLE,
   type QuoteOrderInput,
   type ScheduleInput,
+  type ServiceId,
+  type ShiftingQuoteInput,
   type UpdateOrderStatusInput,
 } from '@/shared'
 
@@ -32,7 +34,7 @@ import type { AuditActor } from '../audit/actor'
 import { AuditService } from '../audit/audit.service'
 import { CatalogService } from '../catalog/catalog.service'
 import { AppException } from '../common/app.exception'
-import { DOMAIN_EVENTS, type OrderCreatedEvent, type OrderQuotedEvent, type OrderStatusChangedEvent } from '../common/domain-events'
+import { DOMAIN_EVENTS, type OrderCreatedEvent, type OrderQuotedEvent, type OrderStatusChangedEvent, type QuotedBill } from '../common/domain-events'
 import { bdDayEnd, bdDayStart, pageArgs, toPage } from '../common/pagination'
 import type { Prisma } from '../generated/prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
@@ -46,10 +48,15 @@ const scheduleData = (schedule: ScheduleInput) => ({ scheduledDate: new Date(`${
 const pinColumns = <P extends string>(prefix: P, pin: GeoPoint | undefined) =>
   ({ [`${prefix}Lat`]: pin?.lat ?? null, [`${prefix}Lng`]: pin?.lng ?? null }) as Record<`${P}Lat` | `${P}Lng`, number | null>
 
+/** What a quote reads: the lines (bazar, medicine) or the shifting details (the vehicle rent). */
+const quotableInclude = { items: { orderBy: { position: 'asc' } }, shifting: true } satisfies Prisma.OrderInclude
+type QuotableOrder = Prisma.OrderGetPayload<{ include: typeof quotableInclude }>
+
 /**
  * Places and manages orders. Every fee and total is computed here from the current Pricing row
  * (never trusted from the client) and stored on the order as a snapshot. Customers send no prices:
- * bazar and medicine lines are priced by staff in a quote, which the customer confirms or cancels.
+ * bazar and medicine lines, and shifting's vehicle rent, are priced by staff in a quote, which the
+ * customer confirms or cancels.
  */
 @Injectable()
 export class OrdersService {
@@ -96,7 +103,8 @@ export class OrdersService {
     ])
     if (!vehicle) throw AppException.badRequest('vehicle.unavailable')
 
-    const bill = calcShifting(pricing, { vehicleRate: vehicle.rate, ...input })
+    // No vehicle rent yet: the bill is labour and floors until staff price the vehicle by distance.
+    const bill = calcShifting(pricing, { ...input, vehicleRate: null })
     return this.place({
       user: { connect: { id: userId } },
       service: 'shifting',
@@ -114,7 +122,7 @@ export class OrdersService {
           vehicle: { connect: { id: vehicle.id } },
           vehicleNameBn: vehicle.nameBn,
           vehicleNameEn: vehicle.nameEn,
-          vehicleRate: vehicle.rate,
+          vehicleRate: null,
           labourers: input.labourers,
           wagePerLabourer: pricing.wagePerLabourer,
           loadingFloor: input.loadingFloor,
@@ -199,7 +207,7 @@ export class OrdersService {
         action: 'ORDER_CREATED',
         actor,
         entity: { type: 'ORDER', id: created.id, label: orderCode(created.number) },
-        // Bazar and medicine have no total until staff price them.
+        // Bazar, medicine and shifting have no total until staff price them.
         meta: { service: created.service, ...(isQuotedService(created.service) ? {} : { total: created.total }) },
       }, tx)
       return tx.order.findUniqueOrThrow({ where: { id: created.id }, include: orderInclude })
@@ -277,13 +285,7 @@ export class OrdersService {
    * lines keep their name and quantity: only the price (and order) of an existing line changes.
    */
   async quote(actor: AuditActor, id: string, input: QuoteOrderInput): Promise<OrderDetail> {
-    const { order, from, previous } = await this.prisma.$transaction(async tx => {
-      // Hold the row until commit: a confirm arriving now waits, then sees the new version and fails.
-      await tx.$queryRaw`SELECT id FROM "Order" WHERE id = ${id} FOR UPDATE`
-      const current = await tx.order.findUnique({ where: { id }, include: { items: { orderBy: { position: 'asc' } } } })
-      if (!current) throw AppException.notFound()
-      if (!isQuotedService(current.service)) throw AppException.badRequest('validation')
-      if (!QUOTE_EDITABLE.includes(current.status)) throw AppException.badRequest('order.bill_locked')
+    return this.sendQuote(actor, id, ['bazar', 'medicine'], input.note, async (tx, current) => {
       const serviceFee = input.serviceFee ?? current.serviceFee
       const deliveryFee = input.deliveryFee ?? current.deliveryFee
       if (current.service === 'medicine' && serviceFee !== 0) throw AppException.badRequest('quote.fees')
@@ -322,12 +324,56 @@ export class OrdersService {
 
       if (serviceFee !== current.serviceFee) changes.push({ field: 'serviceFee', from: current.serviceFee, to: serviceFee })
       if (deliveryFee !== current.deliveryFee) changes.push({ field: 'deliveryFee', from: current.deliveryFee, to: deliveryFee })
-      const itemsTotal = input.items.reduce((sum, line) => sum + line.price, 0)
-      const total = itemsTotal + serviceFee + deliveryFee
-      if (total !== current.total) changes.push({ field: 'total', from: current.total, to: total })
-      await tx.order.update({ where: { id }, data: { itemsTotal, serviceFee, deliveryFee, total, status: 'QUOTED', quoteVersion: { increment: 1 } } })
+      return { itemsTotal: input.items.reduce((sum, line) => sum + line.price, 0), serviceFee, deliveryFee, changes }
+    })
+  }
 
-      const note = blankToNull(input.note)
+  /**
+   * Staff price a shifting order's vehicle by the distance between its loading and unloading areas
+   * (the vehicle's Catalog rate is only where they start). Labour and floors keep the Catalog rates
+   * the order was placed with. As with a bazar quote, the customer confirms or cancels, staff may
+   * send a new price while it is QUOTED, and the bill is locked once the customer confirms.
+   */
+  async quoteShifting(actor: AuditActor, id: string, input: ShiftingQuoteInput): Promise<OrderDetail> {
+    return this.sendQuote(actor, id, ['shifting'], input.note, async (tx, current) => {
+      if (!current.shifting) throw AppException.badRequest('validation')
+      const before = current.shifting.vehicleRate
+      await tx.shiftingDetail.update({ where: { orderId: id }, data: { vehicleRate: input.vehicleRate } })
+      return {
+        itemsTotal: input.vehicleRate,
+        serviceFee: current.serviceFee,
+        deliveryFee: current.deliveryFee,
+        changes: before === input.vehicleRate ? [] : [{ field: 'vehicleRate', from: before, to: input.vehicleRate }],
+      }
+    })
+  }
+
+  /**
+   * Sends a quote for one of `services`. `price` writes that service's part (the lines, or the
+   * vehicle rent) and returns the new bill and what changed in it; then the order becomes QUOTED with
+   * a new quoteVersion, the timeline and the history log record it, and the customer is notified.
+   */
+  private async sendQuote(
+    actor: AuditActor,
+    id: string,
+    services: readonly ServiceId[],
+    rawNote: string | undefined,
+    price: (tx: Prisma.TransactionClient, current: QuotableOrder) => Promise<Omit<QuotedBill, 'total'> & { changes: AuditChange[] }>,
+  ): Promise<OrderDetail> {
+    const { order, from, previous } = await this.prisma.$transaction(async tx => {
+      // Hold the row until commit: a confirm arriving now waits, then sees the new version and fails.
+      await tx.$queryRaw`SELECT id FROM "Order" WHERE id = ${id} FOR UPDATE`
+      const current = await tx.order.findUnique({ where: { id }, include: quotableInclude })
+      if (!current) throw AppException.notFound()
+      if (!services.includes(current.service)) throw AppException.badRequest('validation')
+      if (!QUOTE_EDITABLE.includes(current.status)) throw AppException.badRequest('order.bill_locked')
+
+      const { changes, ...bill } = await price(tx, current)
+      const total = bill.itemsTotal + bill.serviceFee + bill.deliveryFee
+      if (total !== current.total) changes.push({ field: 'total', from: current.total, to: total })
+      await tx.order.update({ where: { id }, data: { ...bill, total, status: 'QUOTED', quoteVersion: { increment: 1 } } })
+
+      const note = blankToNull(rawNote)
       const entity = { type: 'ORDER' as const, id, label: orderCode(current.number) }
       // Every quote is a step in the customer's timeline (a new price shows as "Price sent" again).
       await tx.orderStatusEvent.create({ data: { orderId: id, from: current.status, to: 'QUOTED', note, actor: actor.type, adminId: actor.type === 'ADMIN' ? actor.id : null } })
@@ -341,7 +387,7 @@ export class OrdersService {
         previous: { itemsTotal: current.itemsTotal, serviceFee: current.serviceFee, deliveryFee: current.deliveryFee, total: current.total },
       }
     })
-    this.events.emit(DOMAIN_EVENTS.orderQuoted, { order, from, previous, note: blankToNull(input.note) } satisfies OrderQuotedEvent)
+    this.events.emit(DOMAIN_EVENTS.orderQuoted, { order, from, previous, note: blankToNull(rawNote) } satisfies OrderQuotedEvent)
     return toOrderDetail(order, true)
   }
 

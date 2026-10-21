@@ -11,14 +11,15 @@ export const ORDER_STATUSES = ['PENDING', 'QUOTED', 'BOOKED', 'IN_PROGRESS', 'CO
 export type OrderStatus = (typeof ORDER_STATUSES)[number]
 
 /**
- * Services whose prices staff set on each order: the customer sends the list (no prices), staff
- * send a quote (QUOTED), and the order is booked only when the customer confirms it. Shifting and
- * parcel are priced from the Catalog, so the customer sees the exact bill before ordering.
+ * Services whose prices staff set on each order: the customer sends the order (no prices), staff
+ * send a quote (QUOTED), and the order is booked only when the customer confirms it. Bazar and
+ * medicine lines are priced one by one; shifting's vehicle rent is priced by distance (its labour
+ * and floors come from the Catalog). Parcel is priced from the Catalog, so its bill is exact at once.
  */
-export const QUOTED_SERVICES: readonly ServiceId[] = ['bazar', 'medicine']
+export const QUOTED_SERVICES: readonly ServiceId[] = ['bazar', 'medicine', 'shifting']
 export const isQuotedService = (service: ServiceId) => QUOTED_SERVICES.includes(service)
 
-/** A bazar or medicine order still waiting for staff to price it. */
+/** A bazar, medicine or shifting order still waiting for staff to price it. */
 export const isAwaitingPrice = (service: ServiceId, status: OrderStatus) => isQuotedService(service) && status === 'PENDING'
 
 /** Which status an admin may move an order to from its current status (see adminNextStatuses). */
@@ -32,14 +33,14 @@ export const ORDER_TRANSITIONS: Record<OrderStatus, readonly OrderStatus[]> = {
   CANCELLED: [],
 }
 
-/** The statuses staff may pick next. A bazar or medicine order leaves PENDING through a quote, not a status change. */
+/** The statuses staff may pick next. A bazar, medicine or shifting order leaves PENDING through a quote, not a status change. */
 export const adminNextStatuses = (service: ServiceId, status: OrderStatus): readonly OrderStatus[] =>
   isQuotedService(service) && status === 'PENDING' ? ['CANCELLED'] : ORDER_TRANSITIONS[status]
 
 /** Customers may cancel their own order until it is booked (also while deciding on a quote). */
 export const CUSTOMER_CANCELLABLE: readonly OrderStatus[] = ['PENDING', 'QUOTED']
 
-/** Staff can price (and re-price) a bazar or medicine order until the customer confirms; then the bill is locked. */
+/** Staff can price (and re-price) a quoted order until the customer confirms; then the bill is locked. */
 export const QUOTE_EDITABLE: readonly OrderStatus[] = ['PENDING', 'QUOTED']
 
 export const ADMIN_ROLES = ['SUPER_ADMIN', 'MANAGER', 'OPERATOR'] as const

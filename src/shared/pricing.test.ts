@@ -25,6 +25,15 @@ describe('pricing', () => {
     })
   })
 
+  it('shifting: labour and floors only until staff price the vehicle', () => {
+    expect(calcShifting(DEFAULT_PRICING, { vehicleRate: null, labourers: 1, loadingFloor: 1, unloadingFloor: 1 })).toEqual({
+      itemsTotal: 0,
+      serviceFee: 220,
+      deliveryFee: 0,
+      total: 220,
+    })
+  })
+
   it('shifting: scales with labourers and floors', () => {
     expect(calcShifting(DEFAULT_PRICING, { vehicleRate: 1200, labourers: 3, loadingFloor: 5, unloadingFloor: 2 }).total).toBe(1200 + 450 + 250 + 40)
   })

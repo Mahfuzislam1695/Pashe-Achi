@@ -185,10 +185,11 @@ export function ConfirmButton({ error, pending, onConfirm, label }: { error: Mes
 }
 
 /**
- * Under a bazar or medicine bill: the customer sends the list, staff send the price (and may adjust
- * the charges shown, e.g. for a long way), and the order is booked only once the customer confirms it.
+ * Under a bazar, medicine or shifting bill: the customer sends the order, staff send the price (and
+ * may adjust the charges shown, e.g. for a long way; for shifting, the vehicle rent by distance), and
+ * the order is booked only once the customer confirms it.
  */
-export function QuoteNotice({ service }: { service: 'bazar' | 'medicine' }) {
+export function QuoteNotice({ service }: { service: 'bazar' | 'medicine' | 'shifting' }) {
   const { t } = useLang()
   return (
     <p className="quote-notice">
@@ -198,7 +199,12 @@ export function QuoteNotice({ service }: { service: 'bazar' | 'medicine' }) {
       )}{' '}
       {service === 'bazar'
         ? t('দূরত্ব বা বাজারের পরিমাণ অনুযায়ী মজুরী ও ডেলিভারী খরচ বদলাতে পারে; বিলে তা দেখতে পাবেন।', 'The shopping fee and delivery charge may change with the distance or the size of the bazar; the bill shows it.')
-        : t('দূরত্ব অনুযায়ী ডেলিভারী চার্জ বদলাতে পারে; বিলে তা দেখতে পাবেন।', 'The delivery charge may change with the distance; the bill shows it.')}
+        : service === 'shifting'
+          ? t(
+              'গাড়ী ভাড়া Loading ও Unloading Area-র দূরত্ব দেখে ঠিক হবে; লেবার ও ফ্লোরের খরচ উপরের রেটেই।',
+              'The vehicle rent depends on the distance between the loading and unloading areas; labour and floors are charged at the rates shown.',
+            )
+          : t('দূরত্ব অনুযায়ী ডেলিভারী চার্জ বদলাতে পারে; বিলে তা দেখতে পাবেন।', 'The delivery charge may change with the distance; the bill shows it.')}
     </p>
   )
 }

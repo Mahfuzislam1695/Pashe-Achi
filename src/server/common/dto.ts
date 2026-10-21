@@ -24,6 +24,7 @@ import {
   quoteOrderSchema,
   refreshSchema,
   reverseGeocodeQuerySchema,
+  shiftingQuoteSchema,
   signupSchema,
   supportSettingsSchema,
   updateAdminSchema,
@@ -58,6 +59,7 @@ export class ListMyOrdersQueryDto extends createZodDto(listMyOrdersQuerySchema) 
 export class ListOrdersQueryDto extends createZodDto(listOrdersQuerySchema) {}
 export class UpdateOrderStatusDto extends createZodDto(updateOrderStatusSchema) {}
 export class QuoteOrderDto extends createZodDto(quoteOrderSchema) {}
+export class ShiftingQuoteDto extends createZodDto(shiftingQuoteSchema) {}
 export class ConfirmOrderDto extends createZodDto(confirmOrderSchema) {}
 
 export class ListCustomersQueryDto extends createZodDto(listCustomersQuerySchema) {}

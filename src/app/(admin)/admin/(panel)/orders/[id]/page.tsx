@@ -2,6 +2,7 @@
 
 import {
   adminNextStatuses,
+  directionsLink,
   FORM_ERROR_PRIORITY,
   type GeoPoint,
   isAwaitingPrice,
@@ -14,11 +15,12 @@ import {
   QUOTE_EDITABLE,
   quoteOrderSchema,
   SERVICE_LABELS,
+  shiftingQuoteSchema,
   toAmount,
   validateForm,
 } from '@/shared'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, ExternalLink, FileText, MapPin, Phone, Plus, Send, Trash2 } from 'lucide-react'
+import { ArrowLeft, ExternalLink, FileText, MapPin, Phone, Plus, Route, Send, Trash2 } from 'lucide-react'
 import Link from 'next/link'
 import { use, useEffect, useState } from 'react'
 import { toast } from 'sonner'
@@ -27,7 +29,7 @@ import { AuditFeed } from '@/admin/components/audit-feed'
 import { Badge, Button, Card, Empty, ErrorNote, Field, Input, Loading, StatusBadge, Table, Td, Textarea, Th } from '@/admin/components/ui'
 import { api } from '@/admin/lib/api'
 import { useLang } from '@/admin/lib/i18n'
-import { queryKeys, useOrder, useOrderHistory } from '@/admin/lib/queries'
+import { queryKeys, useCatalog, useOrder, useOrderHistory } from '@/admin/lib/queries'
 import { errorCode } from '@/admin/lib/utils'
 
 export default function OrderPage({ params }: { params: Promise<{ id: string }> }) {
@@ -67,6 +69,8 @@ function OrderView({ order }: { order: OrderDetail }) {
     void queryClient.invalidateQueries({ queryKey: queryKeys.orders })
     void queryClient.invalidateQueries({ queryKey: queryKeys.dashboard })
   }
+  // What itemsTotal is: shifting's vehicle rent, or the goods' prices.
+  const goodsLabel = order.service === 'shifting' ? t('গাড়ী ভাড়া', 'Vehicle rent') : t('পণ্যের দাম', 'Items')
 
   return (
     <div className="grid grid-cols-1 gap-5">
@@ -121,7 +125,8 @@ function OrderView({ order }: { order: OrderDetail }) {
                   </dd>
                   <dt className="text-muted">{t('গাড়ী', 'Vehicle')}</dt>
                   <dd className="font-medium">
-                    {text(order.shifting.vehicleName)} · {taka(order.shifting.vehicleRate)}
+                    {text(order.shifting.vehicleName)} ·{' '}
+                    {order.shifting.vehicleRate === null ? <span className="text-warning-ink">{t('ভাড়া এখনো দেওয়া হয়নি', 'Rent not priced yet')}</span> : taka(order.shifting.vehicleRate)}
                   </dd>
                   <dt className="text-muted">{t('লেবার', 'Labourers')}</dt>
                   <dd className="font-medium">
@@ -163,7 +168,9 @@ function OrderView({ order }: { order: OrderDetail }) {
             </dl>
           </Card>
 
-          {(order.items.length > 0 || (isQuotedService(order.service) && QUOTE_EDITABLE.includes(order.status))) && <ItemsCard order={order} onUpdated={onUpdated} />}
+          {order.shifting
+            ? QUOTE_EDITABLE.includes(order.status) && <VehicleQuoteCard order={order} onUpdated={onUpdated} />
+            : (order.items.length > 0 || (isQuotedService(order.service) && QUOTE_EDITABLE.includes(order.status))) && <ItemsCard order={order} onUpdated={onUpdated} />}
 
           {order.prescription && (
             <Card
@@ -205,15 +212,19 @@ function OrderView({ order }: { order: OrderDetail }) {
           <Card title={t('বিল', 'Bill')}>
             <dl className="grid gap-1.5 text-sm">
               {isAwaitingPrice(order.service, order.status) ? (
-                <BillRow label={t('পণ্যের দাম', 'Items')} value={t('এখনো দেওয়া হয়নি', 'Not priced yet')} />
+                <BillRow label={goodsLabel} value={t('এখনো দেওয়া হয়নি', 'Not priced yet')} />
               ) : (
-                order.itemsTotal > 0 && <BillRow label={order.service === 'shifting' ? t('গাড়ী', 'Vehicle') : t('পণ্যের দাম', 'Items')} value={taka(order.itemsTotal)} />
+                order.itemsTotal > 0 && <BillRow label={goodsLabel} value={taka(order.itemsTotal)} />
               )}
               {order.serviceFee > 0 && <BillRow label={order.service === 'shifting' ? t('লেবার ও ফ্লোর', 'Labour and floors') : t('বাজার ক্রয় বাবদ মজুরী', 'Shopping fee')} value={taka(order.serviceFee)} />}
               {order.deliveryFee > 0 && <BillRow label={t('ডেলিভারী খরচ', 'Delivery charge')} value={taka(order.deliveryFee)} />}
               <div className="mt-1 flex justify-between border-t-2 border-ink pt-2 text-base font-semibold">
                 <dt>{t('মোট', 'Total')}</dt>
-                <dd className="tabular-nums">{isAwaitingPrice(order.service, order.status) ? `${taka(order.total)} + ${t('পণ্যের দাম', 'items')}` : taka(order.total)}</dd>
+                <dd className="tabular-nums">
+                  {isAwaitingPrice(order.service, order.status)
+                    ? `${taka(order.total)} + ${order.service === 'shifting' ? t('গাড়ী ভাড়া', 'vehicle rent') : t('পণ্যের দাম', 'items')}`
+                    : taka(order.total)}
+                </dd>
               </div>
             </dl>
           </Card>
@@ -249,10 +260,12 @@ function StatusCard({ order, onUpdated }: { order: OrderDetail; onUpdated: (orde
   const { t, text } = useLang()
   const [note, setNote] = useState('')
   const next = adminNextStatuses(order.service, order.status)
-  // Bazar and medicine: staff price the order in the Items card; booking is the customer's confirm.
+  // Bazar and medicine: staff price the order in the Items card, shifting in the Vehicle rent card; booking is the customer's confirm.
   const hint =
     isQuotedService(order.service) && order.status === 'PENDING'
-      ? t('পণ্যের তালিকায় দাম দিয়ে পাঠান; গ্রাহক কনফার্ম করলে অর্ডার বুক হবে।', 'Price the items and send them; the order is booked when the customer confirms.')
+      ? order.service === 'shifting'
+        ? t('দূরত্ব দেখে গাড়ী ভাড়া পাঠান; গ্রাহক কনফার্ম করলে অর্ডার বুক হবে।', 'Send the vehicle rent for the distance; the order is booked when the customer confirms.')
+        : t('পণ্যের তালিকায় দাম দিয়ে পাঠান; গ্রাহক কনফার্ম করলে অর্ডার বুক হবে।', 'Price the items and send them; the order is booked when the customer confirms.')
       : order.status === 'QUOTED'
         ? t('গ্রাহকের কনফার্মের অপেক্ষায়। দাম বদলাতে হলে নতুন দাম পাঠান।', 'Waiting for the customer to confirm. To change the price, send a new one.')
         : null
@@ -492,6 +505,104 @@ function ItemsCard({ order, onUpdated }: { order: OrderDetail; onUpdated: (order
           </div>
         </div>
       )}
+    </Card>
+  )
+}
+
+/**
+ * A shifting order's price, until the customer confirms: staff check the road distance between the
+ * two pins and send the vehicle rent, starting from the vehicle's Catalog rate. Labour and floors
+ * stay at the rates the order was placed with. The customer then confirms or cancels.
+ */
+function VehicleQuoteCard({ order, onUpdated }: { order: OrderDetail; onUpdated: (order: OrderDetail) => void }) {
+  const { t, text, taka } = useLang()
+  const catalog = useCatalog()
+  const shifting = order.shifting!
+  const requoting = order.status === 'QUOTED'
+  const startRate = catalog.data?.vehicles.find(vehicle => vehicle.id === shifting.vehicleId)?.rate ?? null
+  const saved = shifting.vehicleRate ?? startRate
+  const [rent, setRent] = useState(saved === null ? '' : String(saved))
+  const [note, setNote] = useState('')
+  const [error, setError] = useState<MessageCode | null>(null)
+  // Start again from the sent rent (or the Catalog rate) whenever the order changes or the Catalog loads.
+  useEffect(() => setRent(saved === null ? '' : String(saved)), [order, saved])
+  const total = toAmount(rent) + order.serviceFee + order.deliveryFee
+  const route = shifting.loadingPin && shifting.unloadingPin ? directionsLink(shifting.loadingPin, shifting.unloadingPin) : null
+
+  const send = useMutation({
+    mutationFn: () => {
+      const body = { vehicleRate: rent.trim() ? toAmount(rent) : undefined, note: note.trim() || undefined }
+      const check = validateForm(shiftingQuoteSchema, body, FORM_ERROR_PRIORITY.shiftingQuote)
+      if (!check.success) throw check.code
+      return api.orders.quoteShifting(order.id, check.data)
+    },
+    onSuccess: updated => {
+      onUpdated(updated)
+      setNote('')
+      toast.success(requoting ? t('নতুন ভাড়া পাঠানো হয়েছে', 'New rent sent') : t('গাড়ী ভাড়া পাঠানো হয়েছে', 'Vehicle rent sent'), {
+        description: t(`মোট ${taka(updated.total)}। গ্রাহক কনফার্ম বা বাতিল করবেন।`, `Total ${taka(updated.total)}. The customer will confirm or cancel.`),
+      })
+    },
+    onError: failure => setError(errorCode(failure, FORM_ERROR_PRIORITY.shiftingQuote)),
+  })
+
+  return (
+    <Card
+      title={t('গাড়ী ভাড়া', 'Vehicle rent')}
+      actions={
+        route && (
+          <a href={route} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-sm font-semibold text-brand-700 hover:underline">
+            <Route className="size-4" />
+            {t('দূরত্ব দেখুন', 'See the distance')}
+          </a>
+        )
+      }
+    >
+      <p className="mb-3 rounded-lg bg-canvas px-3 py-2 text-sm text-muted">
+        {requoting
+          ? t('ভাড়া পাঠানো হয়েছে; গ্রাহকের কনফার্মের অপেক্ষায়। বদলাতে হলে নতুন ভাড়া পাঠান।', 'Rent sent; waiting for the customer. To change it, send a new one.')
+          : t('Loading থেকে Unloading Area-র দূরত্ব দেখে গাড়ী ভাড়া দিন। লেবার ও ফ্লোরের খরচ অর্ডারের সময়ের রেটেই থাকবে।', 'Check the distance from the loading to the unloading area and set the vehicle rent. Labour and floors stay at the rates the order was placed with.')}
+      </p>
+      <div className="grid gap-3">
+        <dl className="grid gap-1.5 text-sm">
+          <BillRow label={t('গাড়ী', 'Vehicle')} value={text(shifting.vehicleName)} />
+          <BillRow label={t('লেবার ও ফ্লোর', 'Labour and floors')} value={taka(order.serviceFee)} />
+        </dl>
+        <Field label={t('গাড়ী ভাড়া (টাকা)', 'Vehicle rent (taka)')} hint={startRate === null ? undefined : t(`শুরুর রেট ${taka(startRate)}`, `Starting rate ${taka(startRate)}`)}>
+          <div className="flex items-center gap-2">
+            <Input
+              type="number"
+              min={0}
+              step={1}
+              inputMode="numeric"
+              className="h-9 w-36 text-right tabular-nums"
+              value={rent}
+              onChange={e => {
+                setRent(e.target.value)
+                setError(null)
+              }}
+            />
+            {requoting && shifting.vehicleRate !== null && rent.trim() !== '' && toAmount(rent) !== shifting.vehicleRate && (
+              <span className="text-xs text-warning-ink">
+                {t('আগে', 'was')} <span className="tabular-nums line-through">{taka(shifting.vehicleRate)}</span>
+              </span>
+            )}
+          </div>
+        </Field>
+        <Field label={t('গ্রাহকের জন্য নোট (ঐচ্ছিক)', 'Note for the customer (optional)')}>
+          <Input maxLength={500} value={note} onChange={e => setNote(e.target.value)} placeholder={t('যেমন: মিরপুর থেকে উত্তরা ১৪ কিমি', 'e.g. Mirpur to Uttara is 14 km')} />
+        </Field>
+        <ErrorNote code={error} />
+        <div className="flex flex-wrap items-center justify-end gap-3">
+          <span className="text-sm text-muted">
+            {t('চার্জসহ মোট', 'Total with charges')} <strong className="text-ink tabular-nums">{taka(total)}</strong>
+          </span>
+          <Button loading={send.isPending} onClick={() => send.mutate()}>
+            <Send className="size-4" />
+            {requoting ? t('নতুন ভাড়া পাঠান', 'Send new rent') : t('ভাড়া পাঠান', 'Send rent')}
+          </Button>
+        </div>
+      </div>
     </Card>
   )
 }

@@ -161,9 +161,10 @@ describe('Pashe Achi API (e2e)', () => {
       expect(bazar.body.items.map((item: { price: number | null }) => item.price)).toEqual([null, null])
       const shifting = await agent
         .post(api('/orders/shifting'))
-        .send({ loadingArea: 'মিরপুর', unloadingArea: 'উত্তরা', loadingPin: PIN, unloadingPin: PIN, schedule, vehicleId: vehicle.id, labourers: 1, loadingFloor: 1, unloadingFloor: 1 })
+        .send({ loadingArea: 'মিরপুর', unloadingArea: 'উত্তরা', loadingPin: PIN, unloadingPin: PIN, schedule, vehicleId: vehicle.id, labourers: 1, loadingFloor: 1, unloadingFloor: 1, vehicleRate: 1 })
         .expect(201)
-      expect(shifting.body.total).toBe(1420)
+      // The vehicle rent comes later, from staff, by distance: the bill is labour and floors.
+      expect(shifting.body).toMatchObject({ total: 220, itemsTotal: 0, serviceFee: 220, status: 'PENDING', shifting: { vehicleRate: null } })
       const parcel = await agent
         .post(api('/orders/parcel'))
         .send({ product: 'ব্যাগ', pickupAddress: 'A', dropoffAddress: 'B', pickupPin: PIN, dropoffPin: PIN, receiverMobile: '01711111111', schedule })
@@ -548,9 +549,59 @@ describe('Pashe Achi API (e2e)', () => {
       expect(cancelled.body).toMatchObject({ status: 'CANCELLED', canConfirm: false })
       await agent.post(api(`/orders/${order.id}/confirm`)).send({ total: 160, quoteVersion: 1 }).expect(400).expect(res => expect(res.body.code).toBe('order.bad_transition'))
 
-      // Shifting and parcel keep their Catalog prices: there is nothing to quote.
+      // Parcel keeps its Catalog price: there is nothing to quote.
       const parcel = (await agent.post(api('/orders/parcel')).send({ product: 'a', pickupAddress: 'A', dropoffAddress: 'B', pickupPin: PIN, dropoffPin: PIN, receiverMobile: '01711111111', schedule }).expect(201)).body as OrderDetail
       await admin.put(api(`/admin/orders/${parcel.id}/quote`)).send({ items: [{ name: 'x', quantity: '1', price: 1 }] }).expect(400)
+    })
+
+    it('has staff price a shifting order\'s vehicle by distance, and the customer confirm it', async () => {
+      const { agent } = await signup('01712000028')
+      const admin = await adminAgent()
+      const vehicle = await prisma.vehicle.findFirstOrThrow({ where: { isActive: true } })
+      const placeShifting = async () =>
+        (
+          await agent
+            .post(api('/orders/shifting'))
+            .send({ loadingArea: 'মিরপুর ১০', unloadingArea: 'উত্তরা', loadingPin: PIN, unloadingPin: PIN, schedule, vehicleId: vehicle.id, labourers: 1, loadingFloor: 1, unloadingFloor: 1 })
+            .expect(201)
+        ).body as OrderDetail
+      const order = await placeShifting()
+      expect(order).toMatchObject({ itemsTotal: 0, serviceFee: 220, total: 220, quoteVersion: 0, canConfirm: false })
+
+      // Only a quote moves it on, and only through its own endpoint.
+      await admin.patch(api(`/admin/orders/${order.id}/status`)).send({ status: 'BOOKED' }).expect(400).expect(res => expect(res.body.code).toBe('order.bad_transition'))
+      await admin.put(api(`/admin/orders/${order.id}/quote`)).send({ items: [{ name: 'x', quantity: '1', price: 1 }] }).expect(400).expect(res => expect(res.body.code).toBe('validation'))
+      await admin.put(api(`/admin/orders/${order.id}/shifting-quote`)).send({}).expect(400).expect(res => expect(res.body.code).toBe('quote.vehicle'))
+      const bazar = (await agent.post(api('/orders/bazar')).send({ address: 'x', addressPin: PIN, contactMobile: '01712000028', schedule, items: [{ name: 'a', quantity: '1' }] }).expect(201)).body as OrderDetail
+      await admin.put(api(`/admin/orders/${bazar.id}/shifting-quote`)).send({ vehicleRate: 1500 }).expect(400).expect(res => expect(res.body.code).toBe('validation'))
+
+      // A long way: the rent goes up from the starting rate. Labour and floors stay as placed.
+      const quoted = await admin.put(api(`/admin/orders/${order.id}/shifting-quote`)).send({ vehicleRate: 1500, note: 'মিরপুর থেকে উত্তরা ১৪ কিমি' }).expect(200)
+      expect(quoted.body).toMatchObject({ status: 'QUOTED', itemsTotal: 1500, serviceFee: 220, total: 1720, quoteVersion: 1, shifting: { vehicleRate: 1500 } })
+      const [bill] = await prisma.auditLog.findMany({ where: { entityId: order.id, action: 'ORDER_BILL_UPDATED' } })
+      expect(bill!.changes).toEqual([
+        { field: 'vehicleRate', from: null, to: 1500 },
+        { field: 'total', from: 220, to: 1720 },
+      ])
+      const [priceReady] = await waitFor(async () => {
+        const items = (await agent.get(api('/notifications')).expect(200)).body.items as { body: { bn: string; en: string } }[]
+        return items.length ? items : null
+      })
+      expect(priceReady!.body.bn).toBe('গাড়ী ভাড়া 1500 + লেবার ও ফ্লোর 220 = মোট 1720 টাকা। মিরপুর থেকে উত্তরা ১৪ কিমি। দেখে কনফার্ম বা বাতিল করুন।')
+      expect(priceReady!.body.en).toContain('Vehicle Tk 1500 + labour and floors Tk 220 = Tk 1720')
+
+      // A new rent before the customer decides: only the latest can be confirmed.
+      await admin.put(api(`/admin/orders/${order.id}/shifting-quote`)).send({ vehicleRate: 1400 }).expect(200)
+      await agent.post(api(`/orders/${order.id}/confirm`)).send({ total: 1720, quoteVersion: 1 }).expect(409).expect(res => expect(res.body.code).toBe('order.quote_changed'))
+      const confirmed = await agent.post(api(`/orders/${order.id}/confirm`)).send({ total: 1620, quoteVersion: 2 }).expect(200)
+      expect(confirmed.body).toMatchObject({ status: 'BOOKED', total: 1620, shifting: { vehicleRate: 1400 }, canConfirm: false })
+      await admin.put(api(`/admin/orders/${order.id}/shifting-quote`)).send({ vehicleRate: 1 }).expect(400).expect(res => expect(res.body.code).toBe('order.bill_locked'))
+
+      // The customer can also say no to the rent.
+      const other = await placeShifting()
+      await admin.put(api(`/admin/orders/${other.id}/shifting-quote`)).send({ vehicleRate: 2000 }).expect(200)
+      const cancelled = await agent.post(api(`/orders/${other.id}/cancel`)).expect(200)
+      expect(cancelled.body).toMatchObject({ status: 'CANCELLED', canConfirm: false })
     })
 
     it('lets staff change the charges in a quote, and the customer confirm only the quote they saw', async () => {

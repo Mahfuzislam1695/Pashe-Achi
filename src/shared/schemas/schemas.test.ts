@@ -15,6 +15,7 @@ import {
   createShiftingOrderSchema,
   FORM_ERROR_PRIORITY,
   quoteOrderSchema,
+  shiftingQuoteSchema,
 } from './orders'
 import { isPushEndpoint, pushSubscriptionSchema } from './push'
 
@@ -140,12 +141,22 @@ describe('quotes', () => {
     expect(confirmOrderSchema.safeParse({ total: -1, quoteVersion: 1 }).success).toBe(false)
   })
 
-  it('lets staff leave PENDING only through a quote for bazar and medicine', () => {
+  it('needs a valid vehicle rent in a shifting quote', () => {
+    expect(shiftingQuoteSchema.parse({ vehicleRate: 1500, note: 'মিরপুর থেকে উত্তরা' })).toEqual({ vehicleRate: 1500, note: 'মিরপুর থেকে উত্তরা' })
+    expect(pickIssueCode(codes(shiftingQuoteSchema.safeParse({})), FORM_ERROR_PRIORITY.shiftingQuote)).toBe('quote.vehicle')
+    expect(pickIssueCode(codes(shiftingQuoteSchema.safeParse({ vehicleRate: -1 })), FORM_ERROR_PRIORITY.shiftingQuote)).toBe('quote.vehicle')
+    expect(pickIssueCode(codes(shiftingQuoteSchema.safeParse({ vehicleRate: 12.5 })), FORM_ERROR_PRIORITY.shiftingQuote)).toBe('quote.vehicle')
+  })
+
+  it('lets staff leave PENDING only through a quote for bazar, medicine and shifting', () => {
     expect(adminNextStatuses('bazar', 'PENDING')).toEqual(['CANCELLED'])
     expect(adminNextStatuses('medicine', 'QUOTED')).toEqual(['CANCELLED'])
-    expect(adminNextStatuses('shifting', 'PENDING')).toEqual(['BOOKED', 'CANCELLED'])
+    expect(adminNextStatuses('shifting', 'PENDING')).toEqual(['CANCELLED'])
+    expect(adminNextStatuses('parcel', 'PENDING')).toEqual(['BOOKED', 'CANCELLED'])
     expect(adminNextStatuses('bazar', 'BOOKED')).toContain('IN_PROGRESS')
     expect(isAwaitingPrice('bazar', 'PENDING')).toBe(true)
+    expect(isAwaitingPrice('shifting', 'PENDING')).toBe(true)
+    expect(isAwaitingPrice('shifting', 'QUOTED')).toBe(false)
     expect(isAwaitingPrice('parcel', 'PENDING')).toBe(false)
   })
 })

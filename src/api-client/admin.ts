@@ -26,6 +26,7 @@ import type {
   PushKeyDto,
   PushSubscriptionInput,
   QuoteOrderInput,
+  ShiftingQuoteInput,
   SupportSettings,
   SupportSettingsInput,
   UnreadCountDto,
@@ -63,6 +64,8 @@ export function createAdminApi(options: Omit<HttpClientOptions, 'audience'>) {
       updateStatus: (orderId: string, body: UpdateOrderStatusInput) => http.patch<OrderDetail>(`/admin/orders/${id(orderId)}/status`, body),
       /** Price a bazar or medicine order (the whole list of lines); the customer is asked to confirm. */
       quote: (orderId: string, body: QuoteOrderInput) => http.put<OrderDetail>(`/admin/orders/${id(orderId)}/quote`, body),
+      /** Price a shifting order's vehicle by distance; the customer is asked to confirm. */
+      quoteShifting: (orderId: string, body: ShiftingQuoteInput) => http.put<OrderDetail>(`/admin/orders/${id(orderId)}/shifting-quote`, body),
     },
     customers: {
       list: (query: Partial<ListCustomersQuery> = {}) => http.get<Paginated<AdminCustomerDto>>('/admin/customers', query),

@@ -287,7 +287,7 @@ function VehiclesCard({ vehicles, editable }: { vehicles: VehicleDto[]; editable
         <Input aria-label={t('ইংরেজি নাম', 'Name (English)')} className="h-8" value={form.nameEn} onChange={e => onChange({ ...form, nameEn: e.target.value })} />
       </Td>
       <Td>
-        <Input aria-label={t('রেট', 'Rate')} className="h-8 w-28 text-right" type="number" min={0} inputMode="numeric" value={form.rate} onChange={e => onChange({ ...form, rate: e.target.value })} />
+        <Input aria-label={t('শুরুর রেট', 'Starting rate')} className="h-8 w-28 text-right" type="number" min={0} inputMode="numeric" value={form.rate} onChange={e => onChange({ ...form, rate: e.target.value })} />
       </Td>
       <Td>
         <Input aria-label={t('ক্রম', 'Order')} className="h-8 w-20" type="number" min={0} inputMode="numeric" value={form.sortOrder} onChange={e => onChange({ ...form, sortOrder: e.target.value })} />
@@ -313,12 +313,18 @@ function VehiclesCard({ vehicles, editable }: { vehicles: VehicleDto[]; editable
         ) : null
       }
     >
+      <p className="mb-3 text-sm text-muted">
+        {t(
+          'গ্রাহক এই রেটকে “থেকে” হিসেবে দেখেন। প্রতিটি অর্ডারের গাড়ী ভাড়া দূরত্ব দেখে অর্ডারের পাতা থেকে পাঠানো হয়।',
+          'Customers see this rate as a “from” price. Each order’s vehicle rent is set by distance and sent from the order’s page.',
+        )}
+      </p>
       <Table>
         <thead>
           <tr>
             <Th>{t('বাংলা নাম', 'Name (Bangla)')}</Th>
             <Th>{t('ইংরেজি নাম', 'Name (English)')}</Th>
-            <Th>{t('রেট', 'Rate')}</Th>
+            <Th>{t('শুরুর রেট', 'Starting rate')}</Th>
             <Th>{t('ক্রম', 'Order')}</Th>
             <Th>{t('অবস্থা', 'Status')}</Th>
             {editable && <Th />}

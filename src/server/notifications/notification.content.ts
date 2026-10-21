@@ -18,14 +18,20 @@ interface OrderRef {
   user: { name: string }
 }
 
-/** A bazar or medicine bill before a quote: the fees the customer saw when ordering, or the last quote. */
+/** A bill before a quote: the fees the customer saw when ordering, or the last quote. */
 export interface PreviousBill {
   serviceFee: number
   deliveryFee: number
   total: number
 }
 
-const GOODS: Partial<Record<ServiceId, Text>> = { bazar: { bn: 'বাজার', en: 'Bazar' }, medicine: { bn: 'ঔষুধ', en: 'Medicines' } }
+const GOODS: Partial<Record<ServiceId, Text>> = {
+  bazar: { bn: 'বাজার', en: 'Bazar' },
+  medicine: { bn: 'ঔষুধ', en: 'Medicines' },
+  shifting: { bn: 'গাড়ী ভাড়া', en: 'Vehicle' },
+}
+/** The service fee in a breakdown: bazar's shopping fee, shifting's labour and floors. */
+const SERVICE_FEE: Partial<Record<ServiceId, Text>> = { shifting: { bn: 'লেবার ও ফ্লোর', en: 'labour and floors' } }
 const FEE_LABELS: Record<'serviceFee' | 'deliveryFee', Text> = {
   serviceFee: { bn: 'বাজার ক্রয় বাবদ মজুরী', en: 'Shopping fee' },
   deliveryFee: { bn: 'ডেলিভারী খরচ', en: 'Delivery charge' },
@@ -39,11 +45,15 @@ const sentences = (parts: (string | null | undefined)[], stop: string) =>
     .map(part => (/[।.!?]$/.test(part!) ? part : `${part}${stop}`))
     .join(' ')
 
-/** "বাজার 610 + মজুরী 150 + ডেলিভারী 120 = মোট 880 টাকা" (a fee of 0 is left out). */
+/**
+ * "বাজার 610 + মজুরী 150 + ডেলিভারী 120 = মোট 880 টাকা", or for shifting "গাড়ী ভাড়া 1500 + লেবার ও
+ * ফ্লোর 220 = মোট 1720 টাকা" (a fee of 0 is left out).
+ */
 export function billBreakdown(order: Pick<OrderRef, 'service' | 'itemsTotal' | 'serviceFee' | 'deliveryFee' | 'total'>): Text {
   const goods = GOODS[order.service] ?? { bn: 'পণ্য', en: 'Items' }
-  const bn = [`${goods.bn} ${order.itemsTotal}`, order.serviceFee ? `মজুরী ${order.serviceFee}` : null, order.deliveryFee ? `ডেলিভারী ${order.deliveryFee}` : null]
-  const en = [`${goods.en} Tk ${order.itemsTotal}`, order.serviceFee ? `shopping fee Tk ${order.serviceFee}` : null, order.deliveryFee ? `delivery Tk ${order.deliveryFee}` : null]
+  const fee = SERVICE_FEE[order.service] ?? { bn: 'মজুরী', en: 'shopping fee' }
+  const bn = [`${goods.bn} ${order.itemsTotal}`, order.serviceFee ? `${fee.bn} ${order.serviceFee}` : null, order.deliveryFee ? `ডেলিভারী ${order.deliveryFee}` : null]
+  const en = [`${goods.en} Tk ${order.itemsTotal}`, order.serviceFee ? `${fee.en} Tk ${order.serviceFee}` : null, order.deliveryFee ? `delivery Tk ${order.deliveryFee}` : null]
   return {
     bn: `${bn.filter(Boolean).join(' + ')} = মোট ${order.total} টাকা`,
     en: `${en.filter(Boolean).join(' + ')} = Tk ${order.total}`,
@@ -69,7 +79,7 @@ const STATUS_MESSAGES: Partial<Record<OrderStatus, Text>> = {
 
 const withNote = (text: Text, note: string | null): Text => (note ? { bn: `${text.bn} ${note}`, en: `${text.en} ${note}` } : text)
 
-/** To admins: a customer placed an order. Bazar and medicine orders still need staff to price them. */
+/** To admins: a customer placed an order. Bazar, medicine and shifting orders still need staff to price them. */
 export function orderCreatedContent(order: OrderRef): NotificationContent {
   const code = orderCode(order.number)
   const service = SERVICE_LABELS[order.service]
@@ -121,7 +131,7 @@ export function customerConfirmedContent(order: OrderRef, to: OrderStatus): Noti
 }
 
 /**
- * To the customer: staff priced their bazar or medicine order (or sent a new price). The body has
+ * To the customer: staff priced their order (or sent a new price). The body has
  * the whole bill, the fees staff changed and the staff note, so the customer can decide from the
  * notification itself; they confirm or cancel on the order page.
  */

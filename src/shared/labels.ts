@@ -121,6 +121,7 @@ export const AUDIT_FIELD_LABELS: Record<string, Text> = {
   'item.added': { bn: 'নতুন লাইন', en: 'Line added' },
   'item.removed': { bn: 'লাইন বাদ', en: 'Line removed' },
   serviceFee: { bn: 'বাজার ক্রয় বাবদ মজুরী', en: 'Shopping fee' },
+  vehicleRate: { bn: 'গাড়ী ভাড়া', en: 'Vehicle rent' },
   deliveryFee: { bn: 'ডেলিভারী খরচ', en: 'Delivery charge' },
   titleBn: { bn: 'শিরোনাম (বাংলা)', en: 'Title (Bangla)' },
   titleEn: { bn: 'শিরোনাম (ইংরেজি)', en: 'Title (English)' },
