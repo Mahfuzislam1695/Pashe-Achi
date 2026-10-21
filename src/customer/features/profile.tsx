@@ -113,7 +113,7 @@ function MyLocation() {
       )}
       {saved && <p className="form-success">{t('লোকেশন সেভ হয়েছে।', 'Location saved.')}</p>}
       <div className="confirm my-location-actions">
-        <button type="button" className="secondary-button" onClick={() => setSheet({ locate: false })}>
+        <button type="button" className="secondary-button" onClick={() => setSheet({ locate: !location })}>
           <MapIcon size={16} />
           {location ? t('ম্যাপে পরিবর্তন করুন', 'Change on map') : t('ম্যাপে লোকেশন দিন', 'Set on map')}
         </button>

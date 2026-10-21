@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common'
-import type { Lang, ReverseGeocodeDto, ReverseGeocodeQuery } from '@/shared'
+import { type Lang, type ReverseGeocodeDto, type ReverseGeocodeQuery, toBnDigits } from '@/shared'
 
 const NOMINATIM_REVERSE_URL = 'https://nominatim.openstreetmap.org/reverse'
 /** Nominatim's usage policy: an identifying User-Agent, and at most one request a second for the whole app. */
@@ -11,22 +11,58 @@ const CACHE_SIZE = 500
 /** With this many lookups already waiting, answer null at once rather than make the customer wait. */
 const MAX_WAITING = 10
 
+/**
+ * The area names between the road and the city, finest first. Nominatim sends only the ones
+ * OpenStreetMap has for the spot: in Dhaka typically a housing area (residential), a sector or
+ * block (quarter) and the suburb; outside cities a village or town.
+ */
+const AREA_KEYS = [
+  'residential',
+  'hamlet',
+  'isolated_dwelling',
+  'allotments',
+  'industrial',
+  'commercial',
+  'retail',
+  'city_block',
+  'neighbourhood',
+  'quarter',
+  'suburb',
+  'borough',
+  'city_district',
+  'village',
+  'town',
+] as const
+/** Outside a city: the pourashava, the upazila and the district. Inside one they only repeat it ("ঢাকা মহানগর", "ঢাকা জেলা"). */
+const REGION_KEYS = ['municipality', 'county', 'state_district'] as const
+/** A road known only by its number (N5, Z1219) tells a rider nothing. */
+const ROAD_CODE = /^[A-Z]{1,2}-?\d+$/i
+
 /** The parts of Nominatim's jsonv2 reverse response we use. */
 export interface NominatimResult {
   name?: string
   display_name?: string
-  address?: Partial<
-    Record<'house_number' | 'road' | 'neighbourhood' | 'suburb' | 'quarter' | 'city_district' | 'city' | 'town' | 'village' | 'county' | 'postcode' | 'country', string>
-  >
+  address?: Partial<Record<'house_number' | 'road' | (typeof AREA_KEYS)[number] | 'city' | (typeof REGION_KEYS)[number] | 'postcode' | 'country', string>>
   error?: string
 }
 
-/** A short address for a pin: place name, house and road, area, city. Postcode and country are left out. */
-export function formatAddress(result: NominatimResult): string | null {
+/**
+ * The address for a pin, finest to coarsest, the way addresses are written in Bangladesh:
+ * "রূপায়ন সিটি, সেক্টর ১২, নলভোগ, ঢাকা-১২৩১" or "House 57, Road 8A, Dhanmondi, Dhaka-1207".
+ * Country and division are left out. In Bangla the house number and postcode get Bengali digits;
+ * names stay as OpenStreetMap writes them.
+ */
+export function formatAddress(result: NominatimResult, lang: Lang): string | null {
   const a = result.address ?? {}
-  const parts = [result.name, [a.house_number, a.road].filter(Boolean).join(' '), a.neighbourhood, a.suburb ?? a.quarter, a.city_district, a.city ?? a.town ?? a.village ?? a.county]
-  const unique = parts.map(part => part?.trim()).filter((part, index, all): part is string => !!part && all.indexOf(part) === index)
-  if (unique.length) return unique.join(', ').slice(0, 300)
+  const number = (value: string) => (lang === 'bn' ? toBnDigits(value.trim()) : value.trim())
+  const house = a.house_number && (lang === 'bn' ? `বাসা ${number(a.house_number)}` : `House ${number(a.house_number)}`)
+  const place = a.city ? [a.city] : REGION_KEYS.map(key => a[key])
+  const parts = [result.name, house, a.road, ...AREA_KEYS.map(key => a[key]), ...place]
+  const unique = parts.map(part => part?.trim()).filter((part, index, all): part is string => !!part && !ROAD_CODE.test(part) && all.indexOf(part) === index)
+  if (unique.length) {
+    if (a.postcode?.trim()) unique.push(`${unique.pop()}-${number(a.postcode)}`)
+    return unique.join(', ').slice(0, 300)
+  }
   const fallback = result.display_name
     ?.split(',')
     .map(part => part.trim())
@@ -82,7 +118,7 @@ export class GeoService {
       signal: AbortSignal.timeout(TIMEOUT_MS),
     })
     if (!response.ok) throw new Error(`HTTP ${response.status}`)
-    return formatAddress((await response.json()) as NominatimResult)
+    return formatAddress((await response.json()) as NominatimResult, lang)
   }
 
   private remember(key: string, address: string | null) {

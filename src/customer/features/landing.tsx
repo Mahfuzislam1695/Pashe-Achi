@@ -1,7 +1,7 @@
 'use client'
 
-import { APP_LOGO_HERO, APP_NAME, APP_TAGLINE, describeDeliveryHours, ORDER_STATUS_LABELS, SERVICE_IDS, SERVICE_LABELS, type ServiceId } from '@/shared'
-import { BadgeCheck, BellRing, ChevronDown, Clock, Headset, Languages, LogIn, Menu, MessageCircle, Phone, ReceiptText, Smartphone, UserPlus, X } from 'lucide-react'
+import { APP_DOWNLOADS, APP_LOGO_HERO, APP_NAME, APP_TAGLINE, describeDeliveryHours, ORDER_STATUS_LABELS, SERVICE_IDS, SERVICE_LABELS, type ServiceId } from '@/shared'
+import { BadgeCheck, BellRing, ChevronDown, Clock, Download, Headset, Languages, LogIn, Menu, MessageCircle, Phone, ReceiptText, Smartphone, UserPlus, X } from 'lucide-react'
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
 
@@ -45,7 +45,7 @@ export function LandingScreen({ signedIn, fontClass = '' }: { signedIn: boolean;
     offers: t('আজকের অফার', "Today's offers"),
     services: t('সেবাসমূহ', 'Services'),
     how: t('যেভাবে কাজ করে', 'How it works'),
-    app: t('অ্যাপ', 'App'),
+    app: t('অ্যাপ ডাউনলোড', 'Get the app'),
     pricing: t('খরচ', 'Pricing'),
     faq: t('প্রশ্নোত্তর', 'FAQ'),
   }
@@ -75,11 +75,18 @@ export function LandingScreen({ signedIn, fontClass = '' }: { signedIn: boolean;
             <Logo />
           </Link>
           <nav className={`lp-nav ${menuOpen ? 'open' : ''}`} aria-label={t('পেজের অংশ', 'Page sections')}>
-            {sections.map(id => (
-              <a key={id} href={`#${id}`} onClick={() => setMenuOpen(false)}>
-                {sectionLabel[id]}
-              </a>
-            ))}
+            {/* Each item jumps to its section, except the app's, which opens the download page. */}
+            {sections.map(id =>
+              id === 'app' ? (
+                <Link key={id} href={paths.download} onClick={() => setMenuOpen(false)}>
+                  {sectionLabel[id]}
+                </Link>
+              ) : (
+                <a key={id} href={`#${id}`} onClick={() => setMenuOpen(false)}>
+                  {sectionLabel[id]}
+                </a>
+              ),
+            )}
             <div className="lp-nav-actions">{authActions}</div>
           </nav>
           <div className="lp-header-actions">
@@ -262,6 +269,7 @@ export function LandingScreen({ signedIn, fontClass = '' }: { signedIn: boolean;
                 <Link href={paths.signup}>{t('সাইন আপ', 'Sign up')}</Link>
               </>
             )}
+            <Link href={paths.download}>{sectionLabel.app}</Link>
             <a href="#pricing">{sectionLabel.pricing}</a>
             <a href="#faq">{sectionLabel.faq}</a>
           </nav>
@@ -277,7 +285,7 @@ export function LandingScreen({ signedIn, fontClass = '' }: { signedIn: boolean;
           <DeveloperCredit tone="dark" />
         </div>
       </footer>
-      <ContactDock />
+      <ContactDock appHref={paths.download} />
       <MobileActionBar signedIn={signedIn} />
     </div>
   )
@@ -440,9 +448,10 @@ function Steps() {
   )
 }
 
-/** The app version: a real screenshot of it, what it does on a phone, and the way in. */
+/** The app version: a real screenshot of it, what it does on a phone, the way in, and the download page. */
 function AppSection() {
   const { t, lang } = useLang()
+  const android = APP_DOWNLOADS.playStore || APP_DOWNLOADS.apk
   return (
     <section id="app" className="lp-section lp-app">
       <div className="lp-container lp-app-grid">
@@ -454,7 +463,11 @@ function AppSection() {
         <div>
           <SectionHead
             title={t('ফোনে চলে অ্যাপের মতো', 'Works like an app on your phone')}
-            subtitle={t('কিছু ডাউনলোড করতে হয় না। ফোনের ব্রাউজারে খুলে হোম স্ক্রিনে রেখে দিন।', 'Nothing to download. Open it in your phone’s browser and keep it on your home screen.')}
+            subtitle={
+              android
+                ? t('ফোনের ব্রাউজারে খুলে হোম স্ক্রিনে রেখে দিন, অথবা Android অ্যাপ ডাউনলোড করুন।', 'Open it in your phone’s browser and keep it on your home screen, or download the Android app.')
+                : t('এখনই ফোনের ব্রাউজারে খুলে হোম স্ক্রিনে রেখে দিন। Android অ্যাপও আসছে।', 'Open it in your phone’s browser and keep it on your home screen today. An Android app is on the way.')
+            }
           />
           <ul className="lp-app-points">
             <li>
@@ -473,10 +486,16 @@ function AppSection() {
               <span>{t('যেকোনো সময় এক ট্যাপে ভাষা বদলান।', 'Switch the language at any time with one tap.')}</span>
             </li>
           </ul>
-          <Link className="lp-btn lp-btn-sun" href={appPaths.entry}>
-            <Smartphone size={18} />
-            {t('অ্যাপ ভার্সন খুলুন', 'Open the app version')}
-          </Link>
+          <div className="lp-app-actions">
+            <Link className="lp-btn lp-btn-sun" href={appPaths.entry}>
+              <Smartphone size={18} />
+              {t('অ্যাপ ভার্সন খুলুন', 'Open the app version')}
+            </Link>
+            <Link className="lp-btn lp-btn-ghost" href={paths.download}>
+              <Download size={18} />
+              {t('অ্যাপ ডাউনলোড', 'Get the app')}
+            </Link>
+          </div>
         </div>
       </div>
     </section>
@@ -640,8 +659,8 @@ function Faq() {
 }
 
 /**
- * Phones and tablets: Sign up (or Open app), Chat and Call stay at the bottom of the screen. It takes
- * the place of the floating Chat/Call dock, which returns on the web from 1024px.
+ * Phones and tablets: Sign up (or Open app), App (the download page), Chat and Call stay at the bottom
+ * of the screen. It takes the place of the floating dock, which returns on the web from 1024px.
  */
 function MobileActionBar({ signedIn }: { signedIn: boolean }) {
   const { t } = useLang()
@@ -653,11 +672,16 @@ function MobileActionBar({ signedIn }: { signedIn: boolean }) {
           {t('অ্যাপ খুলুন', 'Open app')}
         </Link>
       ) : (
+        // The short label: with App, Chat and Call beside it there is no room for "ফ্রি অ্যাকাউন্ট খুলুন" on a phone.
         <Link className="lp-btn lp-btn-sun" href={paths.signup}>
           <UserPlus size={18} />
-          {t('ফ্রি অ্যাকাউন্ট খুলুন', 'Create a free account')}
+          {t('সাইন আপ', 'Sign up')}
         </Link>
       )}
+      <Link className="lp-bar-link" href={paths.download} title={t('অ্যাপ ডাউনলোড', 'Get the app')}>
+        <Smartphone size={18} />
+        App
+      </Link>
       {support && (
         <>
           <a className="lp-bar-link" href={support.whatsapp} target="_blank" rel="noopener noreferrer" title={t('WhatsApp-এ চ্যাট করুন', 'Chat on WhatsApp')}>

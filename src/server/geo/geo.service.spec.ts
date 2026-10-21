@@ -5,25 +5,58 @@ import { formatAddress, GeoService, MIN_INTERVAL_MS } from './geo.service'
 const reply = (body: object, ok = true) => Promise.resolve({ ok, status: ok ? 200 : 503, json: () => Promise.resolve(body) } as Response)
 const mockFetch = () => jest.spyOn(globalThis, 'fetch')
 
+// The address parts below are from Nominatim's real replies for these places (division and ISO codes left out).
+const DHAKA = { city: 'ঢাকা', county: 'ঢাকা মহানগর', state_district: 'ঢাকা জেলা', country: 'বাংলাদেশ' }
+
 describe('formatAddress', () => {
-  it('keeps the place, house and road, area and city, without postcode or country', () => {
-    const result = formatAddress({
-      name: 'Mirpur Stadium',
-      address: { house_number: '12', road: 'Road 3', neighbourhood: 'Section 2', suburb: 'Mirpur', city: 'Dhaka', postcode: '1216', country: 'Bangladesh' },
-    })
-    expect(result).toBe('Mirpur Stadium, 12 Road 3, Section 2, Mirpur, Dhaka')
+  it('keeps the place, house, road, areas and city, with the postcode after the city and no country', () => {
+    const result = formatAddress(
+      {
+        name: 'Mirpur Stadium',
+        address: { house_number: '12', road: 'Road 3', neighbourhood: 'Section 2', suburb: 'Mirpur', city: 'Dhaka', postcode: '1216', country: 'Bangladesh' },
+      },
+      'en',
+    )
+    expect(result).toBe('Mirpur Stadium, House 12, Road 3, Section 2, Mirpur, Dhaka-1216')
+  })
+
+  it('keeps the housing area and sector, not just the suburb (Nalbhog)', () => {
+    const result = formatAddress({ name: '', address: { residential: 'রূপায়ন সিটি', quarter: 'সেক্টর ১২', suburb: 'নলভোগ', ...DHAKA, postcode: '1231' } }, 'bn')
+    expect(result).toBe('রূপায়ন সিটি, সেক্টর ১২, নলভোগ, ঢাকা-১২৩১')
+  })
+
+  it('keeps the block beside the suburb (Kuril)', () => {
+    const result = formatAddress({ name: 'সড়ক # ৬', address: { road: 'সড়ক # ৬', quarter: 'ব্লক সি', suburb: 'কুড়িল', ...DHAKA, postcode: '1229' } }, 'bn')
+    expect(result).toBe('সড়ক # ৬, ব্লক সি, কুড়িল, ঢাকা-১২২৯')
+  })
+
+  it('writes the house in the local style, with Bengali digits in Bangla (Dhanmondi)', () => {
+    const reply = {
+      name: 'Corsa De Carena',
+      address: { house_number: '57', road: 'Road 8A', residential: 'ধানমন্ডি আবাসিক এলাকা', quarter: 'মধুবাজার', suburb: 'ধানমন্ডি', ...DHAKA, postcode: '1207' },
+    }
+    expect(formatAddress(reply, 'bn')).toBe('Corsa De Carena, বাসা ৫৭, Road 8A, ধানমন্ডি আবাসিক এলাকা, মধুবাজার, ধানমন্ডি, ঢাকা-১২০৭')
+    expect(formatAddress(reply, 'en')).toContain('House 57, Road 8A')
+  })
+
+  it('names the upazila and district outside a city, and drops a road known only by its code (Cumilla)', () => {
+    const result = formatAddress(
+      { name: 'Z1219', address: { road: 'Z1219', village: 'মালাপাড়া', county: 'বুড়িচং উপজেলা', state_district: 'কুমিল্লা জেলা', country: 'বাংলাদেশ' } },
+      'bn',
+    )
+    expect(result).toBe('মালাপাড়া, বুড়িচং উপজেলা, কুমিল্লা জেলা')
   })
 
   it('drops parts that repeat', () => {
-    expect(formatAddress({ name: 'Road 3', address: { road: 'Road 3', suburb: 'Mirpur', city: 'Dhaka' } })).toBe('Road 3, Mirpur, Dhaka')
+    expect(formatAddress({ name: 'Road 3', address: { road: 'Road 3', suburb: 'Mirpur', city: 'Dhaka' } }, 'en')).toBe('Road 3, Mirpur, Dhaka')
   })
 
   it('falls back to the display name, minus postcode and country', () => {
-    expect(formatAddress({ display_name: 'Somewhere, Dhaka, 1216, Bangladesh', address: { postcode: '1216', country: 'Bangladesh' } })).toBe('Somewhere, Dhaka')
+    expect(formatAddress({ display_name: 'Somewhere, Dhaka, 1216, Bangladesh', address: { postcode: '1216', country: 'Bangladesh' } }, 'en')).toBe('Somewhere, Dhaka')
   })
 
   it('is null when nothing was found', () => {
-    expect(formatAddress({ error: 'Unable to geocode' })).toBeNull()
+    expect(formatAddress({ error: 'Unable to geocode' }, 'bn')).toBeNull()
   })
 })
 

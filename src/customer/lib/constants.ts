@@ -14,3 +14,6 @@ export const HOME_PATH = '/bazar'
 
 /** Where a signed-in customer lands on the app version. */
 export const APP_HOME_PATH = `${APP_BASE}/bazar`
+
+/** The public page with the Android app's links (and the web app). One page for both versions. */
+export const DOWNLOAD_PATH = '/app-download'

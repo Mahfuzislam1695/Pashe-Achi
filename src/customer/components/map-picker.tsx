@@ -27,19 +27,33 @@ export interface MapTarget {
  * the point under the pin is the location. Leaflet needs the browser, so this file is loaded
  * with next/dynamic and ssr: false.
  */
-export function MapPicker({ start, target, onMove, label }: { start: GeoPoint | null; target: MapTarget | null; onMove: (center: GeoPoint) => void; label: string }) {
+export function MapPicker({
+  start,
+  target,
+  onMove,
+  onDragStart,
+  label,
+}: {
+  start: GeoPoint | null
+  target: MapTarget | null
+  onMove: (center: GeoPoint) => void
+  /** The customer started dragging the map (never fired by FlyTo). */
+  onDragStart?: () => void
+  label: string
+}) {
   return (
     <MapContainer center={start ?? DHAKA_CENTER} zoom={start ? PIN_ZOOM : CITY_ZOOM} className="map-canvas">
       <TileLayer url={TILE_URL} attribution={ATTRIBUTION} maxZoom={19} />
-      <CenterWatcher onMove={onMove} />
+      <CenterWatcher onMove={onMove} onDragStart={onDragStart} />
       <FlyTo target={target} />
       <KeepSized label={label} />
     </MapContainer>
   )
 }
 
-function CenterWatcher({ onMove }: { onMove: (center: GeoPoint) => void }) {
+function CenterWatcher({ onMove, onDragStart }: { onMove: (center: GeoPoint) => void; onDragStart?: () => void }) {
   const map = useMapEvents({
+    dragstart: () => onDragStart?.(),
     moveend: () => {
       const center = map.getCenter()
       onMove({ lat: round(center.lat), lng: round(center.lng) })

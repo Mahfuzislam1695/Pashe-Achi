@@ -1,9 +1,10 @@
 import { type NextRequest, NextResponse } from 'next/server'
 
 import { SESSION_COOKIE as ADMIN_SESSION_COOKIE } from '@/admin/lib/constants'
-import { APP_BASE, APP_HOME_PATH, HOME_PATH, SESSION_COOKIE as CUSTOMER_SESSION_COOKIE } from '@/customer/lib/constants'
+import { APP_BASE, APP_HOME_PATH, DOWNLOAD_PATH, HOME_PATH, SESSION_COOKIE as CUSTOMER_SESSION_COOKIE } from '@/customer/lib/constants'
 
-const LANDING = '/'
+/** Open to everyone, signed in or not: the landing page and the app download page. */
+const PUBLIC_PATHS = new Set(['/', DOWNLOAD_PATH])
 /** Signed-out screens of the web version (/login) and the app version (/app, /app/login). */
 const WEB_AUTH_PATHS = new Set(['/login', '/signup'])
 const APP_AUTH_PATHS = new Set([APP_BASE, `${APP_BASE}/login`, `${APP_BASE}/signup`])
@@ -15,7 +16,8 @@ const ADMIN_LOGIN = '/admin/login'
  * session cookie exists; the API checks the session on every request, clears a stale cookie, and
  * the page then falls back to its login screen.
  * - /admin/*: the admin cookie. Without it every page goes to /admin/login; with it /admin/login goes to the dashboard.
- * - /: the web landing page, open to everyone (it shows "Open app" to a signed-in customer).
+ * - / and /app-download: the web landing page and the app download page, open to everyone (the landing
+ *   page shows "Open app" to a signed-in customer).
  * - The customer site has two versions with the same screens: web (/login, /bazar, /orders/…) and
  *   app (/app, /app/login, /app/bazar, /app/orders/…). Each stays inside its own version:
  *   - a signed-in customer on a login, signup or welcome screen goes to `next` or that version's home;
@@ -37,7 +39,7 @@ export function proxy(request: NextRequest) {
     return NextResponse.next()
   }
 
-  if (pathname === LANDING) return NextResponse.next()
+  if (PUBLIC_PATHS.has(pathname)) return NextResponse.next()
 
   const hasSession = request.cookies.has(CUSTOMER_SESSION_COOKIE)
   const isApp = pathname === APP_BASE || pathname.startsWith(`${APP_BASE}/`)

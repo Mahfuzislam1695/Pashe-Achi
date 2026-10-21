@@ -13,7 +13,8 @@ import {
   type ServiceId,
   SERVICE_LABELS,
 } from '@/shared'
-import { Check, MessageCircle, Phone, type LucideIcon } from 'lucide-react'
+import { Check, MessageCircle, Phone, Smartphone, type LucideIcon } from 'lucide-react'
+import Link from 'next/link'
 
 import { useLang } from '@/customer/lib/i18n'
 import { useCatalog } from '@/customer/lib/queries'
@@ -96,13 +97,22 @@ export function LangToggle({ lang, onChange, compact = false }: { lang: Lang; on
   )
 }
 
-/** Chat and Call sit at the bottom centre of every screen. The numbers come from the admin panel's Catalog. */
-export function ContactDock({ raised = false }: { raised?: boolean }) {
+/**
+ * Chat and Call sit at the bottom centre of every screen. The numbers come from the admin panel's
+ * Catalog. `appHref` adds an App button before them (the landing page's, to the app download page).
+ */
+export function ContactDock({ raised = false, appHref }: { raised?: boolean; appHref?: string }) {
   const { t } = useLang()
   const support = useCatalog().data?.support
   if (!support) return null
   return (
     <div className={`contact-dock ${raised ? 'raised' : ''}`}>
+      {appHref && (
+        <Link className="app" href={appHref} title={t('অ্যাপ ডাউনলোড', 'Get the app')}>
+          <Smartphone size={16} />
+          App
+        </Link>
+      )}
       <a className="chat" href={support.whatsapp} target="_blank" rel="noopener noreferrer" title={t('WhatsApp-এ চ্যাট করুন', 'Chat on WhatsApp')}>
         <MessageCircle size={17} />
         Chat

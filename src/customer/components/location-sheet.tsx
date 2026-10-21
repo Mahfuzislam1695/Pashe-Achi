@@ -18,6 +18,8 @@ const MapPicker = dynamic(() => import('./map-picker').then(module => module.Map
 
 /** Wait this long after the map stops before looking up the address, so dragging doesn't send a lookup per frame. */
 const LOOKUP_DELAY_MS = 600
+/** A device position rougher than this (metres) asks the customer to check the pin. */
+const ROUGH_ACCURACY_M = 100
 const PRIORITY = FORM_ERROR_PRIORITY.location
 
 /** Where the address text stands: from the map, being looked up, or typed because the map found nothing. */
@@ -26,7 +28,7 @@ type Lookup = 'found' | 'looking' | 'failed'
 interface LocationSheetProps {
   title: string
   initial?: CustomerLocationInput | null
-  /** Ask for the device's position as soon as the sheet opens. */
+  /** Ask for the device's position as soon as the sheet opens. On by default when there is no starting place. */
   locate?: boolean
   submitLabel?: string
   /** Applies or saves the location. A rejected promise keeps the sheet open and shows the error. */
@@ -35,13 +37,14 @@ interface LocationSheetProps {
 }
 
 /**
- * The map sheet: drag the map under the pin (or tap Current location). The address comes from the
- * map; the customer adds only the house, flat or road. If the map finds no address for the pin,
- * they name the area themselves, but the pin is still required. Full screen in the app's phone
- * column; a centred dialog on the web from 1024px. Render it only while open.
+ * The map sheet: drag the map under the pin (or tap Current location). With no starting place it
+ * goes to the device's position on its own. The address comes from the map; the customer adds
+ * only the house, flat or road. If the map finds no address for the pin, they name the area
+ * themselves, but the pin is still required. Full screen in the app's phone column; a centred
+ * dialog on the web from 1024px. Render it only while open.
  */
-export function LocationSheet({ title, initial, locate = false, submitLabel, onSubmit, onClose }: LocationSheetProps) {
-  const { t, lang } = useLang()
+export function LocationSheet({ title, initial, locate = !initial, submitLabel, onSubmit, onClose }: LocationSheetProps) {
+  const { t, lang, digits } = useLang()
   const mode = useMode()
   const titleId = useId()
   const areaId = useId()
@@ -54,26 +57,41 @@ export function LocationSheet({ title, initial, locate = false, submitLabel, onS
   const [lookup, setLookup] = useState<Lookup>('found')
   const [details, setDetails] = useState(initial?.details ?? '')
   const [locating, setLocating] = useState(false)
+  /** How far off (metres) the device said its position may be, until the customer drags the map. */
+  const [accuracy, setAccuracy] = useState<number | null>(null)
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<MessageCode | null>(null)
 
   // The starting pin already has its address; look up only once the pin moves.
   const skipFirstLookup = useRef(!!initial)
+  // Set once the customer drags the map, so a position that arrives later doesn't move it away.
+  const handMoved = useRef(false)
   const onCloseRef = useRef(onClose)
   onCloseRef.current = onClose
 
-  const findMe = async () => {
+  /** `auto` is the lookup on opening: it gives way to the customer's own dragging. A tap on Current location always moves the map. */
+  const findMe = async (auto = false) => {
     setLocating(true)
     setError(null)
     try {
-      const point = await getCurrentPosition()
-      setPin(point)
-      setTarget({ point, seq: Date.now() })
+      const position = await getCurrentPosition()
+      if (auto && handMoved.current) return
+      setPin(position.point)
+      setTarget({ point: position.point, seq: Date.now() })
+      setAccuracy(position.accuracy)
     } catch {
-      setError('location.unavailable')
+      if (!(auto && handMoved.current)) setError('location.unavailable')
     } finally {
       setLocating(false)
     }
+  }
+
+  /** "৮০০ মিটার" / "800 m", or "১.৫ কিমি" / "1.5 km" from a kilometre: rounded, since the device only estimates it. */
+  const offBy = (metres: number) => {
+    const rounded = Math.round(metres / 10) * 10
+    if (rounded < 1000) return t(`${digits(rounded)} মিটার`, `${rounded} m`)
+    const km = Math.round(metres / 100) / 10
+    return t(`${digits(km)} কিমি`, `${km} km`)
   }
 
   // Opening: focus the dialog (and ask for the position if `locate`), Escape closes it, the page
@@ -81,7 +99,7 @@ export function LocationSheet({ title, initial, locate = false, submitLabel, onS
   useEffect(() => {
     const opener = document.activeElement as HTMLElement | null
     dialogRef.current?.focus()
-    if (locate) void findMe()
+    if (locate) void findMe(true)
     const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') onCloseRef.current()
     }
@@ -164,17 +182,28 @@ export function LocationSheet({ title, initial, locate = false, submitLabel, onS
                 setPin(center)
                 setError(null)
               }}
+              onDragStart={() => {
+                handMoved.current = true
+                setAccuracy(null)
+              }}
               label={t('ম্যাপ: পিনের নিচের জায়গাটি আপনার লোকেশন', 'Map: the place under the pin is your location')}
             />
             <span className="map-pin" aria-hidden="true">
               <MapPin size={36} strokeWidth={2.2} />
             </span>
-            <button type="button" className="map-locate" onClick={findMe} disabled={locating} aria-busy={locating}>
+            <button type="button" className="map-locate" onClick={() => findMe()} disabled={locating} aria-busy={locating}>
               <LocateFixed size={16} />
               {locating ? t('খোঁজা হচ্ছে…', 'Finding you…') : t('বর্তমান লোকেশন', 'Current location')}
             </button>
           </div>
-          <p className="map-hint">{t('ম্যাপ সরিয়ে পিনটি ঠিক জায়গায় বসান।', 'Drag the map to put the pin on the exact place.')}</p>
+          <p className="map-hint">
+            {accuracy !== null && accuracy > ROUGH_ACCURACY_M
+              ? t(
+                  `আপনার লোকেশন প্রায় ${offBy(accuracy)} এদিক-ওদিক হতে পারে। ম্যাপ সরিয়ে পিনটি ঠিক জায়গায় বসান।`,
+                  `Your location may be off by about ${offBy(accuracy)}. Drag the map to put the pin on the exact place.`,
+                )
+              : t('ম্যাপ সরিয়ে পিনটি ঠিক জায়গায় বসান।', 'Drag the map to put the pin on the exact place.')}
+          </p>
 
           <div className="sheet-fields">
             <div className="field">
@@ -202,7 +231,10 @@ export function LocationSheet({ title, initial, locate = false, submitLabel, onS
                     <MapPin size={15} aria-hidden="true" />
                     {lookup === 'looking'
                       ? t('ম্যাপ থেকে ঠিকানা খোঁজা হচ্ছে…', 'Looking up the address…')
-                      : address || t('ম্যাপ সরিয়ে বা বর্তমান লোকেশন চেপে জায়গাটি বাছুন।', 'Move the map or tap Current location to pick the place.')}
+                      : address ||
+                        (locating && !pin
+                          ? t('আপনার বর্তমান লোকেশন খোঁজা হচ্ছে…', 'Finding your current location…')
+                          : t('ম্যাপ সরিয়ে বা বর্তমান লোকেশন চেপে জায়গাটি বাছুন।', 'Move the map or tap Current location to pick the place.'))}
                   </p>
                 </>
               )}
@@ -231,7 +263,7 @@ export function LocationSheet({ title, initial, locate = false, submitLabel, onS
           <button type="button" className="secondary-button" onClick={onClose}>
             {t('বাতিল', 'Cancel')}
           </button>
-          <button type="button" className="primary-button" onClick={submit} disabled={pending || lookup === 'looking'} aria-busy={pending}>
+          <button type="button" className="primary-button" onClick={submit} disabled={pending || lookup === 'looking' || (locating && !pin)} aria-busy={pending}>
             <Check size={17} />
             {pending ? t('অপেক্ষা করুন…', 'Please wait…') : (submitLabel ?? t('এই লোকেশন ব্যবহার করুন', 'Use this location'))}
           </button>

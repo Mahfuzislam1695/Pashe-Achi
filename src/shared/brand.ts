@@ -16,6 +16,11 @@ export const DEVELOPED_BY = { bn: 'ডেভেলপ করেছে', en: 'Dev
 export const APP_WELCOME = { bn: 'কিংফিশার-এ স্বাগতম', en: 'WELCOME TO KINGFISHER' } as const
 export const APP_TAGLINE = { bn: 'উন্নত জীবনের – সহজ সমাধান', en: 'Better living – simple solutions' } as const
 
+// The Android app's links on /app-download. null shows "শীঘ্রই আসছে" (coming soon) in place of the button.
+// playStore: https://play.google.com/store/apps/details?id=<package>
+// apk: a file in public/downloads/ (e.g. '/downloads/kingfisher.apk') or a full https:// URL.
+export const APP_DOWNLOADS: { playStore: string | null; apk: string | null } = { playStore: null, apk: null }
+
 // Photos for the banners, each in public/images as {base}-800.webp and {base}-1600.webp (800 and 1600 px wide).
 // All are from Unsplash under the Unsplash License (free for commercial use, no credit required):
 //   hero      grocery bags              unsplash.com/photos/8RaUEd8zD-U

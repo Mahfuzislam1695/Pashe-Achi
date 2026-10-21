@@ -3,7 +3,7 @@
 import type { ServiceId } from '@/shared'
 import { createContext, useContext } from 'react'
 
-import { APP_BASE } from './constants'
+import { APP_BASE, DOWNLOAD_PATH } from './constants'
 
 /**
  * The customer site has two versions with the same screens:
@@ -26,6 +26,8 @@ const makePaths = (base: string) => ({
   /** আজকের অফার */
   offers: `${base}/offers`,
   profile: `${base}/profile`,
+  /** The app download page: public, and the same page for both versions. */
+  download: DOWNLOAD_PATH,
 })
 
 export type Paths = ReturnType<typeof makePaths>
