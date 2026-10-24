@@ -1,6 +1,7 @@
 import { Global, Module } from '@nestjs/common'
 import { JwtModule } from '@nestjs/jwt'
 
+import { CatalogModule } from '../catalog/catalog.module'
 import { AdminAuthController } from './admin-auth.controller'
 import { AdminAuthService } from './admin-auth.service'
 import { CustomerAuthController } from './customer-auth.controller'
@@ -12,7 +13,8 @@ import { TokenService } from './token.service'
 @Global()
 @Module({
   // Secrets are passed per call because customers and admins use different ones.
-  imports: [JwtModule.register({})],
+  // CatalogModule: whether customers need a password (the super admin's switch).
+  imports: [JwtModule.register({}), CatalogModule],
   controllers: [CustomerAuthController, AdminAuthController],
   providers: [TokenService, CustomerAuthService, AdminAuthService, CustomerGuard, AdminGuard],
   exports: [TokenService, CustomerGuard, AdminGuard],

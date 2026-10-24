@@ -1,10 +1,10 @@
 import { Body, Controller, Get, Param, Patch, Post, Put, UseGuards } from '@nestjs/common'
 import { ApiCookieAuth, ApiOperation, ApiTags } from '@nestjs/swagger'
-import type { CatalogDto, DeliveryHours, Pricing, SupportSettings, VehicleDto } from '@/shared'
+import type { CatalogDto, CustomerAuthSettings, DeliveryHours, Pricing, SupportSettings, VehicleDto } from '@/shared'
 
 import { Actor, type AuditActor } from '../audit/actor'
 import { AdminGuard, Roles } from '../auth/guards'
-import { DeliveryHoursDto, IdParamDto, PricingDto, SupportSettingsDto, UpdateVehicleDto, VehicleDto as VehicleBodyDto } from '../common/dto'
+import { CustomerAuthDto, DeliveryHoursDto, IdParamDto, PricingDto, SupportSettingsDto, UpdateVehicleDto, VehicleDto as VehicleBodyDto } from '../common/dto'
 import { CatalogService } from './catalog.service'
 
 @ApiTags('Catalog')
@@ -42,6 +42,13 @@ export class AdminCatalogController {
   @Roles('MANAGER')
   updateSupport(@Actor() actor: AuditActor, @Body() body: SupportSettingsDto): Promise<SupportSettings> {
     return this.catalog.updateSupport(body, actor)
+  }
+
+  @Put('customer-auth')
+  @Roles('SUPER_ADMIN')
+  @ApiOperation({ summary: 'Whether customers sign up and log in with a password (super admin only)' })
+  updateCustomerAuth(@Actor() actor: AuditActor, @Body() body: CustomerAuthDto): Promise<CustomerAuthSettings> {
+    return this.catalog.updateCustomerAuth(body, actor)
   }
 
   @Put('delivery-hours')

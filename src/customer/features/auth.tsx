@@ -9,6 +9,8 @@ import {
   FORM_ERROR_PRIORITY,
   loginSchema,
   type MessageCode,
+  MOBILE_PATTERN,
+  normalizeMobile,
   SERVICE_IDS,
   SERVICE_LABELS,
   signupSchema,
@@ -188,17 +190,21 @@ export function AuthScreen({ mode, version }: { mode: 'login' | 'signup'; versio
   const [location, setLocation] = useState<AddressValue>(null)
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState<MessageCode | null>(null)
-  const support = useCatalog().data?.support
+  const catalog = useCatalog().data
+  const support = catalog?.support
+  // The super admin's switch: off, the mobile number alone signs up and logs in.
+  const passwordOn = catalog?.customerAuth.password ?? false
   const priority = isSignup ? FORM_ERROR_PRIORITY.signup : FORM_ERROR_PRIORITY.login
 
   const submitMutation = useMutation({
     mutationFn: async () => {
+      const password = passwordOn ? form.password : undefined
       if (isSignup) {
-        const check = validateForm(signupSchema, { ...form, location: location ?? undefined, lang }, priority)
+        const check = validateForm(signupSchema, { ...form, password, location: location ?? undefined, lang }, priority)
         if (!check.success) throw check.code
         return api.auth.signup(check.data)
       }
-      const check = validateForm(loginSchema, { mobile: form.mobile, password: form.password }, priority)
+      const check = validateForm(loginSchema, { mobile: form.mobile, password }, priority)
       if (!check.success) throw check.code
       return api.auth.login(check.data)
     },
@@ -249,7 +255,23 @@ export function AuthScreen({ mode, version }: { mode: 'login' | 'signup'; versio
         <Field label={t('মোবাইল নম্বর', 'Mobile number')}>
           <div className="input-wrap">
             <Phone size={17} />
-            <input type="tel" inputMode="tel" {...bind('mobile')} placeholder="01XXXXXXXXX" autoComplete="tel" />
+            <input
+              type="tel"
+              inputMode="numeric"
+              maxLength={16}
+              value={form.mobile}
+              // Digits (Latin or Bangla), +, spaces and dashes only; the schema normalises +880 and the rest.
+              onChange={e => {
+                setForm({ ...form, mobile: e.target.value.replace(/[^0-9০-৯+\s-]/g, '') })
+                setError(null)
+              }}
+              onBlur={() => {
+                if (form.mobile.trim() && !MOBILE_PATTERN.test(normalizeMobile(form.mobile))) setError('mobile.invalid')
+              }}
+              aria-invalid={error === 'mobile.invalid'}
+              placeholder="01XXXXXXXXX"
+              autoComplete="tel"
+            />
           </div>
         </Field>
         {isSignup && (
@@ -262,26 +284,28 @@ export function AuthScreen({ mode, version }: { mode: 'login' | 'signup'; versio
             }}
           />
         )}
-        <Field label={t('পাসওয়ার্ড', 'Password')}>
-          <div className="input-wrap">
-            <LockKeyhole size={17} />
-            <input
-              type={showPassword ? 'text' : 'password'}
-              {...bind('password')}
-              placeholder={t('পাসওয়ার্ড দিন', 'Enter password')}
-              autoComplete={isSignup ? 'new-password' : 'current-password'}
-            />
-            <button
-              type="button"
-              className="password-toggle"
-              aria-pressed={showPassword}
-              aria-label={showPassword ? t('পাসওয়ার্ড লুকান', 'Hide password') : t('পাসওয়ার্ড দেখুন', 'Show password')}
-              onClick={() => setShowPassword(shown => !shown)}
-            >
-              {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
-            </button>
-          </div>
-        </Field>
+        {passwordOn && (
+          <Field label={t('পাসওয়ার্ড', 'Password')}>
+            <div className="input-wrap">
+              <LockKeyhole size={17} />
+              <input
+                type={showPassword ? 'text' : 'password'}
+                {...bind('password')}
+                placeholder={t('পাসওয়ার্ড দিন', 'Enter password')}
+                autoComplete={isSignup ? 'new-password' : 'current-password'}
+              />
+              <button
+                type="button"
+                className="password-toggle"
+                aria-pressed={showPassword}
+                aria-label={showPassword ? t('পাসওয়ার্ড লুকান', 'Hide password') : t('পাসওয়ার্ড দেখুন', 'Show password')}
+                onClick={() => setShowPassword(shown => !shown)}
+              >
+                {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+              </button>
+            </div>
+          </Field>
+        )}
         <FormError code={error} />
         <button type="submit" className="primary-button wide" disabled={submitMutation.isPending}>
           {isSignup ? <UserPlus size={17} /> : <LogIn size={17} />}

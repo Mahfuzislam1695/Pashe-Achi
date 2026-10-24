@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common'
-import type { AdminDto, AuthResponse, ChangePasswordInput, LoginInput } from '@/shared'
+import type { AdminDto, AuthResponse, ChangePasswordInput, StaffLoginInput } from '@/shared'
 
 import { adminActor, type AuditActor, type ClientInfo } from '../audit/actor'
 import { AuditService } from '../audit/audit.service'
@@ -21,7 +21,7 @@ export class AdminAuthService {
   ) {}
 
   /** Every sign-in, and every failed attempt, goes into the history log (never the password typed). */
-  async login(input: LoginInput, client: ClientInfo = {}): Promise<AuthResponse<AdminDto>> {
+  async login(input: StaffLoginInput, client: ClientInfo = {}): Promise<AuthResponse<AdminDto>> {
     const admin = await this.prisma.admin.findUnique({ where: { mobile: input.mobile } })
     const valid = await verifyPassword(input.password, admin?.passwordHash ?? DUMMY_HASH)
     if (!admin || !valid || !admin.isActive) {

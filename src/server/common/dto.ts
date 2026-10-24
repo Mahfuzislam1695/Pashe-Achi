@@ -7,6 +7,7 @@ import {
   createMedicineOrderSchema,
   createParcelOrderSchema,
   createShiftingOrderSchema,
+  customerAuthSchema,
   customerLocationSchema,
   dashboardQuerySchema,
   deliveryHoursSchema,
@@ -17,6 +18,7 @@ import {
   listNotificationsQuerySchema,
   listOrdersQuerySchema,
   loginSchema,
+  staffLoginSchema,
   offerSchema,
   pricingSchema,
   pushRemoveSchema,
@@ -44,6 +46,7 @@ export class IdParamDto extends createZodDto(idParamSchema) {}
 
 export class SignupDto extends createZodDto(signupSchema) {}
 export class LoginDto extends createZodDto(loginSchema) {}
+export class StaffLoginDto extends createZodDto(staffLoginSchema) {}
 export class RefreshDto extends createZodDto(refreshSchema) {}
 export class UpdateProfileDto extends createZodDto(updateProfileSchema) {}
 export class ChangePasswordDto extends createZodDto(changePasswordSchema) {}
@@ -69,6 +72,7 @@ export class PricingDto extends createZodDto(pricingSchema) {}
 export class VehicleDto extends createZodDto(vehicleSchema) {}
 export class UpdateVehicleDto extends createZodDto(updateVehicleSchema) {}
 export class SupportSettingsDto extends createZodDto(supportSettingsSchema) {}
+export class CustomerAuthDto extends createZodDto(customerAuthSchema) {}
 export class DeliveryHoursDto extends createZodDto(deliveryHoursSchema) {}
 
 export class CreateAdminDto extends createZodDto(createAdminSchema) {}

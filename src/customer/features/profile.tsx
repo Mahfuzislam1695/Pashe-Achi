@@ -17,7 +17,7 @@ const PRIORITY = FORM_ERROR_PRIORITY.profile
 
 export function ProfileScreen() {
   const { t, lang } = useLang()
-  const { user } = useSession()
+  const { user, catalog } = useSession()
   const queryClient = useQueryClient()
   const [draft, setDraft] = useState({ name: user.name, mobile: user.mobile })
   const [error, setError] = useState<MessageCode | null>(null)
@@ -73,7 +73,8 @@ export function ProfileScreen() {
         </button>
       </div>
       <MyLocation />
-      <ChangePassword />
+      {/* Customers have a password only while the super admin asks for one. */}
+      {catalog.customerAuth.password && <ChangePassword />}
     </PageCard>
   )
 }

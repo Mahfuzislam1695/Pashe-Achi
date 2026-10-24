@@ -120,6 +120,9 @@ prisma/  schema, migrations, seed.ts        test/  API e2e tests        public/ 
   - Access tokens are 15-minute JWTs.
   - Refresh tokens are random strings stored as SHA-256 hashes. They rotate on every use. A replayed token, outside a 30-second grace window, revokes its whole family (`auth/token.service.ts`).
   - Customer sessions never expire. Their refresh tokens have a null `expiresAt`, and the `pa_rt` cookie lasts 400 days (the browser maximum) and is renewed on every refresh. They end only on logout, a password change, a block or a replay. Admin sessions end after `REFRESH_TOKEN_TTL_DAYS`.
+  - **Customer password switch (owner's rule).** The `Setting` row `auth.customerPassword` (`on`; missing or anything else is off) decides whether customers need a password. Only the super admin changes it (`PUT /admin/catalog/customer-auth`, the Catalog page's "Customer sign-in" card, history `CUSTOMER_AUTH_UPDATED`). `GET /catalog` carries it as `customerAuth.password`, and the sign-in screens show the password box and Profile's Change password only while it is on.
+    - Off (the default): signup takes no password and stores the mobile number as one; login takes the mobile number alone for **every** customer (`auth.no_account` for an unknown number). Anyone who knows a number can open that account, so an SMS code (OTP) is the planned replacement.
+    - On: signup and login need the password (`password.required`); accounts opened while it was off log in with their mobile number as the password. Staff login always needs a password.
   - `CustomerGuard` and `AdminGuard` re-read the account on every request, so blocking or deactivating someone takes effect immediately. Use `@Roles('MANAGER')` for manager-only routes; `SUPER_ADMIN` always passes.
   - Roles: OPERATOR handles orders. MANAGER also handles catalog, customer blocking and points, and broadcasts. SUPER_ADMIN also manages staff.
 - **Orders:**

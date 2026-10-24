@@ -29,7 +29,7 @@ import { Badge, Button, Card, ErrorNote, Field, Input, Loading, PageHeader, Tabl
 import { api } from '@/admin/lib/api'
 import { useLang } from '@/admin/lib/i18n'
 import { queryKeys, useCatalog, useCurrentAdmin } from '@/admin/lib/queries'
-import { canManage, errorCode } from '@/admin/lib/utils'
+import { canManage, errorCode, isSuperAdmin } from '@/admin/lib/utils'
 
 export default function CatalogPage() {
   const { t } = useLang()
@@ -54,6 +54,7 @@ export default function CatalogPage() {
           <div className="grid min-w-0 content-start gap-5">
             <SupportCard catalog={catalog.data} editable={editable} />
             <DeliveryHoursCard hours={catalog.data.deliveryHours} editable={editable} />
+            <CustomerAuthCard password={catalog.data.customerAuth.password} editable={isSuperAdmin(admin.role)} />
           </div>
           <div className="lg:col-span-2">
             <VehiclesCard vehicles={catalog.data.vehicles} editable={editable} />
@@ -150,6 +151,44 @@ function SupportCard({ catalog, editable }: { catalog: CatalogDto; editable: boo
         {editable && (
           <div>
             <Button type="submit" variant="secondary" loading={save.isPending}>
+              <Save className="size-4" />
+              {t('সেভ করুন', 'Save')}
+            </Button>
+          </div>
+        )}
+      </form>
+    </Card>
+  )
+}
+
+/** Whether customers sign up and log in with a password. Only the super admin can change it. */
+function CustomerAuthCard({ password, editable }: { password: boolean; editable: boolean }) {
+  const { t } = useLang()
+  const [checked, setChecked] = useState(password)
+  const save = useCatalogMutation(api.catalog.updateCustomerAuth, t('গ্রাহকের লগইন সেভ হয়েছে', 'Customer sign-in saved'))
+  return (
+    <Card title={t('গ্রাহকের লগইন', 'Customer sign-in')}>
+      <form
+        className="grid gap-3"
+        onSubmit={event => {
+          event.preventDefault()
+          save.mutate({ password: checked })
+        }}
+      >
+        <label className="inline-flex items-center gap-2 text-sm font-medium text-ink">
+          <input type="checkbox" className="size-4 accent-brand-600" disabled={!editable} checked={checked} onChange={e => setChecked(e.target.checked)} />
+          {t('গ্রাহকদের কাছে পাসওয়ার্ড চাওয়া হবে', 'Ask customers for a password')}
+        </label>
+        <p className="text-sm text-muted">
+          {checked
+            ? t('সাইন আপ ও লগইনে পাসওয়ার্ড লাগবে। পাসওয়ার্ড ছাড়া খোলা অ্যাকাউন্টের পাসওয়ার্ড তাদের মোবাইল নম্বর।', 'Sign up and login ask for a password. Accounts opened without one use their mobile number as the password.')
+            : t('গ্রাহক শুধু মোবাইল নম্বর দিয়ে সাইন আপ ও লগইন করবেন। নম্বর জানলে যে কেউ সেই অ্যাকাউন্টে ঢুকতে পারবে।', 'Customers sign up and log in with their mobile number only. Anyone who knows a number can open that account.')}
+        </p>
+        {!editable && <p className="text-sm text-muted">{t('শুধু সুপার অ্যাডমিন এটি বদলাতে পারবেন।', 'Only the super admin can change this.')}</p>}
+        <ErrorNote code={save.isError ? errorCode(save.error) : null} />
+        {editable && (
+          <div>
+            <Button type="submit" variant="secondary" loading={save.isPending} disabled={checked === password}>
               <Save className="size-4" />
               {t('সেভ করুন', 'Save')}
             </Button>

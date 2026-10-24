@@ -4,7 +4,7 @@ import type { AdminDto, AuthResponse } from '@/shared'
 import type { Request, Response } from 'express'
 
 import { Actor, type AuditActor, clientInfo } from '../audit/actor'
-import { ChangePasswordDto, LoginDto, RefreshDto } from '../common/dto'
+import { ChangePasswordDto, RefreshDto, StaffLoginDto } from '../common/dto'
 import { ENV, type Env } from '../config/env'
 import { AdminAuthService } from './admin-auth.service'
 import type { AdminPrincipal } from './auth.types'
@@ -24,7 +24,7 @@ export class AdminAuthController {
   @HttpCode(200)
   @AuthThrottle()
   @ApiOperation({ summary: 'Admin login with mobile number and password (recorded in the history log, as are failed attempts)' })
-  async login(@Body() body: LoginDto, @Req() request: Request, @Res({ passthrough: true }) response: Response): Promise<AuthResponse<AdminDto>> {
+  async login(@Body() body: StaffLoginDto, @Req() request: Request, @Res({ passthrough: true }) response: Response): Promise<AuthResponse<AdminDto>> {
     const result = await this.auth.login(body, clientInfo(request))
     setAuthCookies(response, this.env, 'admin', result.tokens)
     return result

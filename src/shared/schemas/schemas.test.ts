@@ -29,14 +29,28 @@ describe('mobile numbers', () => {
   it('normalises +880, spaces and Bengali digits', () => {
     expect(normalizeMobile('+880 1712-345678')).toBe('01712345678')
     expect(normalizeMobile('০১৭১২৩৪৫৬৭৮')).toBe('01712345678')
+    expect(normalizeMobile('8801812345678')).toBe('01812345678')
+    expect(normalizeMobile('1912345678')).toBe('01912345678')
   })
 
   it('stores the normalised number', () => {
     expect(loginSchema.parse({ mobile: '+8801712345678', password: 'x' }).mobile).toBe('01712345678')
   })
 
+  it('accepts every operator prefix, 013 to 019', () => {
+    for (const prefix of ['013', '014', '015', '016', '017', '018', '019']) expect(loginSchema.safeParse({ mobile: `${prefix}12345678` }).success).toBe(true)
+  })
+
   it('rejects numbers that are not Bangladeshi mobiles', () => {
-    expect(codes(loginSchema.safeParse({ mobile: '0123', password: 'x' }))).toContain('mobile.invalid')
+    for (const mobile of ['0123', '01212345678', '01112345678', '0171234567', '017123456789', '+8811712345678', '01712abc678', '1212345678'])
+      expect(codes(loginSchema.safeParse({ mobile }))).toContain('mobile.invalid')
+  })
+})
+
+describe('login', () => {
+  it('needs only the mobile number (the password is up to the super admin)', () => {
+    expect(loginSchema.parse({ mobile: '01712345678' })).toEqual({ mobile: '01712345678' })
+    expect(pickIssueCode(codes(loginSchema.safeParse({ mobile: '01712345678', password: '' })), FORM_ERROR_PRIORITY.login)).toBe('password.required')
   })
 })
 
@@ -58,6 +72,10 @@ describe('signup', () => {
     expect(pickIssueCode(codes(signupSchema.safeParse(signup)), FORM_ERROR_PRIORITY.signup)).toBe('location.required')
     expect(pickIssueCode(codes(signupSchema.safeParse({ ...signup, location: { address: 'Mirpur 10' } })), FORM_ERROR_PRIORITY.signup)).toBe('field.invalid')
     expect(signupSchema.parse({ ...signup, location }).location).toEqual(location)
+  })
+
+  it('accepts no password (the mobile number becomes it while the switch is off)', () => {
+    expect(signupSchema.safeParse({ name: 'Rahim', mobile: '01712345678', location }).success).toBe(true)
   })
 })
 

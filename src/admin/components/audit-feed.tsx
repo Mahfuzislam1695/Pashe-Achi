@@ -86,6 +86,7 @@ const ACTION_ICONS: Record<AuditAction, [LucideIcon, Tone]> = {
   ADMIN_PASSWORD_CHANGED: [KeyRound, 'neutral'],
   ANNOUNCEMENT_SENT: [Megaphone, 'brand'],
   DELIVERY_HOURS_UPDATED: [Clock, 'brand'],
+  CUSTOMER_AUTH_UPDATED: [KeyRound, 'brand'],
   OFFER_CREATED: [BadgePercent, 'success'],
   OFFER_UPDATED: [BadgePercent, 'brand'],
   OFFER_DELETED: [BadgePercent, 'danger'],

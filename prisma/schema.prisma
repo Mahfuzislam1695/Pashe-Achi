@@ -86,6 +86,7 @@ enum AuditAction {
   OFFER_UPDATED
   OFFER_DELETED
   OFFER_ANNOUNCED
+  CUSTOMER_AUTH_UPDATED
 }
 
 enum AuditEntity {
@@ -98,6 +99,7 @@ enum AuditEntity {
   ANNOUNCEMENT
   DELIVERY_HOURS
   OFFER
+  CUSTOMER_AUTH
 }
 
 /// A customer of the web/mobile app.

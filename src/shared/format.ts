@@ -7,10 +7,12 @@ export const toBnDigits = (value: number | string) => String(value).replace(/\d/
 /** Bengali digits to Latin, so "০১৭..." typed on a Bangla keyboard is accepted. */
 export const toLatinDigits = (value: string) => value.replace(/[০-৯]/g, digit => String(BN_DIGITS.indexOf(digit)))
 
-/** "+880 1712-345678", "8801712345678" and "০১৭১২৩৪৫৬৭৮" all become "01712345678". */
+/** "+880 1712-345678", "8801712345678", "1712345678" and "০১৭১২৩৪৫৬৭৮" all become "01712345678". */
 export const normalizeMobile = (value: string) => {
   const digits = toLatinDigits(value).replace(/[\s\-().]/g, '').replace(/^\+/, '')
-  return digits.startsWith('880') ? digits.slice(2) : digits
+  if (digits.startsWith('880')) return digits.slice(2)
+  // Typed without the leading 0.
+  return /^1[3-9]\d{8}$/.test(digits) ? `0${digits}` : digits
 }
 
 export const MOBILE_PATTERN = /^01[3-9]\d{8}$/

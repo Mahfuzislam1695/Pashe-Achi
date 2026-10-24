@@ -1,0 +1,5 @@
+-- AlterEnum
+ALTER TYPE "AuditAction" ADD VALUE 'CUSTOMER_AUTH_UPDATED';
+
+-- AlterEnum
+ALTER TYPE "AuditEntity" ADD VALUE 'CUSTOMER_AUTH';

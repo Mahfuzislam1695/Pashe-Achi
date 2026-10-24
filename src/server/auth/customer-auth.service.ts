@@ -3,6 +3,7 @@ import type { AuthResponse, CustomerDto, LoginInput, SignupInput } from '@/share
 
 import { type ClientInfo, customerActor } from '../audit/actor'
 import { AuditService } from '../audit/audit.service'
+import { CatalogService } from '../catalog/catalog.service'
 import { AppException } from '../common/app.exception'
 import { PrismaService } from '../prisma/prisma.service'
 import { locationColumns, toCustomerDto } from '../users/user.mapper'
@@ -15,13 +16,18 @@ export class CustomerAuthService {
     private readonly prisma: PrismaService,
     private readonly tokens: TokenService,
     private readonly audit: AuditService,
+    private readonly catalog: CatalogService,
   ) {}
 
   async signup(input: SignupInput, client: ClientInfo = {}): Promise<AuthResponse<CustomerDto>> {
     const existing = await this.prisma.user.findUnique({ where: { mobile: input.mobile }, select: { id: true } })
     if (existing) throw AppException.conflict('mobile.taken')
 
-    const passwordHash = await hashPassword(input.password)
+    // While the super admin's switch is off the mobile number is the password, so the account still
+    // has one when the switch is turned on.
+    const { password: passwordOn } = await this.catalog.getCustomerAuth()
+    if (passwordOn && !input.password) throw AppException.badRequest('password.required')
+    const passwordHash = await hashPassword(passwordOn ? input.password! : input.mobile)
     const user = await this.prisma.$transaction(async tx => {
       const created = await tx.user.create({
         data: { name: input.name, mobile: input.mobile, ...locationColumns(input.location), lang: input.lang ?? 'bn', passwordHash },
@@ -37,10 +43,17 @@ export class CustomerAuthService {
     return { user: toCustomerDto(user), tokens }
   }
 
+  /** With the super admin's switch off, the mobile number alone logs in (every account; passwords are kept). */
   async login(input: LoginInput, userAgent?: string): Promise<AuthResponse<CustomerDto>> {
+    const { password: passwordOn } = await this.catalog.getCustomerAuth()
     const user = await this.prisma.user.findUnique({ where: { mobile: input.mobile } })
-    const valid = await verifyPassword(input.password, user?.passwordHash ?? DUMMY_HASH)
-    if (!user || !valid) throw AppException.unauthorized('auth.invalid')
+    if (passwordOn) {
+      if (!input.password) throw AppException.badRequest('password.required')
+      const valid = await verifyPassword(input.password, user?.passwordHash ?? DUMMY_HASH)
+      if (!user || !valid) throw AppException.unauthorized('auth.invalid')
+    } else if (!user) {
+      throw AppException.unauthorized('auth.no_account')
+    }
     if (user.isBlocked) throw AppException.forbidden('auth.blocked')
 
     const { refreshId: _, ...tokens } = await this.tokens.issue('customer', user.id, { userAgent })

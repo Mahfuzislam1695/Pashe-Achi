@@ -1,6 +1,6 @@
 'use client'
 
-import { APP_LOGO, APP_LOGO_HERO, APP_NAME, APP_TAGLINE, FORM_ERROR_PRIORITY, loginSchema, type MessageCode, photo, validateForm } from '@/shared'
+import { APP_LOGO, APP_LOGO_HERO, APP_NAME, APP_TAGLINE, FORM_ERROR_PRIORITY, type MessageCode, photo, staffLoginSchema, validateForm } from '@/shared'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { LogIn } from 'lucide-react'
 import { useRouter } from 'next/navigation'
@@ -27,7 +27,7 @@ export default function LoginPage() {
 
   const login = useMutation({
     mutationFn: () => {
-      const check = validateForm(loginSchema, form, FORM_ERROR_PRIORITY.login)
+      const check = validateForm(staffLoginSchema, form, FORM_ERROR_PRIORITY.login)
       if (!check.success) throw check.code
       return api.auth.login(check.data)
     },

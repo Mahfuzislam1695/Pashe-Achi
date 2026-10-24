@@ -670,6 +670,12 @@ input::placeholder { color: var(--muted-3); }
 .invoice-upload label:hover { border-color: var(--blue); background: var(--blue-soft); }
 .invoice-upload label small { color: var(--muted); }
 
+/* Order form headings in the service's colour (ServiceCard sets svc-*): a band over the bazar and
+   medicine columns, and bold labels on the shifting rows and the parcel rows. */
+.line-head { margin-bottom: 8px; padding: 9px 0; border: 1px solid var(--svc-line, var(--blue-line)); border-radius: 10px; background: var(--svc-soft, var(--blue-soft)); color: var(--svc-ink, var(--blue-ink)); font-size: 12px; font-weight: 700; }
+.line-head > span:not(:empty) { padding: 0 4px; }
+.step-row .field > span, .field-rows .field-row > span, .field-rows .field-row > .field-label { color: var(--svc-ink, var(--blue-ink)); font-weight: 700; }
+
 /* Cards */
 .page-card { border-color: var(--line); border-radius: var(--radius-card); background: var(--surface); box-shadow: var(--shadow-card); }
 .card-heading h2 { color: var(--navy); font-weight: 700; }
@@ -978,7 +984,8 @@ input::placeholder { color: var(--muted-3); }
   .mode-web .page-card { padding: 28px; }
   .mode-web .card-heading h2 { font-size: 22px; }
   .mode-web .card-heading p { font-size: 13px; }
-  .mode-web .field, .mode-web .field-row, .mode-web .line-head { font-size: 12px; }
+  .mode-web .field, .mode-web .field-row { font-size: 12px; }
+  .mode-web .line-head { font-size: 13px; }
   .mode-web .field input, .mode-web .field select, .mode-web .field-row input { min-height: 48px; font-size: 14px; }
   .mode-web .line-row input { min-height: 44px; font-size: 14px; }
   .mode-web .customer-info { display: flex; flex-wrap: wrap; gap: 8px 32px; }

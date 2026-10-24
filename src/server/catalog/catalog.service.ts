@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common'
 import {
   type CatalogDto,
+  type CustomerAuthInput,
+  type CustomerAuthSettings,
   DEFAULT_DELIVERY_HOURS,
   DEFAULT_PRICING,
   type DeliveryHours,
@@ -26,6 +28,9 @@ import type { Vehicle } from '../generated/prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
 
 export const SUPPORT_KEYS = { phone: 'support.phone', whatsapp: 'support.whatsapp' } as const
+
+/** "on" asks customers for a password; anything else (or no row) lets them in with the mobile number alone. */
+export const CUSTOMER_PASSWORD_KEY = 'auth.customerPassword'
 
 /** One Setting row per service, e.g. delivery.bazar = "08:00-10:00,18:00-21:00" (empty: any time). */
 export const DELIVERY_HOURS_KEYS = Object.fromEntries(SERVICE_IDS.map(service => [service, `delivery.${service}`])) as Record<ServiceId, string>
@@ -97,15 +102,22 @@ export class CatalogService {
     ) as DeliveryHours
   }
 
+  /** Whether customers need a password to sign up and log in. Off until the super admin turns it on. */
+  async getCustomerAuth(): Promise<CustomerAuthSettings> {
+    const row = await this.prisma.setting.findUnique({ where: { key: CUSTOMER_PASSWORD_KEY } })
+    return { password: row?.value === 'on' }
+  }
+
   /** Customers see active vehicles only; the admin panel sees all of them. */
   async getCatalog(includeInactive = false): Promise<CatalogDto> {
-    const [pricing, vehicles, support, deliveryHours] = await Promise.all([
+    const [pricing, vehicles, support, deliveryHours, customerAuth] = await Promise.all([
       this.getPricing(),
       this.prisma.vehicle.findMany({ where: includeInactive ? {} : { isActive: true }, orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] }),
       this.getSupport(),
       this.getDeliveryHours(),
+      this.getCustomerAuth(),
     ])
-    return { pricing, vehicles: vehicles.map(toVehicleDto), support, deliveryHours }
+    return { pricing, vehicles: vehicles.map(toVehicleDto), support, deliveryHours, customerAuth }
   }
 
   async updatePricing(input: PricingInput, actor: AuditActor): Promise<Pricing> {
@@ -155,6 +167,17 @@ export class CatalogService {
       }
       const changes = diffChanges(before, input, ['phone', 'whatsapp'])
       if (changes.length) await this.audit.record({ action: 'SUPPORT_UPDATED', actor, entity: { type: 'SUPPORT' }, changes }, tx)
+    })
+    return input
+  }
+
+  async updateCustomerAuth(input: CustomerAuthInput, actor: AuditActor): Promise<CustomerAuthSettings> {
+    const before = await this.getCustomerAuth()
+    await this.prisma.$transaction(async tx => {
+      const value = input.password ? 'on' : 'off'
+      await tx.setting.upsert({ where: { key: CUSTOMER_PASSWORD_KEY }, create: { key: CUSTOMER_PASSWORD_KEY, value }, update: { value } })
+      const changes = diffChanges(before, input, ['password'])
+      if (changes.length) await this.audit.record({ action: 'CUSTOMER_AUTH_UPDATED', actor, entity: { type: 'CUSTOMER_AUTH' }, changes }, tx)
     })
     return input
   }

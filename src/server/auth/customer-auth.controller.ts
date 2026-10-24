@@ -40,7 +40,7 @@ export class CustomerAuthController {
   @Post('login')
   @HttpCode(200)
   @AuthThrottle()
-  @ApiOperation({ summary: 'Log in with mobile number and password' })
+  @ApiOperation({ summary: 'Log in with the mobile number (and the password while the super admin asks for one)' })
   async login(@Body() body: LoginDto, @Req() request: Request, @Res({ passthrough: true }) response: Response): Promise<AuthResponse<CustomerDto>> {
     const result = await this.auth.login(body, request.get('user-agent'))
     setAuthCookies(response, this.env, 'customer', result.tokens)

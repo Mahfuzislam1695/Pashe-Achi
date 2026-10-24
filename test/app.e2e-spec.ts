@@ -60,6 +60,8 @@ describe('Pashe Achi API (e2e)', () => {
     await prisma.pricing.create({ data: { id: 1, ...DEFAULT_PRICING } })
     await prisma.vehicle.createMany({ data: DEFAULT_VEHICLES.map((vehicle, index) => ({ ...vehicle, sortOrder: index })) })
     await prisma.admin.create({ data: { name: 'Admin', mobile: ADMIN.mobile, role: 'SUPER_ADMIN', passwordHash: await bcrypt.hash(ADMIN.password, 4) } })
+    // These tests sign customers in with a password; 'passwordless customer sign-in' turns it off.
+    await prisma.setting.create({ data: { key: 'auth.customerPassword', value: 'on' } })
   })
 
   afterAll(async () => {
@@ -112,7 +114,50 @@ describe('Pashe Achi API (e2e)', () => {
       await request(app.getHttpServer()).post(api('/auth/signup')).send({ name: 'x', mobile: '01712000002', password: 'secret12', location: { address: 'উত্তরা', ...PIN } }).expect(409).expect(res => expect(res.body.code).toBe('mobile.taken'))
       await request(app.getHttpServer()).post(api('/auth/login')).send({ mobile: '01712000002', password: 'nope-nope' }).expect(401).expect(res => expect(res.body.code).toBe('auth.invalid'))
       const empty = await request(app.getHttpServer()).post(api('/auth/login')).send({}).expect(400)
-      expect(empty.body).toMatchObject({ code: 'auth.login', message: { bn: 'মোবাইল নম্বর ও পাসওয়ার্ড দিন।' } })
+      expect(empty.body).toMatchObject({ code: 'auth.login', message: { bn: 'মোবাইল নম্বর দিন।' } })
+      await request(app.getHttpServer()).post(api('/auth/login')).send({ mobile: '01712000002' }).expect(400).expect(res => expect(res.body.code).toBe('password.required'))
+    })
+
+    describe('passwordless customer sign-in (the super admin switch)', () => {
+      const setPassword = async (agent: Awaited<ReturnType<typeof adminAgent>>, password: boolean) =>
+        agent.put(api('/admin/catalog/customer-auth')).send({ password }).expect(200)
+
+      it('lets only the super admin change it, and logs the change', async () => {
+        const admin = await adminAgent()
+        await admin.post(api('/admin/staff')).send({ name: 'Mou', mobile: '01912000040', password: 'manager1', role: 'MANAGER' }).expect(201)
+        const manager = request.agent(app.getHttpServer())
+        await manager.post(api('/admin/auth/login')).send({ mobile: '01912000040', password: 'manager1' }).expect(200)
+        await manager.put(api('/admin/catalog/customer-auth')).send({ password: false }).expect(403)
+
+        await setPassword(admin, false)
+        await request(app.getHttpServer()).get(api('/catalog')).expect(200).expect(res => expect(res.body.customerAuth).toEqual({ password: false }))
+        const entry = await prisma.auditLog.findFirstOrThrow({ where: { action: 'CUSTOMER_AUTH_UPDATED' } })
+        expect(entry.entityType).toBe('CUSTOMER_AUTH')
+        await setPassword(admin, true)
+      })
+
+      it('signs up and logs in with the mobile number alone while it is off', async () => {
+        const { agent: existing } = await signup('01712000077')
+        const admin = await adminAgent()
+        await setPassword(admin, false)
+        try {
+          const created = await request(app.getHttpServer()).post(api('/auth/signup')).send({ name: 'সুমি', mobile: '01812000051', location: { address: 'উত্তরা, ঢাকা', ...PIN } }).expect(201)
+          expect(created.body.user.mobile).toBe('01812000051')
+          await request(app.getHttpServer()).post(api('/auth/login')).send({ mobile: '01812000051' }).expect(200)
+          // Accounts that set their own password log in by number too.
+          await request(app.getHttpServer()).post(api('/auth/login')).send({ mobile: '01712000077' }).expect(200)
+          await request(app.getHttpServer()).post(api('/auth/login')).send({ mobile: '01812000099' }).expect(401).expect(res => expect(res.body.code).toBe('auth.no_account'))
+          await request(app.getHttpServer()).post(api('/admin/auth/login')).send({ mobile: ADMIN.mobile }).expect(400).expect(res => expect(res.body.code).toBe('password.required'))
+          await request(app.getHttpServer()).post(api('/auth/login')).send({ mobile: '01212000051' }).expect(400).expect(res => expect(res.body.code).toBe('mobile.invalid'))
+        } finally {
+          await setPassword(admin, true)
+        }
+        // Switched back on: the number-only account's password is its mobile number, and the old one still works.
+        await request(app.getHttpServer()).post(api('/auth/login')).send({ mobile: '01812000051' }).expect(400).expect(res => expect(res.body.code).toBe('password.required'))
+        await request(app.getHttpServer()).post(api('/auth/login')).send({ mobile: '01812000051', password: '01812000051' }).expect(200)
+        await request(app.getHttpServer()).post(api('/auth/login')).send({ mobile: '01712000077', password: 'secret12' }).expect(200)
+        await existing.get(api('/auth/me')).expect(200)
+      })
     })
 
     it('needs a location picked on the map to sign up', async () => {

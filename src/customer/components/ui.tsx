@@ -76,7 +76,7 @@ export function PageCard({ icon: Icon, title, subtitle, children }: { icon: Luci
 export function ServiceCard({ id, banner, summary, children }: { id: ServiceId; banner?: React.ReactNode; summary?: React.ReactNode; children: React.ReactNode }) {
   const { text } = useLang()
   return (
-    <section className={`page-card service-card ${summary ? 'has-summary' : ''} ${banner ? 'has-banner' : ''}`} aria-label={text(SERVICE_LABELS[id])}>
+    <section className={`page-card service-card svc-${id} ${summary ? 'has-summary' : ''} ${banner ? 'has-banner' : ''}`} aria-label={text(SERVICE_LABELS[id])}>
       {banner}
       <div className="service-main">{children}</div>
       {summary && <div className="service-summary">{summary}</div>}

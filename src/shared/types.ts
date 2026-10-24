@@ -75,6 +75,11 @@ export interface SupportSettings {
   whatsapp: string
 }
 
+/** Whether customers sign up and log in with a password. Off: the mobile number alone (the super admin's switch). */
+export interface CustomerAuthSettings {
+  password: boolean
+}
+
 /** Everything a customer screen needs to price an order: GET /catalog. */
 export interface CatalogDto {
   pricing: Pricing
@@ -82,6 +87,8 @@ export interface CatalogDto {
   support: SupportSettings
   /** The ডেলিভারি টাইম windows per service; an empty list means any time. */
   deliveryHours: DeliveryHours
+  /** Whether the customer sign-in screens show the password box. */
+  customerAuth: CustomerAuthSettings
 }
 
 export interface OrderCustomerRef {

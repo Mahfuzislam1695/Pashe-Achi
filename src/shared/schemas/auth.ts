@@ -9,16 +9,25 @@ export const signupSchema = z.object({
   mobile: mobile('auth.signup'),
   /** Picked on the map; required. */
   location: customerLocationSchema,
-  password: password('auth.signup'),
+  /** Only while the super admin asks customers for a password; otherwise the mobile number becomes the password. */
+  password: password('password.required').optional(),
   lang: z.enum(LANGS).optional(),
 })
 export type SignupInput = z.infer<typeof signupSchema>
 
 export const loginSchema = z.object({
   mobile: mobile('auth.login'),
-  password: z.string({ error: 'auth.login' }).min(1, { error: 'auth.login' }).max(72, { error: 'field.invalid' }),
+  /** Only while the super admin asks customers for a password. */
+  password: z.string({ error: 'password.required' }).min(1, { error: 'password.required' }).max(72, { error: 'field.invalid' }).optional(),
 })
 export type LoginInput = z.infer<typeof loginSchema>
+
+/** Staff (admin panel) login: the password is always required. */
+export const staffLoginSchema = z.object({
+  mobile: mobile('auth.login'),
+  password: z.string({ error: 'password.required' }).min(1, { error: 'password.required' }).max(72, { error: 'field.invalid' }),
+})
+export type StaffLoginInput = z.infer<typeof staffLoginSchema>
 
 /** Body for /auth/refresh and /auth/logout. Browsers send the token as a cookie instead. */
 export const refreshSchema = z.object({ refreshToken: z.string().min(1).max(512).optional() })

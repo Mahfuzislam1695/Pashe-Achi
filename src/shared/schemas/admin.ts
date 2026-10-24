@@ -49,6 +49,9 @@ export const supportSettingsSchema = z.object({
 })
 export type SupportSettingsInput = z.infer<typeof supportSettingsSchema>
 
+export const customerAuthSchema = z.object({ password: z.boolean({ error: 'field.invalid' }) })
+export type CustomerAuthInput = z.infer<typeof customerAuthSchema>
+
 const clockTime = z.string({ error: 'hours.invalid' }).regex(TIME_PATTERN, { error: 'hours.invalid' })
 
 /** Up to four windows that each end after they start and don't overlap. Empty means any time. */
