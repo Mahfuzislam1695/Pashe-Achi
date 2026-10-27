@@ -43,8 +43,25 @@ export const CUSTOMER_CANCELLABLE: readonly OrderStatus[] = ['PENDING', 'QUOTED'
 /** Staff can price (and re-price) a quoted order until the customer confirms; then the bill is locked. */
 export const QUOTE_EDITABLE: readonly OrderStatus[] = ['PENDING', 'QUOTED']
 
-export const ADMIN_ROLES = ['SUPER_ADMIN', 'MANAGER', 'OPERATOR'] as const
-export type AdminRole = (typeof ADMIN_ROLES)[number]
+/**
+ * The orders whose bill counts as revenue: the bills customers have accepted (booked, on the way or
+ * delivered). A PENDING bazar or medicine order holds only its fees until staff price it, and a
+ * QUOTED one is still an offer, so neither counts.
+ */
+export const REVENUE_STATUSES = ['BOOKED', 'IN_PROGRESS', 'COMPLETED'] as const satisfies readonly OrderStatus[]
+export const isRevenue = (status: OrderStatus) => (REVENUE_STATUSES as readonly OrderStatus[]).includes(status)
+
+/** How the admin order list can be sorted. */
+export const ORDER_SORTS = ['newest', 'oldest', 'total_desc', 'total_asc', 'scheduled_asc'] as const
+export type OrderSort = (typeof ORDER_SORTS)[number]
+
+/** How the admin customer list can be sorted. */
+export const CUSTOMER_SORTS = ['newest', 'oldest', 'name', 'orders_desc', 'points_desc'] as const
+export type CustomerSort = (typeof CUSTOMER_SORTS)[number]
+
+/** running: customers see it now; upcoming: starts later; ended: past its last day; off: switched off by staff. */
+export const OFFER_STATUSES = ['running', 'upcoming', 'ended', 'off'] as const
+export type OfferStatus = (typeof OFFER_STATUSES)[number]
 
 export const NOTIFICATION_TYPES = ['ORDER_CREATED', 'ORDER_STATUS', 'ORDER_BILL', 'ANNOUNCEMENT', 'OFFER'] as const
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number]
@@ -54,7 +71,7 @@ export const ACTOR_TYPES = ['CUSTOMER', 'ADMIN', 'SYSTEM'] as const
 export type ActorType = (typeof ACTOR_TYPES)[number]
 
 /** The kinds of record the history log (AuditLog) is about. */
-export const AUDIT_ENTITIES = ['ORDER', 'CUSTOMER', 'STAFF', 'PRICING', 'VEHICLE', 'SUPPORT', 'ANNOUNCEMENT', 'DELIVERY_HOURS', 'OFFER', 'CUSTOMER_AUTH'] as const
+export const AUDIT_ENTITIES = ['ORDER', 'CUSTOMER', 'STAFF', 'PRICING', 'VEHICLE', 'SUPPORT', 'ANNOUNCEMENT', 'DELIVERY_HOURS', 'OFFER', 'CUSTOMER_AUTH', 'ROLE'] as const
 export type AuditEntity = (typeof AUDIT_ENTITIES)[number]
 
 /** Every action the history log records (same order as the AuditAction enum in schema.prisma). */
@@ -89,6 +106,9 @@ export const AUDIT_ACTIONS = [
   'OFFER_DELETED',
   'OFFER_ANNOUNCED',
   'CUSTOMER_AUTH_UPDATED',
+  'ROLE_CREATED',
+  'ROLE_UPDATED',
+  'ROLE_DELETED',
 ] as const
 export type AuditAction = (typeof AUDIT_ACTIONS)[number]
 
@@ -114,6 +134,7 @@ export const AUDIT_ACTIONS_BY_ENTITY: Record<AuditEntity, readonly AuditAction[]
   DELIVERY_HOURS: ['DELIVERY_HOURS_UPDATED'],
   OFFER: ['OFFER_CREATED', 'OFFER_UPDATED', 'OFFER_DELETED', 'OFFER_ANNOUNCED'],
   CUSTOMER_AUTH: ['CUSTOMER_AUTH_UPDATED'],
+  ROLE: ['ROLE_CREATED', 'ROLE_UPDATED', 'ROLE_DELETED'],
 }
 
 /** Where the REST API lives on the one server: /api/v1. The pages call it on their own origin. */

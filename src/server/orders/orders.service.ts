@@ -18,9 +18,12 @@ import {
   type ListMyOrdersQuery,
   type ListOrdersQuery,
   type OrderDetail,
+  type OrderStatsDto,
+  type OrderStatsQuery,
   type OrderStatus,
   type OrderSummary,
   orderCode,
+  type PagedList,
   type Paginated,
   QUOTE_EDITABLE,
   type QuoteOrderInput,
@@ -35,9 +38,10 @@ import { AuditService } from '../audit/audit.service'
 import { CatalogService } from '../catalog/catalog.service'
 import { AppException } from '../common/app.exception'
 import { DOMAIN_EVENTS, type OrderCreatedEvent, type OrderQuotedEvent, type OrderStatusChangedEvent, type QuotedBill } from '../common/domain-events'
-import { bdDayEnd, bdDayStart, pageArgs, toPage } from '../common/pagination'
+import { bdDayRange, offsetArgs, pageArgs, toPage, toPaged } from '../common/pagination'
 import type { Prisma } from '../generated/prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
+import { ORDER_SORT_ORDER, orderTotals, statusGroupArgs } from './order-stats'
 import { orderInclude, type OrderWithRelations, summaryInclude, toOrderDetail, toOrderSummary } from './order.mapper'
 
 const SUMMARY_MAX = 300
@@ -257,9 +261,19 @@ export class OrdersService {
 
   // Admin
 
-  async list(query: ListOrdersQuery): Promise<Paginated<OrderSummary>> {
-    const rows = await this.prisma.order.findMany({ where: this.adminWhere(query), include: summaryInclude, ...pageArgs(query.cursor, query.limit) })
-    return toPage(rows, query.limit, row => toOrderSummary(row, true))
+  async list(query: ListOrdersQuery): Promise<PagedList<OrderSummary>> {
+    const where = this.adminWhere(query)
+    const [rows, total] = await this.prisma.$transaction([
+      this.prisma.order.findMany({ where, include: summaryInclude, orderBy: ORDER_SORT_ORDER[query.sort ?? 'newest'], ...offsetArgs(query.page, query.limit) }),
+      this.prisma.order.count({ where }),
+    ])
+    return toPaged(rows, total, query, row => toOrderSummary(row, true))
+  }
+
+  /** Counts per status and confirmed revenue for the orders the list's filters match, whatever their status. */
+  async stats(query: OrderStatsQuery): Promise<OrderStatsDto> {
+    const groups = await this.prisma.order.groupBy(statusGroupArgs(this.adminWhere(query)))
+    return orderTotals(groups)
   }
 
   async get(id: string): Promise<OrderDetail> {
@@ -425,14 +439,20 @@ export class OrdersService {
     return order
   }
 
-  private adminWhere(query: ListOrdersQuery): Prisma.OrderWhereInput {
+  private adminWhere(query: OrderStatsQuery & { status?: OrderStatus }): Prisma.OrderWhereInput {
     const where: Prisma.OrderWhereInput = {
       ...(query.service ? { service: query.service } : {}),
       ...(query.status ? { status: query.status } : {}),
       ...(query.customerId ? { userId: query.customerId } : {}),
     }
-    if (query.from || query.to) {
-      where.createdAt = { ...(query.from ? { gte: bdDayStart(query.from) } : {}), ...(query.to ? { lt: bdDayEnd(query.to) } : {}) }
+    if (query.dateBy === 'scheduled') {
+      // A @db.Date column: compare calendar days, not instants.
+      if (query.from || query.to) {
+        where.scheduledDate = { ...(query.from ? { gte: new Date(query.from) } : {}), ...(query.to ? { lte: new Date(query.to) } : {}) }
+      }
+    } else {
+      const createdAt = bdDayRange(query.from, query.to)
+      if (createdAt) where.createdAt = createdAt
     }
     if (query.q) {
       const code = /^(?:pa-?)?(\d{1,9})$/i.exec(query.q)

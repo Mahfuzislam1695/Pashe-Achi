@@ -96,8 +96,8 @@ interface Device {
 }
 
 const STAFF = [
-  { name: 'Nusrat Jahan', mobile: '01822222222', role: 'MANAGER' as const, device: { userAgent: DEVICES.androidChrome, ip: '198.51.100.21' } },
-  { name: 'Sabbir Ahmed', mobile: '01833333333', role: 'OPERATOR' as const, device: { userAgent: DEVICES.windowsChrome, ip: '198.51.100.35' } },
+  { name: 'Nusrat Jahan', mobile: '01822222222', roleId: 'role_manager', device: { userAgent: DEVICES.androidChrome, ip: '198.51.100.21' } },
+  { name: 'Sabbir Ahmed', mobile: '01833333333', roleId: 'role_operator', device: { userAgent: DEVICES.windowsChrome, ip: '198.51.100.35' } },
 ]
 const SUPER_ADMIN_DEVICE: Device = { userAgent: DEVICES.windowsChrome, ip: '192.0.2.10' }
 
@@ -217,11 +217,11 @@ interface PlannedOrder {
   vehicleExtra?: number
 }
 
-const actorFor = (row: { id: string; name: string; role?: Admin['role'] }, device: Device): AuditActor => ({
+const actorFor = (row: { id: string; name: string; role?: { nameBn: string; nameEn: string } }, device: Device): AuditActor => ({
   type: row.role ? 'ADMIN' : 'CUSTOMER',
   id: row.id,
   name: row.name,
-  role: row.role,
+  role: row.role ? { bn: row.role.nameBn, en: row.role.nameEn } : undefined,
   ...device,
 })
 
@@ -541,7 +541,7 @@ export async function seedDemo(prisma: PrismaClient) {
       }
 
       // The business opened 45 days ago: date the super admin and the base seed's setup history from then.
-      const superAdminRow = await tx.admin.findFirst({ where: { role: 'SUPER_ADMIN', isActive: true }, orderBy: { createdAt: 'asc' } })
+      const superAdminRow = await tx.admin.findFirst({ where: { role: { isSystem: true }, isActive: true }, include: { role: true }, orderBy: { createdAt: 'asc' } })
       if (superAdminRow && superAdminRow.createdAt > opened) await tx.admin.update({ where: { id: superAdminRow.id }, data: { createdAt: opened } })
       await tx.auditLog.updateMany({ where: { actorType: 'SYSTEM', createdAt: { gt: opened } }, data: { createdAt: opened } })
       const superAdmin = superAdminRow ? actorFor(superAdminRow, SUPER_ADMIN_DEVICE) : null
@@ -550,10 +550,10 @@ export async function seedDemo(prisma: PrismaClient) {
       const staffActors = new Map<string, AuditActor>()
       const admins: Admin[] = superAdminRow ? [superAdminRow] : []
       for (const [index, spec] of STAFF.entries()) {
-        let admin = await tx.admin.findUnique({ where: { mobile: spec.mobile } })
+        let admin = await tx.admin.findUnique({ where: { mobile: spec.mobile }, include: { role: true } })
         if (!admin) {
           const at = later(opened, 20 + index * 15, 20 + index * 15)
-          admin = await tx.admin.create({ data: { name: spec.name, mobile: spec.mobile, role: spec.role, passwordHash, createdAt: at } })
+          admin = await tx.admin.create({ data: { name: spec.name, mobile: spec.mobile, roleId: spec.roleId, passwordHash, createdAt: at }, include: { role: true } })
           audit.push({
             action: 'STAFF_CREATED',
             actor: superAdmin ?? { type: 'SYSTEM', id: null, name: 'System' },
@@ -561,7 +561,7 @@ export async function seedDemo(prisma: PrismaClient) {
             changes: [
               { field: 'name', from: null, to: admin.name },
               { field: 'mobile', from: null, to: admin.mobile },
-              { field: 'role', from: null, to: admin.role },
+              { field: 'role', from: null, to: admin.role.nameEn },
             ],
             at,
           })

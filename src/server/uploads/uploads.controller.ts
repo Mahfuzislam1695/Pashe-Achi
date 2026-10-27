@@ -5,7 +5,7 @@ import type { UploadDto } from '@/shared'
 import { memoryStorage } from 'multer'
 
 import type { CustomerPrincipal } from '../auth/auth.types'
-import { AdminGuard, CurrentCustomer, CustomerGuard } from '../auth/guards'
+import { AdminGuard, Can, CurrentCustomer, CustomerGuard } from '../auth/guards'
 import { IdParamDto } from '../common/dto'
 import { MAX_UPLOAD_BYTES, UploadsService } from './uploads.service'
 
@@ -36,6 +36,7 @@ export class UploadsController {
 @ApiTags('Admin: uploads')
 @ApiCookieAuth('pa_admin_at')
 @UseGuards(AdminGuard)
+@Can('orders.view')
 @Controller('admin/uploads')
 export class AdminUploadsController {
   constructor(private readonly uploads: UploadsService) {}

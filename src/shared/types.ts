@@ -1,6 +1,7 @@
-import type { ActorType, AdminRole, AuditAction, AuditEntity, Lang, NotificationType, OrderStatus, ServiceId, Text } from './enums'
+import type { ActorType, AuditAction, AuditEntity, Lang, NotificationType, OfferStatus, OrderStatus, ServiceId, Text } from './enums'
 import type { DeliveryHours } from './delivery-hours'
 import type { GeoPoint } from './geo'
+import type { Permission } from './permissions'
 import type { Pricing } from './pricing'
 
 // Response bodies of the API. Dates are ISO 8601 strings; amounts are whole taka.
@@ -9,6 +10,15 @@ export interface Paginated<T> {
   items: T[]
   /** Pass as `cursor` to get the next page; null on the last page. */
   nextCursor: string | null
+}
+
+/** A numbered page of an admin list: `total` rows match the filters, split into `pageCount` pages of `limit`. */
+export interface PagedList<T> {
+  items: T[]
+  total: number
+  page: number
+  limit: number
+  pageCount: number
 }
 
 export interface CustomerDto {
@@ -39,11 +49,21 @@ export interface AdminCustomerDto extends CustomerDto {
   lastOrderAt: string | null
 }
 
+/** A staff member's role as other records show it. */
+export interface RoleRef {
+  id: string
+  name: Text
+  /** The Super admin role: every permission, never edited. */
+  isSystem: boolean
+}
+
 export interface AdminDto {
   id: string
   name: string
   mobile: string
-  role: AdminRole
+  role: RoleRef
+  /** What this admin may do: the role's permissions (every permission for the system role). */
+  permissions: Permission[]
   isActive: boolean
   createdAt: string
 }
@@ -215,9 +235,6 @@ export interface OfferDto {
   endsOn: string
 }
 
-/** running: customers see it now; upcoming: starts later; ended: past its last day; off: switched off by staff. */
-export type OfferStatus = 'running' | 'upcoming' | 'ended' | 'off'
-
 /** An offer in the admin panel: GET /admin/offers. */
 export interface AdminOfferDto extends OfferDto {
   titleBn: string
@@ -249,16 +266,92 @@ export interface PushKeyDto {
   publicKey: string | null
 }
 
-export interface DashboardDto {
-  days: number
-  today: { orders: number; revenue: number }
-  pending: number
+/** Totals for a set of orders. Revenue counts only confirmed bills (REVENUE_STATUSES). */
+export interface OrderTotals {
+  /** Every order, cancelled ones included. */
+  orders: number
+  /** Sum of confirmed bills: BOOKED, IN_PROGRESS and COMPLETED. */
+  revenue: number
+  completedRevenue: number
+  /** revenue ÷ confirmed orders, rounded; 0 when there are none. */
+  averageBill: number
+  /** Cancelled ÷ every order, 0 to 1. */
+  cancelledRate: number
+}
+
+/** GET /admin/orders/stats: the orders the list's filters match (status aside, so every tab has its count). */
+export interface OrderStatsDto extends OrderTotals {
+  byStatus: Record<OrderStatus, number>
+}
+
+/** GET /admin/customers/stats. `newInRange` counts sign-ups in the joined filter (or the last 30 days). */
+export interface CustomerStatsDto {
+  total: number
   active: number
-  customers: number
-  /** Non-cancelled orders in the period. */
-  byService: { service: ServiceId; orders: number; revenue: number }[]
-  daily: { date: string; orders: number; revenue: number }[]
+  blocked: number
+  ordered: number
+  neverOrdered: number
+  newInRange: number
+  /** Reward points held by the matching customers. */
+  points: number
+}
+
+/** GET /admin/audit/stats. */
+export interface AuditStatsDto {
+  total: number
+  byActorType: Record<ActorType, number>
+}
+
+/** GET /admin/notifications/stats: the signed-in admin's inbox. */
+export interface NotificationStatsDto {
+  total: number
+  unread: number
+  today: number
+}
+
+/** GET /admin/staff/stats. */
+export interface StaffStatsDto {
+  total: number
+  active: number
+  /** Every role, with how many accounts hold it. */
+  byRole: { id: string; name: Text; isSystem: boolean; count: number }[]
+}
+
+/** GET /admin/offers/stats. */
+export interface OfferStatsDto {
+  total: number
+  byStatus: Record<OfferStatus, number>
+}
+
+export interface DashboardTotals extends OrderTotals {
+  newCustomers: number
+}
+
+/** GET /admin/dashboard. Days are YYYY-MM-DD in Bangladesh time, inclusive. */
+export interface DashboardDto {
+  from: string
+  to: string
+  /** The period of the same length just before, for the change shown on each tile. */
+  previous: { from: string; to: string }
+  /** Right now, whatever the period. */
+  live: { needsAction: number; awaitingCustomer: number; active: number; customers: number; todayOrders: number; todayRevenue: number }
+  current: DashboardTotals
+  before: DashboardTotals
+  byStatus: Record<OrderStatus, number>
+  byService: { service: ServiceId; orders: number; revenue: number; averageBill: number }[]
+  /** Each point is a day, or for periods longer than 92 days a week (starting Monday). */
+  bucket: 'day' | 'week'
+  series: { date: string; orders: number; revenue: number }[]
+  /** By confirmed spend in the period. */
+  topCustomers: { id: string; name: string; mobile: string; orders: number; revenue: number }[]
   recent: OrderSummary[]
+}
+
+/** GET /admin/dashboard/staff: what each staff member did to orders in the period (managers and up). */
+export interface StaffActivityDto {
+  from: string
+  to: string
+  rows: { id: string; name: string; role: Text; statusChanges: number; quotes: number; completed: number; total: number }[]
 }
 
 export type AuditValue = string | number | boolean | null
@@ -284,7 +377,8 @@ export interface AuditLogDto {
     id: string | null
     /** As it was at the time. */
     name: string
-    role: AdminRole | null
+    /** The admin's role name as it was at the time. */
+    role: Text | null
   }
   entity: {
     type: AuditEntity
@@ -306,4 +400,16 @@ export interface HealthDto {
   database: 'up' | 'down'
   uptime: number
   time: string
+}
+
+/** A role as /admin/roles shows it. */
+export interface RoleDto extends RoleRef {
+  /** Built-in roles: super_admin, manager, operator. Null for roles made in the panel. */
+  key: string | null
+  description: Text | null
+  /** As stored (the system role's list is ignored: it has every permission). */
+  permissions: Permission[]
+  staffCount: number
+  createdAt: string
+  updatedAt: string
 }

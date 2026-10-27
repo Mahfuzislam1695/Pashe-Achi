@@ -1,39 +1,61 @@
 'use client'
 
-import { broadcastSchema, type MessageCode, type NotificationDto, NOTIFICATION_TYPE_LABELS, type UnreadCountDto, validateForm } from '@/shared'
+import { broadcastSchema, can, type MessageCode, type NotificationDto, NOTIFICATION_TYPE_LABELS, NOTIFICATION_TYPES, type UnreadCountDto, validateForm } from '@/shared'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { CheckCheck, Send } from 'lucide-react'
+import { Bell, BellDot, CalendarDays, CheckCheck, Send } from 'lucide-react'
 import { useRouter } from 'next/navigation'
-import { useState } from 'react'
+import { Suspense, useState } from 'react'
 import { toast } from 'sonner'
 
-import { Badge, Button, Card, Empty, ErrorNote, Field, Input, Loading, PageHeader, Textarea } from '@/admin/components/ui'
+import { StatGrid, StatTile } from '@/admin/components/charts'
+import { ClearFilters, DateRangeFilter, FilterTabs } from '@/admin/components/filters'
+import { Pagination } from '@/admin/components/pagination'
+import { PermissionGate } from '@/admin/components/permission-gate'
+import { Badge, Button, Card, Empty, ErrorNote, Field, Input, Loading, PageHeader, Select, Textarea } from '@/admin/components/ui'
 import { api } from '@/admin/lib/api'
 import { useLang } from '@/admin/lib/i18n'
-import { queryKeys, useCurrentAdmin, useNotifications, useUnreadCount } from '@/admin/lib/queries'
-import { canManage, cn, errorCode } from '@/admin/lib/utils'
+import { queryKeys, useCurrentAdmin, useNotifications, useNotificationStats } from '@/admin/lib/queries'
+import { pick, pickDay, useUrlFilters } from '@/admin/lib/url-state'
+import { cn, errorCode } from '@/admin/lib/utils'
 
 export default function NotificationsPage() {
+  const { t } = useLang()
+  return (
+    <PermissionGate permission="notifications.view" title={t('নোটিফিকেশন', 'Notifications')}>
+      <Notifications />
+    </PermissionGate>
+  )
+}
+
+function Notifications() {
   const { t } = useLang()
   const admin = useCurrentAdmin()
   return (
     <>
       <PageHeader title={t('নোটিফিকেশন', 'Notifications')} subtitle={t('নতুন অর্ডার ও বাতিলের খবর, আর গ্রাহকদের কাছে ঘোষণা।', 'New orders and cancellations, and announcements to customers.')} />
-      <div className={cn('grid grid-cols-1 gap-5', canManage(admin.role) && 'lg:grid-cols-[3fr_2fr]')}>
-        <Inbox />
-        {canManage(admin.role) && <Broadcast />}
+      <div className={cn('grid grid-cols-1 items-start gap-5', can(admin, 'notifications.broadcast') && 'lg:grid-cols-[3fr_2fr]')}>
+        <Suspense fallback={<Loading />}>
+          <Inbox />
+        </Suspense>
+        {can(admin, 'notifications.broadcast') && <Broadcast />}
       </div>
     </>
   )
 }
 
+/** The inbox: filters and page live in the URL; the counts follow the same filters. */
 function Inbox() {
-  const { t, text, formatDate } = useLang()
+  const { t, text, digits, formatDate } = useLang()
   const router = useRouter()
   const queryClient = useQueryClient()
-  const notifications = useNotifications()
-  const unread = useUnreadCount().data?.count ?? 0
-  const items = notifications.data?.pages.flatMap(page => page.items) ?? []
+  const url = useUrlFilters()
+  const filters = { type: pick(url.get('type'), NOTIFICATION_TYPES), from: pickDay(url.get('from')), to: pickDay(url.get('to')) }
+  const unreadOnly = url.get('unread') === 'true'
+  const notifications = useNotifications({ ...filters, unread: unreadOnly ? 'true' : undefined, page: url.page, limit: url.limit })
+  const stats = useNotificationStats(filters)
+  const items = notifications.data?.items ?? []
+  const unread = stats.data?.unread ?? 0
+  const filtered = Object.values(filters).some(Boolean)
   const refresh = () => queryClient.invalidateQueries({ queryKey: queryKeys.notifications })
   const markAll = useMutation({ mutationFn: api.notifications.markAllRead, onSuccess: refresh })
 
@@ -47,52 +69,90 @@ function Inbox() {
   }
 
   return (
-    <Card
-      title={t('ইনবক্স', 'Inbox')}
-      actions={
-        unread > 0 ? (
-          <Button size="sm" variant="ghost" loading={markAll.isPending} onClick={() => markAll.mutate()}>
-            <CheckCheck className="size-4" />
-            {t('সব পড়া হয়েছে', 'Mark all as read')}
-          </Button>
-        ) : null
-      }
-    >
-      {notifications.isPending && <Loading />}
-      <ErrorNote code={notifications.isError ? errorCode(notifications.error) : null} />
-      {notifications.isSuccess && !items.length && <Empty>{t('এখনো কোনো নোটিফিকেশন নেই।', 'No notifications yet.')}</Empty>}
-      <ul className="grid gap-2">
-        {items.map(notification => (
-          <li key={notification.id}>
-            <button
-              type="button"
-              onClick={() => void open(notification)}
-              className={cn(
-                'grid w-full grid-cols-[8px_1fr] gap-3 rounded-xl border p-3 text-left transition-colors hover:bg-canvas',
-                notification.readAt ? 'border-line' : 'border-brand-200 bg-brand-50/60',
-              )}
-            >
-              <span className={cn('mt-1.5 size-2 rounded-full', !notification.readAt && 'bg-brand-600')} aria-hidden="true" />
-              <span className="grid gap-0.5">
-                <span className="flex flex-wrap items-center gap-2">
-                  <strong className="text-sm">{text(notification.title)}</strong>
-                  <Badge>{text(NOTIFICATION_TYPE_LABELS[notification.type])}</Badge>
-                </span>
-                <span className="text-sm text-muted">{text(notification.body)}</span>
-                <span className="text-xs text-muted">{formatDate(notification.createdAt, true)}</span>
-              </span>
-            </button>
-          </li>
-        ))}
-      </ul>
-      {notifications.hasNextPage && (
-        <div className="mt-4 flex justify-center">
-          <Button variant="secondary" loading={notifications.isFetchingNextPage} onClick={() => void notifications.fetchNextPage()}>
-            {t('আরো দেখুন', 'Load more')}
-          </Button>
-        </div>
+    <div className="grid min-w-0 gap-5">
+      {stats.data && (
+        <StatGrid columns={3}>
+          <StatTile icon={Bell} label={t('মোট', 'Total')} value={digits(stats.data.total)} hint={filtered ? t('এই ফিল্টারে', 'Matching the filters') : undefined} />
+          <StatTile icon={BellDot} tone="warning" label={t('পড়া হয়নি', 'Unread')} value={digits(stats.data.unread)} active={unreadOnly} onClick={() => url.set({ unread: unreadOnly ? undefined : 'true' })} />
+          <StatTile icon={CalendarDays} tone="violet" label={t('আজ', 'Today')} value={digits(stats.data.today)} />
+        </StatGrid>
       )}
-    </Card>
+      <Card
+        title={t('ইনবক্স', 'Inbox')}
+        actions={
+          unread > 0 ? (
+            <Button size="sm" variant="ghost" loading={markAll.isPending} onClick={() => markAll.mutate()}>
+              <CheckCheck className="size-4" />
+              {t('সব পড়া হয়েছে', 'Mark all as read')}
+            </Button>
+          ) : null
+        }
+      >
+        <div className="mb-3 grid gap-2 sm:grid-cols-[1fr_2fr_auto]">
+          <Select aria-label={t('ধরন', 'Type')} value={filters.type ?? ''} onChange={e => url.set({ type: e.target.value || undefined })}>
+            <option value="">{t('সব ধরন', 'All types')}</option>
+            {NOTIFICATION_TYPES.map(type => (
+              <option key={type} value={type}>
+                {text(NOTIFICATION_TYPE_LABELS[type])}
+              </option>
+            ))}
+          </Select>
+          <DateRangeFilter from={filters.from} to={filters.to} onChange={range => url.set({ from: range.from, to: range.to })} />
+          <ClearFilters disabled={!filtered && !unreadOnly} onClear={() => url.clear()} />
+        </div>
+        <FilterTabs
+          label={t('দেখান', 'Show')}
+          value={unreadOnly ? 'true' : undefined}
+          onChange={value => url.set({ unread: value })}
+          items={[
+            { value: undefined, label: t('সব', 'All'), count: stats.data?.total },
+            { value: 'true', label: t('পড়া হয়নি', 'Unread'), count: stats.data?.unread },
+          ]}
+        />
+        {notifications.isPending && <Loading />}
+        <ErrorNote code={notifications.isError ? errorCode(notifications.error) : null} />
+        {notifications.isSuccess && !items.length && (
+          <Empty>
+            {filtered || unreadOnly ? t('এই ফিল্টারে কোনো নোটিফিকেশন নেই।', 'No notifications match these filters.') : t('এখনো কোনো নোটিফিকেশন নেই।', 'No notifications yet.')}
+          </Empty>
+        )}
+        <ul className="grid gap-2">
+          {items.map(notification => (
+            <li key={notification.id}>
+              <button
+                type="button"
+                onClick={() => void open(notification)}
+                className={cn(
+                  'grid w-full grid-cols-[8px_1fr] gap-3 rounded-xl border p-3 text-left transition-colors hover:bg-canvas',
+                  notification.readAt ? 'border-line' : 'border-brand-200 bg-brand-50/60',
+                )}
+              >
+                <span className={cn('mt-1.5 size-2 rounded-full', !notification.readAt && 'bg-brand-600')} aria-hidden="true" />
+                <span className="grid gap-0.5">
+                  <span className="flex flex-wrap items-center gap-2">
+                    <strong className="text-sm">{text(notification.title)}</strong>
+                    <Badge>{text(NOTIFICATION_TYPE_LABELS[notification.type])}</Badge>
+                  </span>
+                  <span className="text-sm text-muted">{text(notification.body)}</span>
+                  <span className="text-xs text-muted">{formatDate(notification.createdAt, true)}</span>
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+        {notifications.data && (
+          <Pagination
+            page={notifications.data.page}
+            pageCount={notifications.data.pageCount}
+            total={notifications.data.total}
+            limit={notifications.data.limit}
+            fetching={notifications.isPlaceholderData}
+            onPage={page => url.set({ page })}
+            onLimit={limit => url.set({ limit })}
+          />
+        )}
+      </Card>
+    </div>
   )
 }
 

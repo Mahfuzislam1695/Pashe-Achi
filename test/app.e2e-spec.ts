@@ -3,7 +3,7 @@ import type { AddressInfo } from 'node:net'
 
 import { Test } from '@nestjs/testing'
 import type { NestExpressApplication } from '@nestjs/platform-express'
-import { API_PREFIX, DEFAULT_DELIVERY_HOURS, DEFAULT_PRICING, DEFAULT_VEHICLES, isoDateInBd, type OrderDetail, SOCKET_EVENTS, SOCKET_NAMESPACE } from '@/shared'
+import { API_PREFIX, BUILT_IN_ROLES, DEFAULT_DELIVERY_HOURS, DEFAULT_PRICING, DEFAULT_VEHICLES, isoDateInBd, type OrderDetail, SOCKET_EVENTS, SOCKET_NAMESPACE } from '@/shared'
 import bcrypt from 'bcryptjs'
 import { io, type Socket } from 'socket.io-client'
 import request from 'supertest'
@@ -16,6 +16,13 @@ import type { PushPayload } from '../src/server/notifications/web-push.channel'
 import { PrismaService } from '../src/server/prisma/prisma.service'
 
 const ADMIN = { mobile: '01700000000', password: 'admin12345' }
+/** The built-in roles' ids, by the names the fixed roles had before roles became editable. */
+const ROLE_ID = { SUPER_ADMIN: 'role_super_admin', MANAGER: 'role_manager', OPERATOR: 'role_operator' } as const
+/** The role names history entries carry. */
+const ROLE_NAME = Object.fromEntries(Object.entries(ROLE_ID).map(([key, id]) => {
+  const role = BUILT_IN_ROLES.find(entry => entry.id === id)!
+  return [key, { bn: role.nameBn, en: role.nameEn }]
+})) as Record<keyof typeof ROLE_ID, { bn: string; en: string }>
 const schedule = { date: isoDateInBd(), time: '10:00' }
 /** Every address is picked on the map, so orders and signups carry a pin. */
 const PIN = { lat: 23.807, lng: 90.3687 }
@@ -59,7 +66,9 @@ describe('Pashe Achi API (e2e)', () => {
     await prisma.$executeRawUnsafe(`ALTER SEQUENCE "Order_number_seq" RESTART WITH 1001`)
     await prisma.pricing.create({ data: { id: 1, ...DEFAULT_PRICING } })
     await prisma.vehicle.createMany({ data: DEFAULT_VEHICLES.map((vehicle, index) => ({ ...vehicle, sortOrder: index })) })
-    await prisma.admin.create({ data: { name: 'Admin', mobile: ADMIN.mobile, role: 'SUPER_ADMIN', passwordHash: await bcrypt.hash(ADMIN.password, 4) } })
+    // The truncate removed the roles the migration created.
+    for (const role of BUILT_IN_ROLES) await prisma.role.create({ data: { ...role, permissions: [...role.permissions] } })
+    await prisma.admin.create({ data: { name: 'Admin', mobile: ADMIN.mobile, roleId: ROLE_ID.SUPER_ADMIN, passwordHash: await bcrypt.hash(ADMIN.password, 4) } })
     // These tests sign customers in with a password; 'passwordless customer sign-in' turns it off.
     await prisma.setting.create({ data: { key: 'auth.customerPassword', value: 'on' } })
   })
@@ -124,7 +133,7 @@ describe('Pashe Achi API (e2e)', () => {
 
       it('lets only the super admin change it, and logs the change', async () => {
         const admin = await adminAgent()
-        await admin.post(api('/admin/staff')).send({ name: 'Mou', mobile: '01912000040', password: 'manager1', role: 'MANAGER' }).expect(201)
+        await admin.post(api('/admin/staff')).send({ name: 'Mou', mobile: '01912000040', password: 'manager1', roleId: ROLE_ID.MANAGER }).expect(201)
         const manager = request.agent(app.getHttpServer())
         await manager.post(api('/admin/auth/login')).send({ mobile: '01912000040', password: 'manager1' }).expect(200)
         await manager.put(api('/admin/catalog/customer-auth')).send({ password: false }).expect(403)
@@ -353,7 +362,7 @@ describe('Pashe Achi API (e2e)', () => {
     const tomorrow = isoDateInBd(new Date(Date.now() + 24 * 60 * 60 * 1000))
     const staff = async (mobile: string, role: 'MANAGER' | 'OPERATOR') => {
       const admin = await adminAgent()
-      await admin.post(api('/admin/staff')).send({ name: role, mobile, password: 'staffpass1', role }).expect(201)
+      await admin.post(api('/admin/staff')).send({ name: role, mobile, password: 'staffpass1', roleId: ROLE_ID[role] }).expect(201)
       const agent = request.agent(app.getHttpServer())
       await agent.post(api('/admin/auth/login')).send({ mobile, password: 'staffpass1' }).expect(200)
       return agent
@@ -385,8 +394,14 @@ describe('Pashe Achi API (e2e)', () => {
       // Switched off: gone for customers, still listed for staff.
       await manager.patch(api(`/admin/offers/${created.body.id}`)).send({ isActive: false }).expect(200)
       await request(app.getHttpServer()).get(api('/offers')).expect(200).expect(res => expect(res.body).toEqual([]))
-      const all = (await operator.get(api('/admin/offers')).expect(200)).body as { id: string; status: string }[]
+      const all = (await operator.get(api('/admin/offers')).expect(200)).body.items as { id: string; status: string }[]
       expect(all.find(item => item.id === created.body.id)?.status).toBe('off')
+      const off = (await operator.get(api('/admin/offers?status=off')).expect(200)).body.items as { id: string }[]
+      expect(off.map(item => item.id)).toContain(created.body.id)
+      const counts = (await operator.get(api('/admin/offers/stats')).expect(200)).body as { total: number; byStatus: Record<string, number> }
+      expect(counts.byStatus.off).toBeGreaterThanOrEqual(1)
+      expect(counts.byStatus.upcoming).toBeGreaterThanOrEqual(1)
+      expect(Object.values(counts.byStatus).reduce((sum, count) => sum + count, 0)).toBe(counts.total)
 
       await manager.delete(api(`/admin/offers/${later.body.id}`)).expect(204)
       const history = (await manager.get(api(`/admin/audit?entityType=OFFER&entityId=${created.body.id}`)).expect(200)).body.items as { action: string; changes: { field: string; to: unknown }[] }[]
@@ -490,7 +505,7 @@ describe('Pashe Achi API (e2e)', () => {
       const { agent } = await signup('01712000020')
       await agent.get(api('/admin/orders')).expect(401)
       const admin = await adminAgent()
-      await admin.post(api('/admin/staff')).send({ name: 'Op', mobile: '01912000020', password: 'operator1', role: 'OPERATOR' }).expect(201)
+      await admin.post(api('/admin/staff')).send({ name: 'Op', mobile: '01912000020', password: 'operator1', roleId: ROLE_ID.OPERATOR }).expect(201)
       const operator = request.agent(app.getHttpServer())
       await operator.post(api('/admin/auth/login')).send({ mobile: '01912000020', password: 'operator1' }).expect(200)
       await operator.get(api('/admin/orders')).expect(200)
@@ -718,19 +733,86 @@ describe('Pashe Achi API (e2e)', () => {
       await request(app.getHttpServer()).post(api('/auth/login')).send({ mobile: '01712000024', password: 'secret12' }).expect(403)
     })
 
-    it('summarises the dashboard in Bangladesh days', async () => {
+    it('summarises the dashboard in Bangladesh days, counting only confirmed bills as revenue', async () => {
       const admin = await adminAgent()
+      const today = isoDateInBd()
       const dashboard = await admin.get(api('/admin/dashboard?days=7')).expect(200)
-      expect(dashboard.body.daily).toHaveLength(7)
-      expect(dashboard.body.daily.at(-1).date).toBe(isoDateInBd())
-      expect(dashboard.body.today.orders).toBeGreaterThan(0)
+      expect(dashboard.body.series).toHaveLength(7)
+      expect(dashboard.body.series.at(-1).date).toBe(today)
+      expect(dashboard.body).toMatchObject({ to: today, bucket: 'day' })
+      expect(dashboard.body.live.todayOrders).toBeGreaterThan(0)
+
+      // Every order in these tests was placed today.
+      const confirmed = await prisma.order.aggregate({ where: { status: { in: ['BOOKED', 'IN_PROGRESS', 'COMPLETED'] } }, _sum: { total: true }, _count: { _all: true } })
+      const placed = await prisma.order.count()
+      expect(dashboard.body.current.orders).toBe(placed)
+      expect(dashboard.body.current.revenue).toBe(confirmed._sum.total ?? 0)
+      expect(dashboard.body.live.todayRevenue).toBe(confirmed._sum.total ?? 0)
+      expect(dashboard.body.series.at(-1).revenue).toBe(confirmed._sum.total ?? 0)
+
+      const stats = await admin.get(api(`/admin/orders/stats?from=${today}&to=${today}`)).expect(200)
+      expect(stats.body).toMatchObject({ orders: placed, revenue: confirmed._sum.total ?? 0 })
+      expect(stats.body.byStatus.PENDING).toBe(await prisma.order.count({ where: { status: 'PENDING' } }))
+
+      // A reversed range, or one ending in the future, is refused with a message.
+      await admin.get(api(`/admin/dashboard?from=${today}&to=2000-01-01`)).expect(400).expect(res => expect(res.body.code).toBe('range.invalid'))
+      await admin.get(api('/admin/dashboard?to=2999-01-01')).expect(400)
+      // Longer periods are charted by the week.
+      const year = await admin.get(api('/admin/dashboard?days=200')).expect(200)
+      expect(year.body.bucket).toBe('week')
+      expect(year.body.series.at(-1).revenue).toBe(confirmed._sum.total ?? 0)
+    })
+
+    it('pages the admin lists by number, with the total the filters match', async () => {
+      const admin = await adminAgent()
+      const total = await prisma.order.count()
+      const first = await admin.get(api('/admin/orders?limit=2')).expect(200)
+      expect(first.body).toMatchObject({ page: 1, limit: 2, total, pageCount: Math.ceil(total / 2) })
+      expect(first.body.items).toHaveLength(2)
+      const second = await admin.get(api('/admin/orders?limit=2&page=2')).expect(200)
+      expect(second.body.items).toHaveLength(Math.min(2, total - 2))
+      // No order shows on two pages.
+      const ids = [...first.body.items, ...second.body.items].map((order: { id: string }) => order.id)
+      expect(new Set(ids).size).toBe(ids.length)
+      // Past the last page the list is empty, but still says how many there are.
+      await admin.get(api('/admin/orders?page=999')).expect(200).expect(res => expect(res.body).toMatchObject({ items: [], total }))
+      await admin.get(api('/admin/orders?page=0')).expect(400)
+
+      const byTotal = (await admin.get(api('/admin/orders?sort=total_desc&limit=100')).expect(200)).body.items as { total: number }[]
+      expect(byTotal.map(order => order.total)).toEqual([...byTotal.map(order => order.total)].sort((a, b) => b - a))
+
+      const customers = await admin.get(api('/admin/customers?limit=1&ordered=true')).expect(200)
+      expect(customers.body.total).toBe(await prisma.user.count({ where: { orders: { some: {} } } }))
+      const customerStats = await admin.get(api('/admin/customers/stats')).expect(200)
+      expect(customerStats.body).toMatchObject({ total: await prisma.user.count(), blocked: await prisma.user.count({ where: { isBlocked: true } }) })
+      expect(customerStats.body.ordered + customerStats.body.neverOrdered).toBe(customerStats.body.total)
+
+      const staff = await admin.get(api(`/admin/staff?roleId=${ROLE_ID.SUPER_ADMIN}`)).expect(200)
+      expect(staff.body.items.every((item: { role: { isSystem: boolean } }) => item.role.isSystem)).toBe(true)
+      const staffStats = await admin.get(api('/admin/staff/stats')).expect(200)
+      expect(staffStats.body.total).toBe(await prisma.admin.count())
+
+      const inbox = await admin.get(api('/admin/notifications?limit=1')).expect(200)
+      const inboxStats = await admin.get(api('/admin/notifications/stats')).expect(200)
+      expect(inbox.body.total).toBe(inboxStats.body.total)
+    })
+
+    it('shows what each staff member did to orders to managers only', async () => {
+      const admin = await adminAgent()
+      const activity = await admin.get(api('/admin/dashboard/staff?days=7')).expect(200)
+      expect(activity.body.rows.find((row: { name: string }) => row.name === 'Admin')?.statusChanges).toBeGreaterThan(0)
+      await admin.post(api('/admin/staff')).send({ name: 'Op2', mobile: '01912000029', password: 'operator1', roleId: ROLE_ID.OPERATOR }).expect(201)
+      const operator = request.agent(app.getHttpServer())
+      await operator.post(api('/admin/auth/login')).send({ mobile: '01912000029', password: 'operator1' }).expect(200)
+      await operator.get(api('/admin/dashboard')).expect(200)
+      await operator.get(api('/admin/dashboard/staff')).expect(403)
     })
   })
 
   describe('history log', () => {
-    const staffAgent = async (body: { name: string; mobile: string; password: string; role: 'MANAGER' | 'OPERATOR' }) => {
+    const staffAgent = async ({ role, ...body }: { name: string; mobile: string; password: string; role: 'MANAGER' | 'OPERATOR' }) => {
       const admin = await adminAgent()
-      const created = await admin.post(api('/admin/staff')).send(body).expect(201)
+      const created = await admin.post(api('/admin/staff')).send({ ...body, roleId: ROLE_ID[role] }).expect(201)
       const agent = request.agent(app.getHttpServer())
       await agent.post(api('/admin/auth/login')).send({ mobile: body.mobile, password: body.password }).expect(200)
       return { agent, id: created.body.id as string }
@@ -747,7 +829,7 @@ describe('Pashe Achi API (e2e)', () => {
       expect(log.body.items).toHaveLength(2)
       expect(log.body.items[1]).toMatchObject({
         action: 'PRICING_UPDATED',
-        actor: { type: 'ADMIN', id: manager.id, name: 'Mina', role: 'MANAGER' },
+        actor: { type: 'ADMIN', id: manager.id, name: 'Mina', role: ROLE_NAME.MANAGER },
         entity: { type: 'PRICING' },
         changes: [{ field: 'bazarShoppingFee', from: 150, to: 999 }],
       })
@@ -793,7 +875,7 @@ describe('Pashe Achi API (e2e)', () => {
       // No total yet when it was placed: staff price it.
       expect(history[0]).toMatchObject({ action: 'ORDER_CREATED', actor: { type: 'CUSTOMER', name: 'হাসান' }, entity: { type: 'ORDER', id: order.id, label: order.code }, meta: { service: 'bazar' } })
       expect(history.find(entry => entry.action === 'ORDER_BILL_UPDATED')).toMatchObject({
-        actor: { type: 'ADMIN', role: 'SUPER_ADMIN' },
+        actor: { type: 'ADMIN', role: ROLE_NAME.SUPER_ADMIN },
         changes: [
           { field: 'item.price', label: 'চাল', from: null, to: 400 },
           { field: 'total', from: 230, to: 630 },
@@ -818,7 +900,7 @@ describe('Pashe Achi API (e2e)', () => {
       expect(failed[1]).toMatchObject({ actor: { type: 'ADMIN', id: null, name: ADMIN.mobile }, entity: { type: 'STAFF', label: 'Admin' } })
       expect(JSON.stringify(failed)).not.toContain('wrong-secret-42')
       const [signedIn] = (await admin.get(api('/admin/audit?action=ADMIN_SIGNED_IN&limit=1')).expect(200)).body.items
-      expect(signedIn).toMatchObject({ actor: { name: 'Admin', role: 'SUPER_ADMIN' }, entity: { type: 'STAFF', label: 'Admin' } })
+      expect(signedIn).toMatchObject({ actor: { name: 'Admin', role: ROLE_NAME.SUPER_ADMIN }, entity: { type: 'STAFF', label: 'Admin' } })
     })
 
     it("shows a customer's own actions and what staff did to the account", async () => {
@@ -832,6 +914,119 @@ describe('Pashe Achi API (e2e)', () => {
       expect(log.map((entry: { action: string }) => entry.action)).toEqual(['CUSTOMER_BLOCKED', 'CUSTOMER_POINTS_CHANGED', 'CUSTOMER_LOCATION_UPDATED', 'CUSTOMER_SIGNED_UP'])
       expect(log[1].changes).toEqual([{ field: 'points', from: 0, to: 40 }])
       expect(log[2].changes).toEqual([{ field: 'location', from: 'উত্তরা, ঢাকা', to: 'বনানী, ঢাকা' }])
+    })
+  })
+  describe('roles and permissions', () => {
+    const signIn = async (mobile: string, password = 'staffpass1') => {
+      const agent = request.agent(app.getHttpServer())
+      await agent.post(api('/admin/auth/login')).send({ mobile, password }).expect(200)
+      return agent
+    }
+
+    it('lets a role made in the panel do exactly what it grants, and applies a change at once', async () => {
+      const admin = await adminAgent()
+      const refused = await admin.post(api('/admin/roles')).send({ nameBn: 'দাম ডেস্ক', nameEn: 'Price desk', permissions: ['orders.send_price', 'nonsense.x'] }).expect(400)
+      expect(refused.body.code).toBe('field.invalid')
+      const role = (await admin.post(api('/admin/roles')).send({ nameBn: 'দাম ডেস্ক', nameEn: 'Price desk', permissions: ['orders.send_price'] }).expect(201)).body
+      // Any action brings its module's view along.
+      expect(role.permissions).toEqual(['orders.view', 'orders.send_price'])
+      await admin.post(api('/admin/staff')).send({ name: 'Desk', mobile: '01912000060', password: 'staffpass1', roleId: role.id }).expect(201)
+      const desk = await signIn('01912000060')
+      expect((await desk.get(api('/admin/auth/me')).expect(200)).body).toMatchObject({ role: { name: { en: 'Price desk' }, isSystem: false }, permissions: ['orders.view', 'orders.send_price'] })
+
+      const { agent, body: customer } = await signup('01712000088')
+      const order = (await agent.post(api('/orders/bazar')).send({ address: 'x', addressPin: PIN, contactMobile: '01712000088', schedule, items: [{ name: 'a', quantity: '1' }] })).body as OrderDetail
+      await desk.get(api('/admin/orders')).expect(200)
+      await desk.get(api(`/admin/orders/${order.id}/history`)).expect(200)
+      await desk.put(api(`/admin/orders/${order.id}/quote`)).send({ items: [{ id: order.items[0]!.id, name: 'a', quantity: '1', price: 100 }] }).expect(200)
+      await desk.patch(api(`/admin/orders/${order.id}/status`)).send({ status: 'CANCELLED' }).expect(403)
+      await desk.put(api('/admin/catalog/pricing')).send(DEFAULT_PRICING).expect(403)
+      await desk.get(api('/admin/offers')).expect(403)
+      await desk.get(api('/admin/dashboard')).expect(403)
+      await desk.get(api('/admin/customers')).expect(403)
+      await desk.get(api('/admin/notifications')).expect(403)
+      await desk.post(api('/admin/roles')).send({ nameBn: 'ক', nameEn: 'K', permissions: [] }).expect(403).expect(res => expect(res.body.code).toBe('forbidden'))
+
+      // The next request already has the new permission: no sign-out needed.
+      await admin.patch(api(`/admin/roles/${role.id}`)).send({ permissions: ['orders.send_price', 'orders.update_status'] }).expect(200)
+      await desk.patch(api(`/admin/orders/${order.id}/status`)).send({ status: 'CANCELLED' }).expect(200)
+
+      const [entry] = (await admin.get(api(`/admin/audit?entityType=ROLE&entityId=${role.id}&action=ROLE_UPDATED`)).expect(200)).body.items
+      expect(entry.changes).toEqual([{ field: 'permission.added', from: null, to: 'orders.update_status' }])
+
+      // Blocking and points are separate permissions: the built-in Operator can see customers but change neither.
+      const operator = await signIn('01912000020', 'operator1')
+      await operator.get(api(`/admin/customers/${customer.user.id}`)).expect(200)
+      await operator.patch(api(`/admin/customers/${customer.user.id}`)).send({ points: 5 }).expect(403)
+      await operator.patch(api(`/admin/customers/${customer.user.id}`)).send({ isBlocked: true }).expect(403)
+    })
+
+    it('keeps the Super admin role and its accounts out of reach of other staff managers', async () => {
+      const admin = await adminAgent()
+      const superAdminId = (await admin.get(api('/admin/auth/me')).expect(200)).body.id as string
+      const lead = (await admin.post(api('/admin/roles')).send({ nameBn: 'স্টাফ লিড', nameEn: 'Staff lead', permissions: ['staff.create', 'staff.edit'] }).expect(201)).body
+      await admin.post(api('/admin/staff')).send({ name: 'Lead', mobile: '01912000061', password: 'staffpass1', roleId: lead.id }).expect(201)
+      const leadAgent = await signIn('01912000061')
+
+      await leadAgent
+        .post(api('/admin/staff'))
+        .send({ name: 'X', mobile: '01912000062', password: 'staffpass1', roleId: ROLE_ID.SUPER_ADMIN })
+        .expect(403)
+        .expect(res => expect(res.body.code).toBe('admin.super_only'))
+      const op = (await leadAgent.post(api('/admin/staff')).send({ name: 'Y', mobile: '01912000063', password: 'staffpass1', roleId: ROLE_ID.OPERATOR }).expect(201)).body
+      expect(op.role).toMatchObject({ id: ROLE_ID.OPERATOR, name: ROLE_NAME.OPERATOR })
+      await leadAgent.patch(api(`/admin/staff/${op.id}`)).send({ roleId: ROLE_ID.SUPER_ADMIN }).expect(403)
+      await leadAgent.patch(api(`/admin/staff/${superAdminId}`)).send({ isActive: false }).expect(403).expect(res => expect(res.body.code).toBe('admin.super_only'))
+      await leadAgent.patch(api(`/admin/staff/${op.id}`)).send({ roleId: ROLE_ID.MANAGER }).expect(200)
+      // Without staff.reset_password, no new passwords.
+      await leadAgent.patch(api(`/admin/staff/${op.id}`)).send({ password: 'newpass12' }).expect(403)
+      await leadAgent.patch(api(`/admin/staff/${op.id}`)).send({ roleId: 'no-such-role' }).expect(400).expect(res => expect(res.body.code).toBe('role.not_found'))
+
+      const stats = (await admin.get(api('/admin/staff/stats')).expect(200)).body as { byRole: { id: string; count: number }[] }
+      expect(stats.byRole.find(role => role.id === lead.id)?.count).toBe(1)
+    })
+
+    it('lets staff given Roles & permissions manage other roles, only with permissions they hold', async () => {
+      const admin = await adminAgent()
+      const desk = (await admin.post(api('/admin/roles')).send({ nameBn: 'রোল ডেস্ক', nameEn: 'Role desk', permissions: ['roles.create', 'roles.edit', 'orders.view'] }).expect(201)).body
+      expect(desk.permissions).toEqual(['orders.view', 'roles.view', 'roles.create', 'roles.edit'])
+      await admin.post(api('/admin/staff')).send({ name: 'Roles', mobile: '01912000064', password: 'staffpass1', roleId: desk.id }).expect(201)
+      const agent = await signIn('01912000064')
+
+      const made = (await agent.post(api('/admin/roles')).send({ nameBn: 'দেখা', nameEn: 'Viewer', permissions: ['orders.view'] }).expect(201)).body
+      await agent.post(api('/admin/roles')).send({ nameBn: 'ইতিহাস', nameEn: 'Historian', permissions: ['history.view'] }).expect(403).expect(res => expect(res.body.code).toBe('role.beyond_own'))
+      await agent.patch(api(`/admin/roles/${made.id}`)).send({ permissions: ['orders.send_price'] }).expect(403).expect(res => expect(res.body.code).toBe('role.beyond_own'))
+      await agent.patch(api(`/admin/roles/${made.id}`)).send({ nameEn: 'Order viewer' }).expect(200)
+      // Not their own role (that would let them raise themselves), and never the Super admin's.
+      await agent.patch(api(`/admin/roles/${desk.id}`)).send({ nameEn: 'Role desk 2' }).expect(403).expect(res => expect(res.body.code).toBe('role.own'))
+      await agent.patch(api(`/admin/roles/${ROLE_ID.SUPER_ADMIN}`)).send({ nameEn: 'X' }).expect(400).expect(res => expect(res.body.code).toBe('role.locked'))
+      // A permission they lack on someone else's role stays as it is while they change what they hold.
+      const managerBefore = (await admin.get(api('/admin/roles')).expect(200)).body.find((role: { id: string }) => role.id === ROLE_ID.MANAGER).permissions as string[]
+      await agent.patch(api(`/admin/roles/${ROLE_ID.MANAGER}`)).send({ permissions: managerBefore.filter(permission => permission !== 'history.view') }).expect(403)
+      await agent.patch(api(`/admin/roles/${ROLE_ID.MANAGER}`)).send({ permissions: [...managerBefore, 'roles.view'] }).expect(200)
+      await admin.patch(api(`/admin/roles/${ROLE_ID.MANAGER}`)).send({ permissions: managerBefore }).expect(200)
+
+      await agent.delete(api(`/admin/roles/${made.id}`)).expect(403)
+      await admin.patch(api(`/admin/roles/${desk.id}`)).send({ permissions: [...desk.permissions, 'roles.delete'] }).expect(200)
+      await agent.delete(api(`/admin/roles/${made.id}`)).expect(204)
+    })
+
+    it('never changes the Super admin role, and deletes a role only once nobody holds it', async () => {
+      const admin = await adminAgent()
+      await admin.patch(api(`/admin/roles/${ROLE_ID.SUPER_ADMIN}`)).send({ permissions: [] }).expect(400).expect(res => expect(res.body.code).toBe('role.locked'))
+      await admin.delete(api(`/admin/roles/${ROLE_ID.SUPER_ADMIN}`)).expect(400)
+      await admin.post(api('/admin/roles')).send({ nameBn: 'আরেক ম্যানেজার', nameEn: 'Manager', permissions: [] }).expect(409).expect(res => expect(res.body.code).toBe('role.name_taken'))
+      await admin.delete(api(`/admin/roles/${ROLE_ID.MANAGER}`)).expect(409).expect(res => expect(res.body.code).toBe('role.in_use'))
+
+      const spare = (await admin.post(api('/admin/roles')).send({ nameBn: 'অস্থায়ী', nameEn: 'Temporary', permissions: ['history.view'] }).expect(201)).body
+      await admin.delete(api(`/admin/roles/${spare.id}`)).expect(204)
+      const roles = (await admin.get(api('/admin/roles')).expect(200)).body as { id: string; isSystem: boolean; permissions: string[] }[]
+      expect(roles.find(role => role.id === spare.id)).toBeUndefined()
+      // The system role comes first and reports every permission.
+      expect(roles[0]).toMatchObject({ id: ROLE_ID.SUPER_ADMIN, isSystem: true })
+      expect(roles[0]!.permissions.length).toBeGreaterThan(20)
+      const actions = (await admin.get(api(`/admin/audit?entityType=ROLE&entityId=${spare.id}`)).expect(200)).body.items.map((entry: { action: string }) => entry.action)
+      expect(actions).toEqual(['ROLE_DELETED', 'ROLE_CREATED'])
     })
   })
 })

@@ -1,8 +1,8 @@
 'use client'
 
-import { ADMIN_ROLE_LABELS, APP_LOGO, APP_NAME } from '@/shared'
+import { APP_LOGO, APP_NAME, can } from '@/shared'
 import { useQueryClient } from '@tanstack/react-query'
-import { BadgePercent, Bell, BellOff, BellRing, ClipboardList, History, LayoutDashboard, LogOut, Megaphone, Menu, RotateCw, Settings2, ShieldCheck, UserRound, Users, Volume2, VolumeX, X } from 'lucide-react'
+import { BadgePercent, Bell, BellOff, BellRing, ClipboardList, History, LayoutDashboard, LogOut, Megaphone, Menu, RotateCw, Settings2, ShieldCheck, UserCog, UserRound, Users, Volume2, VolumeX, X } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
@@ -13,7 +13,7 @@ import { useLang } from '@/admin/lib/i18n'
 import { forgetAdminPush, PushProvider, usePush } from '@/admin/lib/push'
 import { useAdmin, useUnreadCount } from '@/admin/lib/queries'
 import { RealtimeProvider, useOrderSound } from '@/admin/lib/realtime'
-import { canManage, cn, isSuperAdmin } from '@/admin/lib/utils'
+import { cn } from '@/admin/lib/utils'
 import { DeveloperCredit } from './developer-credit'
 import { Button, ErrorNote, LangSwitch, Loading } from './ui'
 
@@ -22,11 +22,16 @@ export function PanelShell({ children }: { children: React.ReactNode }) {
   const admin = useAdmin()
   const { t } = useLang()
   if (admin.isSuccess) {
+    // Phone and desktop push belongs to the inbox: only for roles that can see notifications.
     return (
       <RealtimeProvider>
-        <PushProvider>
+        {can(admin.data, 'notifications.view') ? (
+          <PushProvider>
+            <Frame>{children}</Frame>
+          </PushProvider>
+        ) : (
           <Frame>{children}</Frame>
-        </PushProvider>
+        )}
       </RealtimeProvider>
     )
   }
@@ -65,27 +70,30 @@ function Frame({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const router = useRouter()
   const queryClient = useQueryClient()
-  const unread = useUnreadCount().data?.count ?? 0
+  const inbox = can(admin, 'notifications.view')
+  const unread = useUnreadCount(inbox).data?.count ?? 0
   const sound = useOrderSound()
   const push = usePush()
   const [menuOpen, setMenuOpen] = useState(false)
 
   useEffect(() => setMenuOpen(false), [pathname])
 
+  // Each page shows in the menu only when the role can view it.
   const nav = [
-    { href: '/admin', label: t('ড্যাশবোর্ড', 'Dashboard'), icon: LayoutDashboard },
-    { href: '/admin/orders', label: t('অর্ডার', 'Orders'), icon: ClipboardList },
-    { href: '/admin/customers', label: t('গ্রাহক', 'Customers'), icon: Users },
-    { href: '/admin/catalog', label: t('দাম ও গাড়ী', 'Pricing & vehicles'), icon: Settings2 },
-    { href: '/admin/offers', label: t('আজকের অফার', "Today's offers"), icon: BadgePercent },
-    { href: '/admin/notifications', label: t('নোটিফিকেশন', 'Notifications'), icon: Megaphone },
-    ...(canManage(admin.role) ? [{ href: '/admin/history', label: t('ইতিহাস', 'History'), icon: History }] : []),
-    ...(isSuperAdmin(admin.role) ? [{ href: '/admin/staff', label: t('স্টাফ', 'Staff'), icon: ShieldCheck }] : []),
-  ]
+    can(admin, 'dashboard.view') && { href: '/admin', label: t('ড্যাশবোর্ড', 'Dashboard'), icon: LayoutDashboard },
+    can(admin, 'orders.view') && { href: '/admin/orders', label: t('অর্ডার', 'Orders'), icon: ClipboardList },
+    can(admin, 'customers.view') && { href: '/admin/customers', label: t('গ্রাহক', 'Customers'), icon: Users },
+    can(admin, 'catalog.view') && { href: '/admin/catalog', label: t('দাম ও গাড়ী', 'Pricing & vehicles'), icon: Settings2 },
+    can(admin, 'offers.view') && { href: '/admin/offers', label: t('আজকের অফার', "Today's offers"), icon: BadgePercent },
+    inbox && { href: '/admin/notifications', label: t('নোটিফিকেশন', 'Notifications'), icon: Megaphone },
+    can(admin, 'history.view') && { href: '/admin/history', label: t('ইতিহাস', 'History'), icon: History },
+    can(admin, 'staff.view') && { href: '/admin/staff', label: t('স্টাফ', 'Staff'), icon: ShieldCheck },
+    can(admin, 'roles.view') && { href: '/admin/roles', label: t('রোল ও অনুমতি', 'Roles & permissions'), icon: UserCog },
+  ].filter(item => !!item)
   const isActive = (href: string) => (href === '/admin' ? pathname === '/admin' : pathname === href || pathname.startsWith(`${href}/`))
 
   const signOut = async () => {
-    await forgetAdminPush()
+    if (inbox) await forgetAdminPush()
     await api.auth.logout().catch(() => undefined)
     queryClient.clear()
     router.replace('/admin/login')
@@ -122,7 +130,7 @@ function Frame({ children }: { children: React.ReactNode }) {
           <div className="grid size-8 place-items-center rounded-full bg-brand-600 text-sm font-bold text-white">{admin.name[0]}</div>
           <div className="min-w-0 leading-tight">
             <strong className="block truncate text-sm text-navy">{admin.name}</strong>
-            <span className="text-xs text-muted">{text(ADMIN_ROLE_LABELS[admin.role])}</span>
+            <span className="text-xs text-muted">{text(admin.role.name)}</span>
           </div>
         </Link>
         <Button variant="ghost" className="justify-start" onClick={() => void signOut()}>
@@ -164,6 +172,7 @@ function Frame({ children }: { children: React.ReactNode }) {
               {sound.enabled ? <Volume2 className="size-4.5" /> : <VolumeX className="size-4.5" />}
             </Button>
             <PushToggle push={push} />
+            {inbox && (
             <Link
               href="/admin/notifications"
               className="relative grid size-9 place-items-center rounded-xl text-muted transition-colors hover:bg-canvas hover:text-brand-700"
@@ -176,12 +185,13 @@ function Frame({ children }: { children: React.ReactNode }) {
                 </span>
               )}
             </Link>
+            )}
             <Link href="/admin/profile" className="grid size-9 place-items-center rounded-full bg-brand-600 text-sm font-bold text-white transition-colors hover:bg-brand-700" aria-label={t('প্রোফাইল', 'Profile')}>
               <UserRound className="size-4" />
             </Link>
           </div>
         </header>
-        <main className="mx-auto w-full max-w-7xl p-4 sm:p-6">{children}</main>
+        <main className="w-full p-4 sm:p-6">{children}</main>
       </div>
     </div>
   )

@@ -1,7 +1,7 @@
 'use client'
 
-import { APP_DOWNLOADS, APP_LOGO_HERO, APP_NAME, APP_TAGLINE, describeDeliveryHours, ORDER_STATUS_LABELS, SERVICE_IDS, SERVICE_LABELS, type ServiceId } from '@/shared'
-import { BadgeCheck, BellRing, ChevronDown, Clock, Download, Headset, Languages, LogIn, Menu, MessageCircle, Phone, ReceiptText, Smartphone, UserPlus, X } from 'lucide-react'
+import { APP_DOWNLOADS, APP_LOGO_HERO, APP_NAME, APP_TAGLINE, describeDeliveryHours, HEAD_OFFICE, ORDER_STATUS_LABELS, SERVICE_IDS, SERVICE_LABELS, type ServiceId } from '@/shared'
+import { BadgeCheck, BellRing, ChevronDown, Clock, Download, Headset, Languages, LogIn, MapPin, Menu, MessageCircle, Phone, ReceiptText, Smartphone, UserPlus, X } from 'lucide-react'
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
 
@@ -238,18 +238,26 @@ export function LandingScreen({ signedIn, fontClass = '' }: { signedIn: boolean;
           <div className="lp-footer-brand">
             <Logo />
             <p>{APP_TAGLINE[lang]}</p>
-            {catalog?.support && (
-              <div className="lp-footer-contact">
-                <a href={`tel:${catalog.support.phone}`}>
-                  <Phone size={15} />
-                  {catalog.support.phone}
-                </a>
-                <a href={catalog.support.whatsapp} target="_blank" rel="noopener noreferrer">
-                  <MessageCircle size={15} />
-                  WhatsApp
-                </a>
-              </div>
-            )}
+            <div className="lp-footer-contact">
+              {catalog?.support && (
+                <>
+                  <a href={`tel:${catalog.support.phone}`}>
+                    <Phone size={15} />
+                    {catalog.support.phone}
+                  </a>
+                  <a href={catalog.support.whatsapp} target="_blank" rel="noopener noreferrer">
+                    <MessageCircle size={15} />
+                    WhatsApp
+                  </a>
+                </>
+              )}
+              <a className="lp-office" href={HEAD_OFFICE.map} target="_blank" rel="noopener noreferrer">
+                <MapPin size={15} />
+                <span>
+                  {HEAD_OFFICE.label[lang]}: {HEAD_OFFICE.address[lang]}
+                </span>
+              </a>
+            </div>
           </div>
           <nav aria-label={sectionLabel.services}>
             <strong>{sectionLabel.services}</strong>
@@ -574,9 +582,9 @@ function PricingLedger() {
   )
 }
 
-/** Call and WhatsApp, from the support numbers in the admin panel's Catalog. */
+/** Call and WhatsApp, from the support numbers in the admin panel's Catalog, and the head office. */
 function SupportCard() {
-  const { t } = useLang()
+  const { t, lang } = useLang()
   const support = useCatalog().data?.support
   return (
     <div id="contact" className="lp-support">
@@ -595,6 +603,13 @@ function SupportCard() {
           </a>
         </div>
       )}
+      <a className="lp-office" href={HEAD_OFFICE.map} target="_blank" rel="noopener noreferrer">
+        <MapPin size={16} />
+        <span>
+          <strong>{HEAD_OFFICE.label[lang]}</strong>
+          {HEAD_OFFICE.address[lang]}
+        </span>
+      </a>
     </div>
   )
 }

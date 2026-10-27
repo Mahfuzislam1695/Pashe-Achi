@@ -12,11 +12,19 @@ import {
   dashboardQuerySchema,
   deliveryHoursSchema,
   idParamSchema,
+  auditStatsQuerySchema,
+  customerStatsQuerySchema,
+  listAdminNotificationsQuerySchema,
   listAuditQuerySchema,
   listCustomersQuerySchema,
   listMyOrdersQuerySchema,
   listNotificationsQuerySchema,
+  listOffersQuerySchema,
   listOrdersQuerySchema,
+  listStaffQuerySchema,
+  notificationStatsQuerySchema,
+  offerStatsQuerySchema,
+  orderStatsQuerySchema,
   loginSchema,
   staffLoginSchema,
   offerSchema,
@@ -26,6 +34,7 @@ import {
   quoteOrderSchema,
   refreshSchema,
   reverseGeocodeQuerySchema,
+  roleSchema,
   shiftingQuoteSchema,
   signupSchema,
   supportSettingsSchema,
@@ -33,6 +42,7 @@ import {
   updateCustomerSchema,
   updateOfferSchema,
   updateOrderStatusSchema,
+  updateRoleSchema,
   updateProfileSchema,
   updateVehicleSchema,
   vehicleSchema,
@@ -60,12 +70,14 @@ export class CreateParcelOrderDto extends createZodDto(createParcelOrderSchema) 
 export class ListMyOrdersQueryDto extends createZodDto(listMyOrdersQuerySchema) {}
 
 export class ListOrdersQueryDto extends createZodDto(listOrdersQuerySchema) {}
+export class OrderStatsQueryDto extends createZodDto(orderStatsQuerySchema) {}
 export class UpdateOrderStatusDto extends createZodDto(updateOrderStatusSchema) {}
 export class QuoteOrderDto extends createZodDto(quoteOrderSchema) {}
 export class ShiftingQuoteDto extends createZodDto(shiftingQuoteSchema) {}
 export class ConfirmOrderDto extends createZodDto(confirmOrderSchema) {}
 
 export class ListCustomersQueryDto extends createZodDto(listCustomersQuerySchema) {}
+export class CustomerStatsQueryDto extends createZodDto(customerStatsQuerySchema) {}
 export class UpdateCustomerDto extends createZodDto(updateCustomerSchema) {}
 
 export class PricingDto extends createZodDto(pricingSchema) {}
@@ -77,12 +89,20 @@ export class DeliveryHoursDto extends createZodDto(deliveryHoursSchema) {}
 
 export class CreateAdminDto extends createZodDto(createAdminSchema) {}
 export class UpdateAdminDto extends createZodDto(updateAdminSchema) {}
+export class CreateRoleDto extends createZodDto(roleSchema) {}
+export class UpdateRoleDto extends createZodDto(updateRoleSchema) {}
+export class ListStaffQueryDto extends createZodDto(listStaffQuerySchema) {}
 
 export class BroadcastDto extends createZodDto(broadcastSchema) {}
 export class CreateOfferDto extends createZodDto(offerSchema) {}
 export class UpdateOfferDto extends createZodDto(updateOfferSchema) {}
+export class ListOffersQueryDto extends createZodDto(listOffersQuerySchema) {}
+export class OfferStatsQueryDto extends createZodDto(offerStatsQuerySchema) {}
 export class ListNotificationsQueryDto extends createZodDto(listNotificationsQuerySchema) {}
+export class ListAdminNotificationsQueryDto extends createZodDto(listAdminNotificationsQuerySchema) {}
+export class NotificationStatsQueryDto extends createZodDto(notificationStatsQuerySchema) {}
 export class PushSubscriptionDto extends createZodDto(pushSubscriptionSchema) {}
 export class PushRemoveDto extends createZodDto(pushRemoveSchema) {}
 export class DashboardQueryDto extends createZodDto(dashboardQuerySchema) {}
 export class ListAuditQueryDto extends createZodDto(listAuditQuerySchema) {}
+export class AuditStatsQueryDto extends createZodDto(auditStatsQuerySchema) {}

@@ -1,4 +1,5 @@
-import type { ActorType, AdminRole, AuditAction, AuditEntity, NotificationType, OrderStatus, ServiceId, Text } from './enums'
+import type { ActorType, AuditAction, AuditEntity, NotificationType, OrderStatus, ServiceId, Text } from './enums'
+import type { Permission, PermissionModule } from './permissions'
 
 export const SERVICE_LABELS: Record<ServiceId, Text> = {
   bazar: { bn: 'কাঁচা বাজার', en: 'Fresh market' },
@@ -16,10 +17,57 @@ export const ORDER_STATUS_LABELS: Record<OrderStatus, Text> = {
   CANCELLED: { bn: 'বাতিল', en: 'Cancelled' },
 }
 
-export const ADMIN_ROLE_LABELS: Record<AdminRole, Text> = {
+/**
+ * The three roles staff had before roles became editable, by the value history entries from then
+ * stored (a STAFF_* entry's role field). The roles migration created a role with each of these names.
+ */
+export const LEGACY_ROLE_NAMES: Record<string, Text> = {
   SUPER_ADMIN: { bn: 'সুপার অ্যাডমিন', en: 'Super admin' },
   MANAGER: { bn: 'ম্যানেজার', en: 'Manager' },
   OPERATOR: { bn: 'অপারেটর', en: 'Operator' },
+}
+
+export const PERMISSION_MODULE_LABELS: Record<PermissionModule, Text> = {
+  dashboard: { bn: 'ড্যাশবোর্ড', en: 'Dashboard' },
+  orders: { bn: 'অর্ডার', en: 'Orders' },
+  customers: { bn: 'গ্রাহক', en: 'Customers' },
+  catalog: { bn: 'ক্যাটালগ', en: 'Catalog' },
+  offers: { bn: 'আজকের অফার', en: "Today's offers" },
+  notifications: { bn: 'নোটিফিকেশন', en: 'Notifications' },
+  history: { bn: 'ইতিহাস', en: 'History' },
+  staff: { bn: 'স্টাফ', en: 'Staff' },
+  roles: { bn: 'রোল ও অনুমতি', en: 'Roles & permissions' },
+}
+
+/** Each permission's checkbox label and a line on what it allows. */
+export const PERMISSION_LABELS: Record<Permission, { label: Text; hint: Text }> = {
+  'dashboard.view': { label: { bn: 'দেখা', en: 'View' }, hint: { bn: 'সংখ্যা, চার্ট ও সাম্প্রতিক অর্ডার', en: 'Numbers, charts and recent orders' } },
+  'dashboard.staff_activity': { label: { bn: 'স্টাফের কাজ', en: 'Staff activity' }, hint: { bn: 'কোন স্টাফ কতগুলো অর্ডারে কাজ করেছেন', en: 'How much each staff member did to orders' } },
+  'orders.view': { label: { bn: 'দেখা', en: 'View' }, hint: { bn: 'অর্ডারের তালিকা, বিবরণ, প্রেসক্রিপশন ও ইতিহাস', en: 'Order list, details, prescriptions and history' } },
+  'orders.update_status': { label: { bn: 'অবস্থা বদল', en: 'Change status' }, hint: { bn: 'বুক, চলমান, সম্পন্ন বা বাতিল করা', en: 'Book, start, complete or cancel orders' } },
+  'orders.send_price': { label: { bn: 'দাম পাঠানো', en: 'Send price' }, hint: { bn: 'বাজার, ঔষুধ ও বাসা বদলের দাম দেওয়া', en: 'Price bazar, medicine and shifting orders' } },
+  'customers.view': { label: { bn: 'দেখা', en: 'View' }, hint: { bn: 'গ্রাহকের তালিকা ও বিবরণ', en: 'Customer list and details' } },
+  'customers.block': { label: { bn: 'বন্ধ/চালু', en: 'Block' }, hint: { bn: 'গ্রাহককে বন্ধ বা আবার চালু করা', en: 'Block or unblock a customer' } },
+  'customers.edit_points': { label: { bn: 'পয়েন্ট বদল', en: 'Edit points' }, hint: { bn: 'গ্রাহকের পয়েন্ট সেট করা', en: "Set a customer's reward points" } },
+  'catalog.view': { label: { bn: 'দেখা', en: 'View' }, hint: { bn: 'দাম, গাড়ী, সাপোর্ট লাইন ও ডেলিভারির সময়', en: 'Pricing, vehicles, support line and delivery hours' } },
+  'catalog.edit': { label: { bn: 'এডিট', en: 'Edit' }, hint: { bn: 'দাম, গাড়ী, সাপোর্ট লাইন ও ডেলিভারির সময় বদলানো', en: 'Change pricing, vehicles, support line and delivery hours' } },
+  'catalog.customer_signin': { label: { bn: 'গ্রাহকের লগইন', en: 'Customer sign-in' }, hint: { bn: 'গ্রাহকের পাসওয়ার্ড লাগবে কিনা', en: 'Whether customers need a password' } },
+  'offers.view': { label: { bn: 'দেখা', en: 'View' }, hint: { bn: 'সব অফার', en: 'Every offer' } },
+  'offers.create': { label: { bn: 'নতুন', en: 'Create' }, hint: { bn: 'নতুন অফার দেওয়া', en: 'Post a new offer' } },
+  'offers.edit': { label: { bn: 'এডিট', en: 'Edit' }, hint: { bn: 'অফার ও ছবি বদলানো', en: 'Change an offer and its picture' } },
+  'offers.delete': { label: { bn: 'মুছে ফেলা', en: 'Delete' }, hint: { bn: 'অফার মুছে ফেলা', en: 'Delete an offer' } },
+  'offers.notify': { label: { bn: 'গ্রাহকদের জানানো', en: 'Notify customers' }, hint: { bn: 'সব গ্রাহককে অফারের নোটিফিকেশন পাঠানো', en: 'Send an offer to every customer' } },
+  'notifications.view': { label: { bn: 'দেখা', en: 'View' }, hint: { bn: 'নিজের ইনবক্স ও নতুন অর্ডারের খবর', en: 'Own inbox and new order alerts' } },
+  'notifications.broadcast': { label: { bn: 'ঘোষণা পাঠানো', en: 'Broadcast' }, hint: { bn: 'সব গ্রাহকের কাছে ঘোষণা', en: 'Announcements to every customer' } },
+  'history.view': { label: { bn: 'দেখা', en: 'View' }, hint: { bn: 'কে, কখন, কী বদলেছেন: পুরো ইতিহাস', en: 'The full log of who changed what' } },
+  'staff.view': { label: { bn: 'দেখা', en: 'View' }, hint: { bn: 'স্টাফের তালিকা', en: 'Staff list' } },
+  'staff.create': { label: { bn: 'নতুন', en: 'Create' }, hint: { bn: 'নতুন স্টাফ যোগ করা', en: 'Add staff' } },
+  'staff.edit': { label: { bn: 'এডিট', en: 'Edit' }, hint: { bn: 'রোল বদল, চালু বা বন্ধ করা', en: 'Change role, enable or disable' } },
+  'staff.reset_password': { label: { bn: 'পাসওয়ার্ড রিসেট', en: 'Reset password' }, hint: { bn: 'স্টাফের নতুন পাসওয়ার্ড দেওয়া', en: "Set a staff member's new password" } },
+  'roles.view': { label: { bn: 'দেখা', en: 'View' }, hint: { bn: 'রোলগুলো আর কোনটায় কী করা যায়', en: 'See the roles and what each allows' } },
+  'roles.create': { label: { bn: 'নতুন', en: 'Create' }, hint: { bn: 'নতুন রোল বানানো, শুধু নিজের অনুমতিগুলো দিয়ে', en: 'Make roles, with permissions you hold yourself' } },
+  'roles.edit': { label: { bn: 'এডিট', en: 'Edit' }, hint: { bn: 'অন্য রোল বদলানো, শুধু নিজের অনুমতিগুলো', en: 'Change other roles, only permissions you hold yourself' } },
+  'roles.delete': { label: { bn: 'মুছে ফেলা', en: 'Delete' }, hint: { bn: 'যে রোলে কোনো স্টাফ নেই তা মুছে ফেলা', en: 'Delete roles no staff member holds' } },
 }
 
 export const NOTIFICATION_TYPE_LABELS: Record<NotificationType, Text> = {
@@ -47,6 +95,7 @@ export const AUDIT_ENTITY_LABELS: Record<AuditEntity, Text> = {
   DELIVERY_HOURS: { bn: 'ডেলিভারির সময় সূচী', en: 'Delivery hours' },
   OFFER: { bn: 'অফার', en: 'Offers' },
   CUSTOMER_AUTH: { bn: 'গ্রাহকের লগইন', en: 'Customer sign-in' },
+  ROLE: { bn: 'রোল', en: 'Roles' },
 }
 
 export const AUDIT_ACTION_LABELS: Record<AuditAction, Text> = {
@@ -81,6 +130,9 @@ export const AUDIT_ACTION_LABELS: Record<AuditAction, Text> = {
   OFFER_DELETED: { bn: 'অফার মুছে ফেলা', en: 'Offer deleted' },
   OFFER_ANNOUNCED: { bn: 'অফারের নোটিফিকেশন', en: 'Offer announced' },
   CUSTOMER_AUTH_UPDATED: { bn: 'গ্রাহকের লগইন বদল', en: 'Customer sign-in changed' },
+  ROLE_CREATED: { bn: 'নতুন রোল', en: 'Role added' },
+  ROLE_UPDATED: { bn: 'রোল আপডেট', en: 'Role updated' },
+  ROLE_DELETED: { bn: 'রোল মুছে ফেলা', en: 'Role deleted' },
 }
 
 /** Names of the fields a history entry can show as "before → after". Pricing names match the Catalog page. */
@@ -119,6 +171,11 @@ export const AUDIT_FIELD_LABELS: Record<string, Text> = {
   isBlocked: { bn: 'বন্ধ', en: 'Blocked' },
   points: { bn: 'পয়েন্ট', en: 'Points' },
   role: { bn: 'রোল', en: 'Role' },
+  permissions: { bn: 'অনুমতি', en: 'Permissions' },
+  'permission.added': { bn: 'অনুমতি দেওয়া', en: 'Permission given' },
+  'permission.removed': { bn: 'অনুমতি সরানো', en: 'Permission taken away' },
+  descriptionBn: { bn: 'বিবরণ (বাংলা)', en: 'Description (Bangla)' },
+  descriptionEn: { bn: 'বিবরণ (ইংরেজি)', en: 'Description (English)' },
   status: { bn: 'অবস্থা', en: 'Status' },
   'item.price': { bn: 'দাম', en: 'Price' },
   'item.added': { bn: 'নতুন লাইন', en: 'Line added' },

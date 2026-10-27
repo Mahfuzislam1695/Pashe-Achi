@@ -48,3 +48,16 @@ export const cursorQuery = {
   cursor: z.string().max(64).optional(),
   limit: z.coerce.number().int().min(1).max(100).default(20),
 }
+
+/** Numbered pages for the admin lists (`PagedList`). Past the last page, a list is empty. */
+export const pageQuery = {
+  page: z.coerce.number().int().min(1).max(10_000).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(25),
+}
+
+/** YYYY-MM-DD (the value format of <input type="date">). */
+export const isoDay = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, { error: 'range.invalid' })
+
+/** A from–to filter whose end is not before its start (either may be left out). */
+export const orderedRange = (value: { from?: string; to?: string }) => !value.from || !value.to || value.from <= value.to
+export const rangeError = { error: 'range.invalid' satisfies MessageCode, path: ['to'] }

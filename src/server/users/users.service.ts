@@ -1,14 +1,19 @@
 import { Injectable } from '@nestjs/common'
 import { EventEmitter2 } from '@nestjs/event-emitter'
-import type {
-  AdminCustomerDto,
-  ChangePasswordInput,
-  CustomerDto,
-  CustomerLocationInput,
-  ListCustomersQuery,
-  Paginated,
-  UpdateCustomerInput,
-  UpdateProfileInput,
+import {
+  addDays,
+  type AdminCustomerDto,
+  type ChangePasswordInput,
+  type CustomerDto,
+  type CustomerLocationInput,
+  type CustomerSort,
+  type CustomerStatsDto,
+  type CustomerStatsQuery,
+  isoDateInBd,
+  type ListCustomersQuery,
+  type PagedList,
+  type UpdateCustomerInput,
+  type UpdateProfileInput,
 } from '@/shared'
 
 import type { AuditActor } from '../audit/actor'
@@ -18,7 +23,7 @@ import { verifyPassword, hashPassword } from '../auth/password'
 import { TokenService } from '../auth/token.service'
 import { AppException } from '../common/app.exception'
 import { DOMAIN_EVENTS } from '../common/domain-events'
-import { pageArgs, toPage } from '../common/pagination'
+import { bdDayRange, offsetArgs, toPaged } from '../common/pagination'
 import type { Prisma } from '../generated/prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
 import { LOCATION_FIELDS, locationColumns, toAdminCustomerDto, toCustomerDto } from './user.mapper'
@@ -27,6 +32,27 @@ const withStats = {
   _count: { select: { orders: true } },
   orders: { select: { createdAt: true }, orderBy: { createdAt: 'desc' }, take: 1 },
 } satisfies Prisma.UserInclude
+
+/** Name, mobile or location. */
+const searchWhere = (q: string | undefined): Prisma.UserWhereInput =>
+  q
+    ? {
+        OR: [
+          { name: { contains: q, mode: 'insensitive' } },
+          { mobile: { contains: q } },
+          { location: { contains: q, mode: 'insensitive' } },
+        ],
+      }
+    : {}
+
+/** The admin list's sort orders; `id` breaks ties so pages never overlap. */
+const CUSTOMER_SORT_ORDER: Record<CustomerSort, Prisma.UserOrderByWithRelationInput[]> = {
+  newest: [{ createdAt: 'desc' }, { id: 'desc' }],
+  oldest: [{ createdAt: 'asc' }, { id: 'asc' }],
+  name: [{ name: 'asc' }, { id: 'asc' }],
+  orders_desc: [{ orders: { _count: 'desc' } }, { createdAt: 'desc' }, { id: 'desc' }],
+  points_desc: [{ points: 'desc' }, { createdAt: 'desc' }, { id: 'desc' }],
+}
 
 @Injectable()
 export class UsersService {
@@ -79,21 +105,34 @@ export class UsersService {
     await this.tokens.revokeAll('customer', userId)
   }
 
-  async listCustomers(query: ListCustomersQuery): Promise<Paginated<AdminCustomerDto>> {
+  async listCustomers(query: ListCustomersQuery): Promise<PagedList<AdminCustomerDto>> {
     const where: Prisma.UserWhereInput = {
+      ...searchWhere(query.q),
       ...(query.blocked ? { isBlocked: query.blocked === 'true' } : {}),
-      ...(query.q
-        ? {
-            OR: [
-              { name: { contains: query.q, mode: 'insensitive' } },
-              { mobile: { contains: query.q } },
-              { location: { contains: query.q, mode: 'insensitive' } },
-            ],
-          }
-        : {}),
+      ...(query.ordered ? { orders: query.ordered === 'true' ? { some: {} } : { none: {} } } : {}),
     }
-    const rows = await this.prisma.user.findMany({ where, include: withStats, ...pageArgs(query.cursor, query.limit) })
-    return toPage(rows, query.limit, toAdminCustomerDto)
+    const createdAt = bdDayRange(query.from, query.to)
+    if (createdAt) where.createdAt = createdAt
+    const [rows, total] = await this.prisma.$transaction([
+      this.prisma.user.findMany({ where, include: withStats, orderBy: CUSTOMER_SORT_ORDER[query.sort ?? 'newest'], ...offsetArgs(query.page, query.limit) }),
+      this.prisma.user.count({ where }),
+    ])
+    return toPaged(rows, total, query, toAdminCustomerDto)
+  }
+
+  /** The customers the search matches, by status and by whether they have ordered, and how many joined in from–to (default: the last 30 days). */
+  async customerStats(query: CustomerStatsQuery): Promise<CustomerStatsDto> {
+    const where = searchWhere(query.q)
+    const today = isoDateInBd()
+    const joined = bdDayRange(query.from ?? (query.to ? undefined : addDays(today, -29)), query.to)
+    const [total, blocked, ordered, newInRange, points] = await this.prisma.$transaction([
+      this.prisma.user.count({ where }),
+      this.prisma.user.count({ where: { ...where, isBlocked: true } }),
+      this.prisma.user.count({ where: { ...where, orders: { some: {} } } }),
+      this.prisma.user.count({ where: { ...where, ...(joined ? { createdAt: joined } : {}) } }),
+      this.prisma.user.aggregate({ where, _sum: { points: true } }),
+    ])
+    return { total, active: total - blocked, blocked, ordered, neverOrdered: total - ordered, newInRange, points: points._sum.points ?? 0 }
   }
 
   async getCustomer(id: string): Promise<AdminCustomerDto> {

@@ -1,6 +1,7 @@
 import { type AdminCustomerDto, type AdminDto, type CustomerDto, type CustomerLocationInput, toGeoPoint } from '@/shared'
 
-import type { Admin, User } from '../generated/prisma/client'
+import type { User } from '../generated/prisma/client'
+import { type AdminWithRole, permissionsOf, toRoleRef } from '../roles/role.mapper'
 
 /** The customer's location as the User columns hold it (signup and PUT /me/location). */
 export const locationColumns = (input: CustomerLocationInput) => ({
@@ -32,11 +33,12 @@ export const toAdminCustomerDto = (user: User & { _count: { orders: number }; or
   lastOrderAt: user.orders[0]?.createdAt.toISOString() ?? null,
 })
 
-export const toAdminDto = (admin: Admin): AdminDto => ({
+export const toAdminDto = (admin: AdminWithRole): AdminDto => ({
   id: admin.id,
   name: admin.name,
   mobile: admin.mobile,
-  role: admin.role,
+  role: toRoleRef(admin.role),
+  permissions: permissionsOf(admin.role),
   isActive: admin.isActive,
   createdAt: admin.createdAt.toISOString(),
 })

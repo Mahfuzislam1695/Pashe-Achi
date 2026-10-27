@@ -2,23 +2,28 @@
 
 import {
   ACTOR_TYPE_LABELS,
-  ADMIN_ROLE_LABELS,
   AUDIT_ACTION_LABELS,
   AUDIT_ENTITY_LABELS,
   AUDIT_FIELD_LABELS,
-  type AdminRole,
   type AuditAction,
   type AuditChange,
   type AuditLogDto,
   type AuditValue,
+  can,
   describeDeliveryHours,
+  isPermission,
   isoDateInBd,
+  LEGACY_ROLE_NAMES,
   ORDER_STATUSES,
   type OrderStatus,
   parseDeliveryWindows,
+  PERMISSION_LABELS,
+  PERMISSION_MODULE_LABELS,
+  permissionModule,
   SERVICE_IDS,
   SERVICE_LABELS,
   type ServiceId,
+  type Text,
 } from '@/shared'
 import {
   ArrowRightLeft,
@@ -39,6 +44,8 @@ import {
   Settings2,
   ShieldAlert,
   ShieldCheck,
+  ShieldPlus,
+  ShieldX,
   Star,
   Truck,
   UserPen,
@@ -47,8 +54,8 @@ import {
 import Link from 'next/link'
 
 import { useLang } from '@/admin/lib/i18n'
-import { useCurrentAdmin } from '@/admin/lib/queries'
-import { cn, isSuperAdmin } from '@/admin/lib/utils'
+import { useCurrentAdmin, useRoles } from '@/admin/lib/queries'
+import { cn } from '@/admin/lib/utils'
 import { Badge, StatusBadge } from './ui'
 
 type Tone = 'brand' | 'neutral' | 'success' | 'danger'
@@ -91,6 +98,9 @@ const ACTION_ICONS: Record<AuditAction, [LucideIcon, Tone]> = {
   OFFER_UPDATED: [BadgePercent, 'brand'],
   OFFER_DELETED: [BadgePercent, 'danger'],
   OFFER_ANNOUNCED: [Megaphone, 'brand'],
+  ROLE_CREATED: [ShieldPlus, 'success'],
+  ROLE_UPDATED: [ShieldCheck, 'brand'],
+  ROLE_DELETED: [ShieldX, 'danger'],
 }
 
 const MONEY_FIELDS = new Set([
@@ -251,13 +261,15 @@ function EntityRef({ entry }: { entry: AuditLogDto }) {
       ? `/admin/orders/${id}`
       : type === 'CUSTOMER' && id
         ? `/admin/customers/${id}`
-        : type === 'STAFF' && isSuperAdmin(me.role)
+        : type === 'STAFF' && can(me, 'staff.view')
           ? '/admin/staff'
           : type === 'PRICING' || type === 'VEHICLE' || type === 'SUPPORT' || type === 'DELIVERY_HOURS'
             ? '/admin/catalog'
             : type === 'OFFER'
               ? '/admin/offers'
-              : null
+              : type === 'ROLE' && can(me, 'roles.view')
+                ? '/admin/roles'
+                : null
   return (
     <>
       <span className="text-muted"> · </span>
@@ -297,9 +309,10 @@ function ActorLine({ entry, device }: { entry: AuditLogDto; device: string | nul
   )
 }
 
-function RoleBadge({ role }: { role: AdminRole }) {
+/** The role the admin had when they acted. */
+function RoleBadge({ role }: { role: Text }) {
   const { text } = useLang()
-  return <Badge tone="brand">{text(ADMIN_ROLE_LABELS[role])}</Badge>
+  return <Badge tone="brand">{text(role)}</Badge>
 }
 
 /** Field: before → after. For a new record (nothing before), just Field: value. */
@@ -331,6 +344,9 @@ function Changes({ changes }: { changes: AuditChange[] }) {
 
 function Value({ change, value, muted = false }: { change: AuditChange; value: AuditValue; muted?: boolean }) {
   const { t, text, taka, digits } = useLang()
+  const roles = useRoles().data
+  // Staff entries name the role in English as it was: the old fixed roles by key, and roles that still exist in the reader's language.
+  const roleText = (name: string) => LEGACY_ROLE_NAMES[name] ?? roles?.find(role => role.name.en === name)?.name
   if (change.field === 'status' && isStatus(value)) return <StatusBadge status={value} />
   const hours = HOURS_FIELDS.has(change.field) && typeof value === 'string' ? parseDeliveryWindows(value) : null
   const shown = hours
@@ -357,8 +373,10 @@ function Value({ change, value, muted = false }: { change: AuditChange; value: A
             ? value
               ? t('চালু', 'Active')
               : t('বন্ধ', 'Off')
-            : change.field === 'role' && typeof value === 'string' && value in ADMIN_ROLE_LABELS
-              ? text(ADMIN_ROLE_LABELS[value as AdminRole])
+            : change.field === 'role' && typeof value === 'string'
+              ? text(roleText(value) ?? { bn: value, en: value })
+              : (change.field === 'permission.added' || change.field === 'permission.removed') && isPermission(value)
+                ? `${text(PERMISSION_MODULE_LABELS[permissionModule(value)])} · ${text(PERMISSION_LABELS[value].label)}`
               : change.field === 'lang'
                 ? value === 'bn'
                   ? 'বাংলা'

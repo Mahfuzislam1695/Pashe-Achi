@@ -1,13 +1,14 @@
 import { randomUUID } from 'node:crypto'
 
 import { Injectable, Logger, StreamableFile } from '@nestjs/common'
-import { type AdminOfferDto, API_PREFIX, isoDateInBd, type OfferDto, type OfferInput, type OfferStatus, type UpdateOfferInput } from '@/shared'
+import { type AdminOfferDto, API_PREFIX, isoDateInBd, type ListOffersQuery, OFFER_STATUSES, type OfferDto, type OfferInput, type OfferStatsDto, type OfferStatsQuery, type OfferStatus, type PagedList, type UpdateOfferInput } from '@/shared'
 
 import type { AuditActor } from '../audit/actor'
 import { AuditService } from '../audit/audit.service'
 import { diffChanges } from '../audit/diff'
 import { AppException } from '../common/app.exception'
-import type { Offer } from '../generated/prisma/client'
+import { offsetArgs, toPaged } from '../common/pagination'
+import type { Offer, Prisma } from '../generated/prisma/client'
 import { offerContent } from '../notifications/notification.content'
 import { NotificationsService } from '../notifications/notifications.service'
 import { PrismaService } from '../prisma/prisma.service'
@@ -30,6 +31,26 @@ export function offerStatus(offer: Pick<Offer, 'isActive' | 'startsOn' | 'endsOn
   if (today > isoDay(offer.endsOn)) return 'ended'
   return 'running'
 }
+
+/** The offers with the given status on the given day (YYYY-MM-DD): the database side of offerStatus(). */
+export function statusWhere(status: OfferStatus, today = isoDateInBd()): Prisma.OfferWhereInput {
+  const day = toDay(today)
+  switch (status) {
+    case 'off':
+      return { isActive: false }
+    case 'upcoming':
+      return { isActive: true, startsOn: { gt: day } }
+    case 'ended':
+      return { isActive: true, endsOn: { lt: day } }
+    case 'running':
+      return { isActive: true, startsOn: { lte: day }, endsOn: { gte: day } }
+  }
+}
+
+const offerWhere = (query: OfferStatsQuery): Prisma.OfferWhereInput => ({
+  ...(query.q ? { OR: [{ titleBn: { contains: query.q, mode: 'insensitive' } }, { titleEn: { contains: query.q, mode: 'insensitive' } }] } : {}),
+  ...(query.service ? { service: query.service } : {}),
+})
 
 /** The picture's path on this origin, versioned so a replaced picture is never served from a cache. */
 const imagePath = (offer: Offer, admin: boolean) =>
@@ -96,12 +117,24 @@ export class OffersService {
     return rows.map(toOfferDto)
   }
 
-  /** Every offer for the admin panel: running and upcoming first, then the rest, newest first. */
-  async listAll(): Promise<AdminOfferDto[]> {
-    const rows = await this.prisma.offer.findMany({ orderBy: [{ endsOn: 'desc' }, { createdAt: 'desc' }], take: 200 })
+  /** The admin panel's offers in numbered pages, latest end date first (so running and upcoming offers lead). */
+  async listAll(query: ListOffersQuery): Promise<PagedList<AdminOfferDto>> {
     const today = isoDateInBd()
-    const rank: Record<OfferStatus, number> = { running: 0, upcoming: 1, off: 2, ended: 3 }
-    return rows.map(row => toAdminOfferDto(row, today)).sort((a, b) => rank[a.status] - rank[b.status])
+    const where: Prisma.OfferWhereInput = { AND: [offerWhere(query), query.status ? statusWhere(query.status, today) : {}] }
+    const [rows, total] = await this.prisma.$transaction([
+      this.prisma.offer.findMany({ where, orderBy: [{ endsOn: 'desc' }, { createdAt: 'desc' }, { id: 'desc' }], ...offsetArgs(query.page, query.limit) }),
+      this.prisma.offer.count({ where }),
+    ])
+    return toPaged(rows, total, query, row => toAdminOfferDto(row, today))
+  }
+
+  /** How many offers the search matches, and how many of them have each status today. */
+  async stats(query: OfferStatsQuery): Promise<OfferStatsDto> {
+    const today = isoDateInBd()
+    const where = offerWhere(query)
+    const counts = await this.prisma.$transaction(OFFER_STATUSES.map(status => this.prisma.offer.count({ where: { AND: [where, statusWhere(status, today)] } })))
+    const byStatus = Object.fromEntries(OFFER_STATUSES.map((status, index) => [status, counts[index] ?? 0])) as Record<OfferStatus, number>
+    return { total: counts.reduce((sum, count) => sum + count, 0), byStatus }
   }
 
   async create(input: OfferInput, actor: AuditActor): Promise<AdminOfferDto> {

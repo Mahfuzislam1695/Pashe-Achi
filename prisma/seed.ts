@@ -2,6 +2,8 @@
  * Idempotent seed: `npm run db:seed`. Creates what the app needs to run, and never overwrites values
  * an admin has since changed:
  * - the pricing row, the vehicles, the support line and the delivery hours (defaults from the paper sketches)
+ * - the built-in roles (Super admin, Manager, Operator, Customer support, Pricing desk, Dispatcher, Marketing,
+ *   Accounts, Staff admin), if missing
  * - the first super admin from SEED_ADMIN_* in .env
  * Everything it creates is also written to the history log, as done by the system.
  *
@@ -11,6 +13,7 @@ import 'dotenv/config'
 
 import {
   type AuditChange,
+  BUILT_IN_ROLES,
   DEFAULT_DELIVERY_HOURS,
   DEFAULT_PRICING,
   DEFAULT_VEHICLES,
@@ -85,6 +88,44 @@ async function seedCatalog() {
   console.log('✔ pricing, vehicles, support line and delivery hours')
 }
 
+/** The built-in roles, by their fixed ids. An existing role is left as it is (its permissions may have been edited). */
+/**
+ * Creates each missing built-in role, and gives a built-in role without descriptions its own.
+ * Names and permissions an admin has edited stay as they are; a deleted preset comes back on the next seed.
+ */
+async function seedRoles() {
+  const added: string[] = []
+  for (const { permissions, ...role } of BUILT_IN_ROLES) {
+    const existing = await prisma.role.findUnique({ where: { id: role.id } })
+    const descriptions = { descriptionBn: role.descriptionBn, descriptionEn: role.descriptionEn }
+    if (existing) {
+      if (existing.descriptionBn === null && existing.descriptionEn === null) {
+        await prisma.$transaction([
+          prisma.role.update({ where: { id: role.id }, data: descriptions }),
+          log({ action: 'ROLE_UPDATED', actor: SYSTEM, entity: { type: 'ROLE', id: role.id, label: existing.nameEn }, changes: created(descriptions) }),
+        ])
+      }
+      continue
+    }
+    // A role made in the panel may already use the name (English names are unique).
+    if (await prisma.role.findUnique({ where: { nameEn: role.nameEn } })) {
+      console.warn(`! a role named "${role.nameEn}" already exists; skipped the built-in one`)
+      continue
+    }
+    await prisma.$transaction([
+      prisma.role.create({ data: { ...role, permissions: [...permissions] } }),
+      log({
+        action: 'ROLE_CREATED',
+        actor: SYSTEM,
+        entity: { type: 'ROLE', id: role.id, label: role.nameEn },
+        changes: [...created({ nameBn: role.nameBn, nameEn: role.nameEn, ...descriptions }), ...permissions.map(to => ({ field: 'permission.added', from: null, to }))],
+      }),
+    ])
+    added.push(role.nameEn)
+  }
+  console.log(`✔ roles${added.length ? ` (added ${added.join(', ')})` : ''}`)
+}
+
 async function seedSuperAdmin() {
   const mobile = normalizeMobile(process.env.SEED_ADMIN_MOBILE ?? '')
   const password = process.env.SEED_ADMIN_PASSWORD ?? ''
@@ -98,13 +139,14 @@ async function seedSuperAdmin() {
   }
   const passwordHash = await bcrypt.hash(password, 12)
   await prisma.$transaction(async tx => {
-    const admin = await tx.admin.create({ data: { name: process.env.SEED_ADMIN_NAME || 'Super Admin', mobile, role: 'SUPER_ADMIN', passwordHash } })
+    const role = BUILT_IN_ROLES[0]
+    const admin = await tx.admin.create({ data: { name: process.env.SEED_ADMIN_NAME || 'Super Admin', mobile, roleId: role.id, passwordHash } })
     await tx.auditLog.create({
       data: toAuditRow({
         action: 'STAFF_CREATED',
         actor: SYSTEM,
         entity: { type: 'STAFF', id: admin.id, label: admin.name },
-        changes: created({ name: admin.name, mobile: admin.mobile, role: admin.role }),
+        changes: created({ name: admin.name, mobile: admin.mobile, role: role.nameEn }),
       }),
     })
   })
@@ -113,6 +155,7 @@ async function seedSuperAdmin() {
 
 async function main() {
   await seedCatalog()
+  await seedRoles()
   await seedSuperAdmin()
   if (process.argv.includes('--demo') || process.env.SEED_DEMO === 'true') await seedDemo(prisma)
 }

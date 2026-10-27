@@ -1,11 +1,11 @@
 import { Body, Controller, Get, HttpCode, Param, Patch, Post, Put, Query, UseGuards } from '@nestjs/common'
 import { ApiBearerAuth, ApiCookieAuth, ApiOperation, ApiTags } from '@nestjs/swagger'
-import type { AuditLogDto, OrderDetail, OrderSummary, Paginated } from '@/shared'
+import type { AuditLogDto, OrderDetail, OrderStatsDto, OrderSummary, PagedList, Paginated } from '@/shared'
 
 import { Actor, type AuditActor } from '../audit/actor'
 import { AuditService } from '../audit/audit.service'
 import type { CustomerPrincipal } from '../auth/auth.types'
-import { AdminGuard, CurrentCustomer, CustomerGuard } from '../auth/guards'
+import { AdminGuard, Can, CurrentCustomer, CustomerGuard } from '../auth/guards'
 import {
   ConfirmOrderDto,
   CreateBazarOrderDto,
@@ -15,6 +15,7 @@ import {
   IdParamDto,
   ListMyOrdersQueryDto,
   ListOrdersQueryDto,
+  OrderStatsQueryDto,
   QuoteOrderDto,
   ShiftingQuoteDto,
   UpdateOrderStatusDto,
@@ -82,6 +83,7 @@ export class OrdersController {
 @ApiTags('Admin: orders')
 @ApiCookieAuth('pa_admin_at')
 @UseGuards(AdminGuard)
+@Can('orders.view')
 @Controller('admin/orders')
 export class AdminOrdersController {
   constructor(
@@ -90,9 +92,15 @@ export class AdminOrdersController {
   ) {}
 
   @Get()
-  @ApiOperation({ summary: 'Filter by service, status, date range, customer or search text' })
-  list(@Query() query: ListOrdersQueryDto): Promise<Paginated<OrderSummary>> {
+  @ApiOperation({ summary: 'Numbered pages, filtered by service, status, date range (placed or delivery day), customer or search text, and sorted' })
+  list(@Query() query: ListOrdersQueryDto): Promise<PagedList<OrderSummary>> {
     return this.orders.list(query)
+  }
+
+  @Get('stats')
+  @ApiOperation({ summary: 'Counts per status and confirmed revenue for the orders the list filters match (status aside)' })
+  stats(@Query() query: OrderStatsQueryDto): Promise<OrderStatsDto> {
+    return this.orders.stats(query)
   }
 
   @Get(':id')
@@ -107,18 +115,21 @@ export class AdminOrdersController {
   }
 
   @Patch(':id/status')
+  @Can('orders.update_status')
   @ApiOperation({ summary: 'Move an order to its next status (the customer is notified)' })
   updateStatus(@Actor() actor: AuditActor, @Param() { id }: IdParamDto, @Body() body: UpdateOrderStatusDto): Promise<OrderDetail> {
     return this.orders.updateStatus(actor, id, body)
   }
 
   @Put(':id/quote')
+  @Can('orders.send_price')
   @ApiOperation({ summary: 'Price a bazar or medicine order (the whole list of lines); the customer is asked to confirm or cancel' })
   quote(@Actor() actor: AuditActor, @Param() { id }: IdParamDto, @Body() body: QuoteOrderDto): Promise<OrderDetail> {
     return this.orders.quote(actor, id, body)
   }
 
   @Put(':id/shifting-quote')
+  @Can('orders.send_price')
   @ApiOperation({ summary: "Price a shifting order's vehicle by distance; the customer is asked to confirm or cancel" })
   quoteShifting(@Actor() actor: AuditActor, @Param() { id }: IdParamDto, @Body() body: ShiftingQuoteDto): Promise<OrderDetail> {
     return this.orders.quoteShifting(actor, id, body)

@@ -1,8 +1,8 @@
 import { z } from 'zod'
 
-import { ORDER_STATUSES, SERVICE_IDS } from '../enums'
+import { ORDER_SORTS, ORDER_STATUSES, SERVICE_IDS } from '../enums'
 import type { MessageCode } from '../messages'
-import { amount, count, cursorQuery, mobile, optionalText, requiredText, scheduleSchema } from './common'
+import { amount, count, cursorQuery, isoDay, mobile, optionalText, orderedRange, pageQuery, rangeError, requiredText, scheduleSchema } from './common'
 import { requiredPin } from './locations'
 
 // The customer sends what they typed; the API computes every fee and total itself. Customers never
@@ -105,18 +105,32 @@ export type ListMyOrdersQuery = z.infer<typeof listMyOrdersQuerySchema>
 
 // Admin
 
-export const listOrdersQuerySchema = z.object({
-  ...cursorQuery,
+/** The filters the order list and its stats share (the stats leave out the status, so every status tab gets its count). */
+const orderFilters = {
   service: z.enum(SERVICE_IDS).optional(),
-  status: z.enum(ORDER_STATUSES).optional(),
-  /** YYYY-MM-DD, inclusive, by creation date in Bangladesh time. */
-  from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-  to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  /** Which date from/to filter on: when the order was placed (default) or its delivery day. */
+  dateBy: z.enum(['created', 'scheduled']).optional(),
+  /** YYYY-MM-DD, inclusive, in Bangladesh time. */
+  from: isoDay.optional(),
+  to: isoDay.optional(),
   /** Order code (PA-1042 or 1042), customer name or mobile. */
   q: z.string().trim().max(80).optional(),
   customerId: z.string().max(64).optional(),
-})
+}
+
+export const listOrdersQuerySchema = z
+  .object({
+    ...pageQuery,
+    ...orderFilters,
+    status: z.enum(ORDER_STATUSES).optional(),
+    sort: z.enum(ORDER_SORTS).optional(),
+  })
+  .refine(orderedRange, rangeError)
 export type ListOrdersQuery = z.infer<typeof listOrdersQuerySchema>
+
+/** GET /admin/orders/stats. */
+export const orderStatsQuerySchema = z.object(orderFilters).refine(orderedRange, rangeError)
+export type OrderStatsQuery = z.infer<typeof orderStatsQuerySchema>
 
 export const updateOrderStatusSchema = z.object({
   status: z.enum(ORDER_STATUSES),

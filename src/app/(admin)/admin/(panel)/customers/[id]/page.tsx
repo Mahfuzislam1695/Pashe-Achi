@@ -1,21 +1,34 @@
 'use client'
 
-import { type AdminCustomerDto, type CustomerLocationDto, joinAddress, mapLink } from '@/shared'
+import { type AdminCustomerDto, can, type CustomerLocationDto, joinAddress, mapLink, ORDER_STATUS_LABELS, ORDER_STATUSES, type OrderStatus } from '@/shared'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, Ban, CheckCircle2, MapPin, Save } from 'lucide-react'
+import { ArrowLeft, Ban, CalendarClock, CheckCircle2, ClipboardList, MapPin, Receipt, Save, Wallet } from 'lucide-react'
 import Link from 'next/link'
 import { use, useState } from 'react'
 import { toast } from 'sonner'
 
 import { AuditFeed } from '@/admin/components/audit-feed'
+import { StatGrid, StatTile } from '@/admin/components/charts'
+import { FilterTabs } from '@/admin/components/filters'
 import { OrderTable } from '@/admin/components/order-table'
+import { Pagination } from '@/admin/components/pagination'
+import { PermissionGate } from '@/admin/components/permission-gate'
 import { Badge, Button, Card, Empty, ErrorNote, Field, Input, Loading } from '@/admin/components/ui'
 import { api } from '@/admin/lib/api'
 import { useLang } from '@/admin/lib/i18n'
-import { queryKeys, useAuditList, useCurrentAdmin, useCustomer, useOrderList } from '@/admin/lib/queries'
-import { canManage, errorCode } from '@/admin/lib/utils'
+import { queryKeys, useAuditList, useCurrentAdmin, useCustomer, useOrderList, useOrderStats } from '@/admin/lib/queries'
+import { errorCode } from '@/admin/lib/utils'
 
 export default function CustomerPage({ params }: { params: Promise<{ id: string }> }) {
+  const { t } = useLang()
+  return (
+    <PermissionGate permission="customers.view" title={t('গ্রাহক', 'Customer')}>
+      <Customer params={params} />
+    </PermissionGate>
+  )
+}
+
+function Customer({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
   const { t } = useLang()
   const customer = useCustomer(id)
@@ -36,8 +49,6 @@ function CustomerView({ customer }: { customer: AdminCustomerDto }) {
   const { t, digits, formatDate } = useLang()
   const admin = useCurrentAdmin()
   const queryClient = useQueryClient()
-  const orders = useOrderList({ customerId: customer.id })
-  const items = orders.data?.pages.flatMap(page => page.items) ?? []
   const [points, setPoints] = useState(String(customer.points))
 
   const update = useMutation({
@@ -70,7 +81,7 @@ function CustomerView({ customer }: { customer: AdminCustomerDto }) {
             {customer.location ? ` · ${joinAddress(customer.location)}` : ''} · {t('যোগ দিয়েছেন', 'Joined')} {formatDate(customer.createdAt)}
           </p>
         </div>
-        {canManage(admin.role) &&
+        {can(admin, 'customers.block') &&
           (customer.isBlocked ? (
             <Button variant="secondary" loading={update.isPending} onClick={() => update.mutate({ isBlocked: false })}>
               <CheckCircle2 className="size-4" />
@@ -91,11 +102,12 @@ function CustomerView({ customer }: { customer: AdminCustomerDto }) {
           ))}
       </div>
       <ErrorNote code={update.isError ? errorCode(update.error) : null} />
+      <CustomerStats customer={customer} />
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-[1fr_2fr]">
         <div className="grid min-w-0 content-start gap-5">
           <Card title={t('পয়েন্ট', 'Reward points')}>
-            {canManage(admin.role) ? (
+            {can(admin, 'customers.edit_points') ? (
               <form
                 className="flex items-end gap-2"
                 onSubmit={event => {
@@ -117,22 +129,72 @@ function CustomerView({ customer }: { customer: AdminCustomerDto }) {
           </Card>
           <CustomerLocation location={customer.location} />
         </div>
-        <Card title={t(`অর্ডার (${digits(customer.orderCount)})`, `Orders (${customer.orderCount})`)}>
-          {orders.isPending && <Loading />}
-          {orders.isSuccess && !items.length && <Empty>{t('এখনো কোনো অর্ডার নেই।', 'No orders yet.')}</Empty>}
-          {items.length > 0 && <OrderTable orders={items} showCustomer={false} />}
-          {orders.hasNextPage && (
-            <div className="mt-4 flex justify-center">
-              <Button variant="secondary" loading={orders.isFetchingNextPage} onClick={() => void orders.fetchNextPage()}>
-                {t('আরো দেখুন', 'Load more')}
-              </Button>
-            </div>
-          )}
-        </Card>
+        <CustomerOrders customerId={customer.id} />
       </div>
 
-      {canManage(admin.role) && <CustomerHistory customerId={customer.id} />}
+      {can(admin, 'history.view') && <CustomerHistory customerId={customer.id} />}
     </div>
+  )
+}
+
+/** What the customer has ordered and spent (confirmed bills), from the same numbers as the Orders page. */
+function CustomerStats({ customer }: { customer: AdminCustomerDto }) {
+  const { t, digits, taka, formatDate } = useLang()
+  const stats = useOrderStats({ customerId: customer.id })
+  if (!stats.data) return null
+  return (
+    <StatGrid>
+      <StatTile
+        icon={ClipboardList}
+        label={t('মোট অর্ডার', 'Orders')}
+        value={digits(stats.data.orders)}
+        hint={t(`বাতিল: ${digits(stats.data.byStatus.CANCELLED)}`, `Cancelled: ${digits(stats.data.byStatus.CANCELLED)}`)}
+      />
+      <StatTile icon={Wallet} tone="success" label={t('মোট খরচ', 'Total spent')} value={taka(stats.data.revenue)} hint={t('কনফার্ম করা বিল', 'Confirmed bills')} />
+      <StatTile icon={Receipt} label={t('গড় বিল', 'Average bill')} value={taka(stats.data.averageBill)} />
+      <StatTile icon={CalendarClock} tone="violet" label={t('শেষ অর্ডার', 'Last order')} value={customer.lastOrderAt ? formatDate(customer.lastOrderAt) : '—'} />
+    </StatGrid>
+  )
+}
+
+/** The customer's orders by status, ten to a page. */
+function CustomerOrders({ customerId }: { customerId: string }) {
+  const { t, text, digits } = useLang()
+  const [status, setStatus] = useState<OrderStatus | undefined>()
+  const [page, setPage] = useState(1)
+  const orders = useOrderList({ customerId, status, page, limit: 10 })
+  const stats = useOrderStats({ customerId })
+  const items = orders.data?.items ?? []
+  const total = stats.data?.orders ?? 0
+  return (
+    <Card title={t(`অর্ডার (${digits(total)})`, `Orders (${digits(total)})`)}>
+      {total > 0 && (
+        <FilterTabs
+          label={t('অবস্থা', 'Status')}
+          value={status}
+          onChange={value => {
+            setStatus(value)
+            setPage(1)
+          }}
+          items={[
+            { value: undefined, label: t('সব', 'All'), count: total },
+            // Only the statuses this customer has orders in.
+            ...ORDER_STATUSES.filter(value => stats.data?.byStatus[value] || value === status).map(value => ({
+              value,
+              label: text(ORDER_STATUS_LABELS[value]),
+              count: stats.data?.byStatus[value],
+            })),
+          ]}
+        />
+      )}
+      {orders.isPending && <Loading />}
+      <ErrorNote code={orders.isError ? errorCode(orders.error) : null} />
+      {orders.isSuccess && !items.length && <Empty>{t('এখনো কোনো অর্ডার নেই।', 'No orders yet.')}</Empty>}
+      {items.length > 0 && <OrderTable orders={items} showCustomer={false} />}
+      {orders.data && (
+        <Pagination page={orders.data.page} pageCount={orders.data.pageCount} total={orders.data.total} limit={orders.data.limit} fetching={orders.isPlaceholderData} onPage={setPage} />
+      )}
+    </Card>
   )
 }
 
@@ -156,16 +218,17 @@ function CustomerLocation({ location }: { location: CustomerLocationDto | null }
   )
 }
 
-/** What the customer did (signed up, ordered, changed their profile) and what staff did to the account. */
+/** What the customer did (signed up, ordered, changed their profile) and what staff did to the account: the latest ten. */
 function CustomerHistory({ customerId }: { customerId: string }) {
-  const { t } = useLang()
-  const log = useAuditList({ customerId }, 10)
-  const entries = log.data?.pages.flatMap(page => page.items) ?? []
+  const { t, digits } = useLang()
+  const log = useAuditList({ customerId, limit: 10 })
+  const entries = log.data?.items ?? []
+  const fullHistory = `/admin/history?customerId=${encodeURIComponent(customerId)}`
   return (
     <Card
       title={t('ইতিহাস', 'History')}
       actions={
-        <Link href={`/admin/history?customerId=${encodeURIComponent(customerId)}`} className="text-sm font-semibold text-brand-700 hover:underline">
+        <Link href={fullHistory} className="text-sm font-semibold text-brand-700 hover:underline">
           {t('পুরো ইতিহাস', 'Full history')}
         </Link>
       }
@@ -174,12 +237,13 @@ function CustomerHistory({ customerId }: { customerId: string }) {
       <ErrorNote code={log.isError ? errorCode(log.error) : null} />
       {log.isSuccess && !entries.length && <Empty>{t('এখনো কিছু নেই।', 'Nothing yet.')}</Empty>}
       {entries.length > 0 && <AuditFeed entries={entries} />}
-      {log.hasNextPage && (
-        <div className="mt-4 flex justify-center">
-          <Button variant="secondary" loading={log.isFetchingNextPage} onClick={() => void log.fetchNextPage()}>
-            {t('আরো দেখুন', 'Load more')}
-          </Button>
-        </div>
+      {log.data && log.data.total > entries.length && (
+        <p className="mt-3 text-center text-xs text-muted">
+          {t(`মোট ${digits(log.data.total)}টির শেষ ${digits(entries.length)}টি।`, `The latest ${digits(entries.length)} of ${digits(log.data.total)}.`)}{' '}
+          <Link href={fullHistory} className="font-semibold text-brand-700 hover:underline">
+            {t('সব দেখুন', 'See all')}
+          </Link>
+        </p>
       )}
     </Card>
   )

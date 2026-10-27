@@ -1,6 +1,6 @@
-import type { AuditAction, AuditChange, AuditEntity, AuditLogDto, AuditValue } from '@/shared'
+import type { AuditAction, AuditChange, AuditEntity, AuditLogDto, AuditValue, Text } from '@/shared'
 
-import type { AuditLog, Prisma } from '../generated/prisma/client'
+import { type AuditLog, Prisma } from '../generated/prisma/client'
 import type { AuditActor } from './actor'
 
 /** One history log entry to write. */
@@ -23,7 +23,7 @@ export const toAuditRow = ({ action, actor, entity, changes = [], note, meta = {
   adminId: actor.type === 'ADMIN' ? actor.id : null,
   userId: actor.type === 'CUSTOMER' ? actor.id : null,
   actorName: actor.name.slice(0, 120),
-  actorRole: actor.role ?? null,
+  actorRole: actor.role ?? Prisma.DbNull,
   entityType: entity.type,
   entityId: entity.id ?? null,
   entityLabel: entity.label?.slice(0, 200) ?? null,
@@ -35,10 +35,13 @@ export const toAuditRow = ({ action, actor, entity, changes = [], note, meta = {
   ...(at ? { createdAt: at } : {}),
 })
 
+const isText = (value: unknown): value is Text =>
+  !!value && typeof value === 'object' && typeof (value as Text).bn === 'string' && typeof (value as Text).en === 'string'
+
 export const toAuditLogDto = (row: AuditLog): AuditLogDto => ({
   id: row.id,
   action: row.action,
-  actor: { type: row.actorType, id: row.adminId ?? row.userId, name: row.actorName, role: row.actorRole },
+  actor: { type: row.actorType, id: row.adminId ?? row.userId, name: row.actorName, role: isText(row.actorRole) ? row.actorRole : null },
   entity: { type: row.entityType, id: row.entityId, label: row.entityLabel },
   changes: (Array.isArray(row.changes) ? row.changes : []) as unknown as AuditChange[],
   note: row.note,

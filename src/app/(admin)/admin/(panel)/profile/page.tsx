@@ -1,11 +1,11 @@
 'use client'
 
-import { ADMIN_ROLE_LABELS, changePasswordSchema, type MessageCode, validateForm } from '@/shared'
+import { changePasswordSchema, type MessageCode, PERMISSION_LABELS, PERMISSION_MODULE_IDS, PERMISSION_MODULE_LABELS, permissionModule, validateForm } from '@/shared'
 import { useMutation } from '@tanstack/react-query'
 import { KeyRound } from 'lucide-react'
 import { useState } from 'react'
 
-import { Button, Card, ErrorNote, Field, Input, PageHeader } from '@/admin/components/ui'
+import { Badge, Button, Card, ErrorNote, Field, Input, PageHeader } from '@/admin/components/ui'
 import { api } from '@/admin/lib/api'
 import { useLang } from '@/admin/lib/i18n'
 import { useCurrentAdmin } from '@/admin/lib/queries'
@@ -34,7 +34,7 @@ export default function ProfilePage() {
             <dt className="text-muted">{t('মোবাইল', 'Mobile')}</dt>
             <dd className="font-medium tabular-nums">{admin.mobile}</dd>
             <dt className="text-muted">{t('রোল', 'Role')}</dt>
-            <dd className="font-medium">{text(ADMIN_ROLE_LABELS[admin.role])}</dd>
+            <dd className="font-medium">{text(admin.role.name)}</dd>
             <dt className="text-muted">{t('যোগ দিয়েছেন', 'Since')}</dt>
             <dd className="font-medium">{formatDate(admin.createdAt)}</dd>
           </dl>
@@ -65,7 +65,37 @@ export default function ProfilePage() {
             </div>
           </form>
         </Card>
+        <MyPermissions />
       </div>
     </>
+  )
+}
+
+/** What the signed-in admin's role lets them do, module by module. */
+function MyPermissions() {
+  const { t, text } = useLang()
+  const admin = useCurrentAdmin()
+  const modules = PERMISSION_MODULE_IDS.map(module => ({ module, permissions: admin.permissions.filter(permission => permissionModule(permission) === module) })).filter(
+    entry => entry.permissions.length > 0,
+  )
+  return (
+    <Card title={t('আপনি যা করতে পারেন', 'What you can do')} className="lg:col-span-2">
+      {admin.role.isSystem && <p className="mb-3 text-sm text-muted">{t('সুপার অ্যাডমিনের সব অনুমতি আছে, রোল ও অনুমতিও তিনিই ঠিক করেন।', 'A Super admin has every permission and decides the roles and their permissions.')}</p>}
+      {modules.length === 0 && <p className="text-sm text-muted">{t('আপনার রোলে এখনো কোনো অনুমতি নেই।', 'Your role has no permissions yet.')}</p>}
+      <dl className="grid gap-3 sm:grid-cols-2">
+        {modules.map(({ module, permissions }) => (
+          <div key={module} className="grid gap-1.5">
+            <dt className="text-xs font-semibold text-muted">{text(PERMISSION_MODULE_LABELS[module])}</dt>
+            <dd className="flex flex-wrap gap-1.5">
+              {permissions.map(permission => (
+                <Badge key={permission} tone="brand">
+                  {text(PERMISSION_LABELS[permission].label)}
+                </Badge>
+              ))}
+            </dd>
+          </div>
+        ))}
+      </dl>
+    </Card>
   )
 }

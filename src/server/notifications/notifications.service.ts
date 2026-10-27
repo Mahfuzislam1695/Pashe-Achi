@@ -1,10 +1,11 @@
 import { Inject, Injectable, Logger } from '@nestjs/common'
-import type { ListNotificationsQuery, NotificationDto, Paginated, UnreadCountDto } from '@/shared'
+import { isoDateInBd, type ListAdminNotificationsQuery, type ListNotificationsQuery, type NotificationDto, type NotificationStatsDto, type NotificationStatsQuery, type PagedList, type Paginated, type UnreadCountDto } from '@/shared'
 
 import { AppException } from '../common/app.exception'
-import { pageArgs, toPage } from '../common/pagination'
+import { bdDayRange, bdDayStart, offsetArgs, pageArgs, toPage, toPaged } from '../common/pagination'
 import type { Notification, Prisma } from '../generated/prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
+import { adminsWhoCan } from '../roles/role.mapper'
 import { NOTIFICATION_CHANNELS, type NotificationChannel } from './channels'
 import { type NotificationContent, toNotificationDto, toNotificationRow } from './notification.mapper'
 
@@ -12,6 +13,11 @@ import { type NotificationContent, toNotificationDto, toNotificationRow } from '
 export type Recipient = { userId: string } | { adminId: string }
 
 const BATCH = 1000
+
+const adminWhere = (adminId: string, query: NotificationStatsQuery): Prisma.NotificationWhereInput => {
+  const createdAt = bdDayRange(query.from, query.to)
+  return { adminId, ...(query.type ? { type: query.type } : {}), ...(createdAt ? { createdAt } : {}) }
+}
 
 /** Stores notifications, then hands them to every delivery channel. */
 @Injectable()
@@ -43,9 +49,9 @@ export class NotificationsService {
     return sent
   }
 
-  /** Sends to every active admin. */
+  /** Sends to every active admin who can see orders (what these notifications are about). */
   async notifyAdmins(content: NotificationContent) {
-    const admins = await this.prisma.admin.findMany({ where: { isActive: true }, select: { id: true } })
+    const admins = await this.prisma.admin.findMany({ where: adminsWhoCan('orders.view'), select: { id: true } })
     if (!admins.length) return
     const row = toNotificationRow(content)
     await this.deliver(await this.prisma.notification.createManyAndReturn({ data: admins.map(admin => ({ ...row, adminId: admin.id })) }))
@@ -55,6 +61,27 @@ export class NotificationsService {
     const where: Prisma.NotificationWhereInput = { ...recipient, ...(query.unread === 'true' ? { readAt: null } : {}) }
     const rows = await this.prisma.notification.findMany({ where, ...pageArgs(query.cursor, query.limit) })
     return toPage(rows, query.limit, toNotificationDto)
+  }
+
+  /** An admin's inbox in numbered pages, filtered by type, days and unread. */
+  async listForAdmin(adminId: string, query: ListAdminNotificationsQuery): Promise<PagedList<NotificationDto>> {
+    const where: Prisma.NotificationWhereInput = { ...adminWhere(adminId, query), ...(query.unread === 'true' ? { readAt: null } : query.unread === 'false' ? { readAt: { not: null } } : {}) }
+    const [rows, total] = await this.prisma.$transaction([
+      this.prisma.notification.findMany({ where, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], ...offsetArgs(query.page, query.limit) }),
+      this.prisma.notification.count({ where }),
+    ])
+    return toPaged(rows, total, query, toNotificationDto)
+  }
+
+  /** The admin's inbox under the same filters (read or not), how much of it is unread, and how much came today. */
+  async statsForAdmin(adminId: string, query: NotificationStatsQuery): Promise<NotificationStatsDto> {
+    const where = adminWhere(adminId, query)
+    const [total, unread, today] = await this.prisma.$transaction([
+      this.prisma.notification.count({ where }),
+      this.prisma.notification.count({ where: { ...where, readAt: null } }),
+      this.prisma.notification.count({ where: { AND: [where, { createdAt: { gte: bdDayStart(isoDateInBd()) } }] } }),
+    ])
+    return { total, unread, today }
   }
 
   async unreadCount(recipient: Recipient): Promise<UnreadCountDto> {

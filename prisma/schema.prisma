@@ -35,12 +35,6 @@ enum OrderStatus {
   CANCELLED
 }
 
-enum AdminRole {
-  SUPER_ADMIN
-  MANAGER
-  OPERATOR
-}
-
 /// Who acted: used by both the order timeline (OrderStatusEvent) and the history log (AuditLog).
 enum OrderEventActor {
   CUSTOMER
@@ -87,6 +81,9 @@ enum AuditAction {
   OFFER_DELETED
   OFFER_ANNOUNCED
   CUSTOMER_AUTH_UPDATED
+  ROLE_CREATED
+  ROLE_UPDATED
+  ROLE_DELETED
 }
 
 enum AuditEntity {
@@ -100,6 +97,7 @@ enum AuditEntity {
   DELIVERY_HOURS
   OFFER
   CUSTOMER_AUTH
+  ROLE
 }
 
 /// A customer of the web/mobile app.
@@ -135,7 +133,7 @@ model Admin {
   name              String
   mobile            String             @unique
   passwordHash      String
-  role              AdminRole          @default(OPERATOR)
+  roleId            String
   isActive          Boolean            @default(true)
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
@@ -144,6 +142,27 @@ model Admin {
   orderEvents       OrderStatusEvent[]
   auditLogs         AuditLog[]
   pushSubscriptions PushSubscription[]
+  role              Role               @relation(fields: [roleId], references: [id], onDelete: Restrict)
+
+  @@index([roleId])
+}
+
+/// What a staff member may do: a list of module.action permissions (see src/shared/permissions.ts),
+/// made and edited by the Super admin on /admin/roles. Each admin has one role.
+model Role {
+  id            String   @id @default(cuid())
+  /// Built-in roles: super_admin (the system role), manager, operator. Null for roles made in the panel.
+  key           String?  @unique
+  nameBn        String
+  nameEn        String   @unique
+  descriptionBn String?
+  descriptionEn String?
+  /// The system role (Super admin) has every permission whatever `permissions` holds, and is never edited.
+  isSystem      Boolean  @default(false)
+  permissions   String[] @default([])
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  admins        Admin[]
 }
 
 /// One row per issued refresh token (hashed). Rotated on every refresh; a reused token revokes its family.
@@ -302,7 +321,8 @@ model AuditLog {
   userId      String?
   /// The actor's name at the time (for a failed sign-in with an unknown mobile: the mobile typed).
   actorName   String
-  actorRole   AdminRole?
+  /// The admin's role name at the time, { bn, en }.
+  actorRole   Json?
   entityType  AuditEntity
   entityId    String?
   /// "PA-1042", or the customer, staff member or vehicle name at the time.

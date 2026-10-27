@@ -82,6 +82,7 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
     socket.on(SOCKET_EVENTS.notificationNew, (notification: NotificationDto) => {
       queryClient.setQueryData<UnreadCountDto>(queryKeys.unread, current => ({ count: (current?.count ?? 0) + 1 }))
       void queryClient.invalidateQueries({ queryKey: queryKeys.notificationList })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.notificationStatsAll })
       // New orders already got their own toast above.
       if (notification.type === 'ORDER_CREATED') return
       const { t, text, soundEnabled, router } = latest.current

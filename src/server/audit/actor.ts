@@ -1,5 +1,5 @@
 import { createParamDecorator, type ExecutionContext } from '@nestjs/common'
-import type { ActorType, AdminRole } from '@/shared'
+import type { ActorType, Text } from '@/shared'
 import type { Request } from 'express'
 
 import type { AuthenticatedRequest } from '../auth/auth.types'
@@ -18,16 +18,17 @@ export interface AuditActor extends ClientInfo {
   id: string | null
   /** The name at the time of the change. */
   name: string
-  role?: AdminRole
+  /** An admin's role name at the time. */
+  role?: Text
 }
 
 export const SYSTEM_ACTOR: AuditActor = { type: 'SYSTEM', id: null, name: 'System' }
 
-export const adminActor = (admin: { id: string; name: string; role: AdminRole }, client: ClientInfo = {}): AuditActor => ({
+export const adminActor = (admin: { id: string; name: string; role: { nameBn: string; nameEn: string } | { name: Text } }, client: ClientInfo = {}): AuditActor => ({
   type: 'ADMIN',
   id: admin.id,
   name: admin.name,
-  role: admin.role,
+  role: 'name' in admin.role ? admin.role.name : { bn: admin.role.nameBn, en: admin.role.nameEn },
   ...client,
 })
 

@@ -1,6 +1,7 @@
 'use client'
 
 import {
+  can,
   type CatalogDto,
   type DeliveryHours,
   deliveryHoursSchema,
@@ -25,17 +26,27 @@ import { Plus, Save, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
 
+import { PermissionGate } from '@/admin/components/permission-gate'
 import { Badge, Button, Card, ErrorNote, Field, Input, Loading, PageHeader, Table, Td, Th } from '@/admin/components/ui'
 import { api } from '@/admin/lib/api'
 import { useLang } from '@/admin/lib/i18n'
 import { queryKeys, useCatalog, useCurrentAdmin } from '@/admin/lib/queries'
-import { canManage, errorCode, isSuperAdmin } from '@/admin/lib/utils'
+import { errorCode } from '@/admin/lib/utils'
 
 export default function CatalogPage() {
   const { t } = useLang()
+  return (
+    <PermissionGate permission="catalog.view" title={t('দাম ও গাড়ী', 'Pricing & vehicles')}>
+      <Catalog />
+    </PermissionGate>
+  )
+}
+
+function Catalog() {
+  const { t } = useLang()
   const catalog = useCatalog()
   const admin = useCurrentAdmin()
-  const editable = canManage(admin.role)
+  const editable = can(admin, 'catalog.edit')
   return (
     <>
       <PageHeader
@@ -43,7 +54,7 @@ export default function CatalogPage() {
         subtitle={
           editable
             ? t('নতুন অর্ডারে নতুন দাম লাগবে; আগের অর্ডারের বিল বদলাবে না।', 'New prices apply to new orders; existing bills keep the prices they were placed with.')
-            : t('দাম দেখতে পারবেন; বদলাতে ম্যানেজার লাগবে।', 'You can view prices; a manager can change them.')
+            : t('আপনার রোলে দাম শুধু দেখা যায়, বদলানো যায় না।', 'Your role can view prices but not change them.')
         }
       />
       {catalog.isPending && <Loading />}
@@ -54,7 +65,7 @@ export default function CatalogPage() {
           <div className="grid min-w-0 content-start gap-5">
             <SupportCard catalog={catalog.data} editable={editable} />
             <DeliveryHoursCard hours={catalog.data.deliveryHours} editable={editable} />
-            <CustomerAuthCard password={catalog.data.customerAuth.password} editable={isSuperAdmin(admin.role)} />
+            <CustomerAuthCard password={catalog.data.customerAuth.password} editable={can(admin, 'catalog.customer_signin')} />
           </div>
           <div className="lg:col-span-2">
             <VehiclesCard vehicles={catalog.data.vehicles} editable={editable} />
@@ -161,7 +172,7 @@ function SupportCard({ catalog, editable }: { catalog: CatalogDto; editable: boo
   )
 }
 
-/** Whether customers sign up and log in with a password. Only the super admin can change it. */
+/** Whether customers sign up and log in with a password. Changing it needs the catalog.customer_signin permission. */
 function CustomerAuthCard({ password, editable }: { password: boolean; editable: boolean }) {
   const { t } = useLang()
   const [checked, setChecked] = useState(password)

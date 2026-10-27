@@ -6,6 +6,7 @@ import { AuditService } from '../audit/audit.service'
 import { AppException } from '../common/app.exception'
 import type { Admin } from '../generated/prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
+import { withRole } from '../roles/role.mapper'
 import { toAdminDto } from '../users/user.mapper'
 import { DUMMY_HASH, hashPassword, verifyPassword } from './password'
 import { TokenService } from './token.service'
@@ -22,7 +23,7 @@ export class AdminAuthService {
 
   /** Every sign-in, and every failed attempt, goes into the history log (never the password typed). */
   async login(input: StaffLoginInput, client: ClientInfo = {}): Promise<AuthResponse<AdminDto>> {
-    const admin = await this.prisma.admin.findUnique({ where: { mobile: input.mobile } })
+    const admin = await this.prisma.admin.findUnique({ where: { mobile: input.mobile }, include: withRole })
     const valid = await verifyPassword(input.password, admin?.passwordHash ?? DUMMY_HASH)
     if (!admin || !valid || !admin.isActive) {
       const reason = !admin ? 'unknown_mobile' : !valid ? 'wrong_password' : 'inactive'
@@ -44,7 +45,7 @@ export class AdminAuthService {
 
   async refresh(refreshToken: string | undefined, userAgent?: string): Promise<AuthResponse<AdminDto>> {
     const { ownerId, tokens } = await this.tokens.rotate('admin', refreshToken, userAgent)
-    const admin = await this.prisma.admin.findUnique({ where: { id: ownerId } })
+    const admin = await this.prisma.admin.findUnique({ where: { id: ownerId }, include: withRole })
     if (!admin) throw AppException.unauthorized()
     if (!admin.isActive) {
       await this.tokens.revokeAll('admin', admin.id)
@@ -56,12 +57,12 @@ export class AdminAuthService {
   async logout(refreshToken: string | undefined, client: ClientInfo = {}) {
     const owner = await this.tokens.revoke(refreshToken)
     if (!owner?.adminId) return
-    const admin = await this.prisma.admin.findUnique({ where: { id: owner.adminId } })
+    const admin = await this.prisma.admin.findUnique({ where: { id: owner.adminId }, include: withRole })
     if (admin) await this.audit.record({ action: 'ADMIN_SIGNED_OUT', actor: adminActor(admin, client), entity: staffEntity(admin) })
   }
 
   async me(adminId: string): Promise<AdminDto> {
-    const admin = await this.prisma.admin.findUnique({ where: { id: adminId } })
+    const admin = await this.prisma.admin.findUnique({ where: { id: adminId }, include: withRole })
     if (!admin) throw AppException.unauthorized()
     return toAdminDto(admin)
   }

@@ -1,13 +1,13 @@
 import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Put, Query, Req, UseGuards } from '@nestjs/common'
 import { ApiBearerAuth, ApiCookieAuth, ApiOperation, ApiTags } from '@nestjs/swagger'
-import type { NotificationDto, Paginated, PushKeyDto, UnreadCountDto } from '@/shared'
+import type { NotificationDto, NotificationStatsDto, PagedList, Paginated, PushKeyDto, UnreadCountDto } from '@/shared'
 import type { Request } from 'express'
 
 import { Actor, type AuditActor, clientInfo } from '../audit/actor'
 import { AuditService } from '../audit/audit.service'
 import type { AdminPrincipal, CustomerPrincipal } from '../auth/auth.types'
-import { AdminGuard, CurrentAdmin, CurrentCustomer, CustomerGuard, Roles } from '../auth/guards'
-import { BroadcastDto, IdParamDto, ListNotificationsQueryDto, PushRemoveDto, PushSubscriptionDto } from '../common/dto'
+import { AdminGuard, Can, CurrentAdmin, CurrentCustomer, CustomerGuard } from '../auth/guards'
+import { BroadcastDto, IdParamDto, ListAdminNotificationsQueryDto, ListNotificationsQueryDto, NotificationStatsQueryDto, PushRemoveDto, PushSubscriptionDto } from '../common/dto'
 import { NotificationsService } from './notifications.service'
 import { PushService } from './push.service'
 
@@ -67,6 +67,7 @@ export class NotificationsController {
 @ApiTags('Admin: notifications')
 @ApiCookieAuth('pa_admin_at')
 @UseGuards(AdminGuard)
+@Can('notifications.view')
 @Controller('admin/notifications')
 export class AdminNotificationsController {
   constructor(
@@ -76,8 +77,15 @@ export class AdminNotificationsController {
   ) {}
 
   @Get()
-  list(@CurrentAdmin() admin: AdminPrincipal, @Query() query: ListNotificationsQueryDto): Promise<Paginated<NotificationDto>> {
-    return this.notifications.list({ adminId: admin.id }, query)
+  @ApiOperation({ summary: 'The inbox in numbered pages, filtered by type, days and unread' })
+  list(@CurrentAdmin() admin: AdminPrincipal, @Query() query: ListAdminNotificationsQueryDto): Promise<PagedList<NotificationDto>> {
+    return this.notifications.listForAdmin(admin.id, query)
+  }
+
+  @Get('stats')
+  @ApiOperation({ summary: 'How many notifications the filters match, how many are unread, and how many came today' })
+  stats(@CurrentAdmin() admin: AdminPrincipal, @Query() query: NotificationStatsQueryDto): Promise<NotificationStatsDto> {
+    return this.notifications.statsForAdmin(admin.id, query)
   }
 
   @Get('unread-count')
@@ -115,7 +123,7 @@ export class AdminNotificationsController {
   }
 
   @Post('broadcast')
-  @Roles('MANAGER')
+  @Can('notifications.broadcast')
   @ApiOperation({ summary: 'Send a bilingual announcement to all customers or to selected ones' })
   async broadcast(@Actor() actor: AuditActor, @Body() body: BroadcastDto): Promise<{ sent: number }> {
     const sent = await this.notifications.notifyUsers(body.userIds ?? 'all', {

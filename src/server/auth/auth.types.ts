@@ -1,4 +1,4 @@
-import type { AdminRole } from '@/shared'
+import type { Permission, RoleRef } from '@/shared'
 
 /** Customers (web/Flutter app) and staff (admin panel) have separate tokens, secrets and cookies. */
 export type Audience = 'customer' | 'admin'
@@ -13,7 +13,9 @@ export interface AdminPrincipal {
   kind: 'admin'
   id: string
   name: string
-  role: AdminRole
+  role: RoleRef
+  /** Every permission the role grants (all of them for the system role). */
+  permissions: Permission[]
 }
 
 export interface AccessTokenPayload {

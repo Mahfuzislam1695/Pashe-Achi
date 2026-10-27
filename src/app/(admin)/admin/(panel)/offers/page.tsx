@@ -1,16 +1,34 @@
 'use client'
 
-import { type AdminOfferDto, FORM_ERROR_PRIORITY, isoDateInBd, type MessageCode, MESSAGES, offerSchema, type OfferStatus, SERVICE_IDS, SERVICE_LABELS, type ServiceId, validateForm } from '@/shared'
+import {
+  type AdminOfferDto,
+  can,
+  FORM_ERROR_PRIORITY,
+  isoDateInBd,
+  type MessageCode,
+  MESSAGES,
+  OFFER_STATUSES,
+  offerSchema,
+  type OfferStatus,
+  SERVICE_IDS,
+  SERVICE_LABELS,
+  type ServiceId,
+  validateForm,
+} from '@/shared'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { BadgePercent, ImagePlus, Megaphone, Pencil, Plus, Save, Trash2, X } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { Suspense, useEffect, useState } from 'react'
 import { toast } from 'sonner'
 
+import { ClearFilters, FilterTabs, SearchBox } from '@/admin/components/filters'
+import { PermissionGate } from '@/admin/components/permission-gate'
+import { Pagination } from '@/admin/components/pagination'
 import { Badge, Button, Card, Empty, ErrorNote, Field, Input, Loading, PageHeader, Select, Textarea } from '@/admin/components/ui'
 import { api } from '@/admin/lib/api'
 import { useLang } from '@/admin/lib/i18n'
-import { queryKeys, useCurrentAdmin, useOffers } from '@/admin/lib/queries'
-import { canManage, cn, errorCode } from '@/admin/lib/utils'
+import { queryKeys, useCurrentAdmin, useOffers, useOfferStats } from '@/admin/lib/queries'
+import { pick, useUrlFilters } from '@/admin/lib/url-state'
+import { cn, errorCode } from '@/admin/lib/utils'
 
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024
 const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp']
@@ -36,8 +54,25 @@ const draftOf = (offer: AdminOfferDto): Draft => ({
 /** আজকের অফার: staff post offers with a picture; running ones show in the customer app and on the landing page. */
 export default function OffersPage() {
   const { t } = useLang()
+  return (
+    <PermissionGate permission="offers.view" title={t('আজকের অফার', "Today's offers")}>
+      <Offers />
+    </PermissionGate>
+  )
+}
+
+/** What this admin's role allows on offers; each button shows only with its permission. */
+export interface OfferRights {
+  create: boolean
+  edit: boolean
+  remove: boolean
+  notify: boolean
+}
+
+function Offers() {
+  const { t } = useLang()
   const admin = useCurrentAdmin()
-  const manage = canManage(admin.role)
+  const rights: OfferRights = { create: can(admin, 'offers.create'), edit: can(admin, 'offers.edit'), remove: can(admin, 'offers.delete'), notify: can(admin, 'offers.notify') }
   const [editing, setEditing] = useState<AdminOfferDto | 'new' | null>(null)
   return (
     <>
@@ -45,7 +80,7 @@ export default function OffersPage() {
         title={t('আজকের অফার', "Today's offers")}
         subtitle={t('ছবিসহ অফার দিন। চলমান অফার গ্রাহকের অ্যাপ ও হোম পেজে দেখা যায়।', 'Post offers with a picture. Running offers show in the customer app and on the home page.')}
         actions={
-          manage && editing === null ? (
+          rights.create && editing === null ? (
             <Button onClick={() => setEditing('new')}>
               <Plus className="size-4" />
               {t('নতুন অফার', 'New offer')}
@@ -54,8 +89,10 @@ export default function OffersPage() {
         }
       />
       <div className={cn('grid grid-cols-1 items-start gap-5', editing && 'lg:grid-cols-[3fr_2fr]')}>
-        {editing && <OfferForm key={editing === 'new' ? 'new' : editing.id} offer={editing === 'new' ? null : editing} onDone={() => setEditing(null)} />}
-        <OfferList manage={manage} onEdit={setEditing} className={editing ? 'lg:order-first' : undefined} />
+        {editing && <OfferForm key={editing === 'new' ? 'new' : editing.id} offer={editing === 'new' ? null : editing} canNotify={rights.notify} onDone={() => setEditing(null)} />}
+        <Suspense fallback={<Loading />}>
+          <OfferList rights={rights} onEdit={setEditing} className={editing ? 'lg:order-first' : undefined} />
+        </Suspense>
       </div>
     </>
   )
@@ -63,11 +100,17 @@ export default function OffersPage() {
 
 const STATUS_TONES: Record<OfferStatus, 'brand' | 'neutral' | 'danger'> = { running: 'brand', upcoming: 'neutral', ended: 'neutral', off: 'danger' }
 
-function OfferList({ manage, onEdit, className }: { manage: boolean; onEdit: (offer: AdminOfferDto) => void; className?: string }) {
+/** Status tabs with counts, search and service filters, and the page, all in the URL. */
+function OfferList({ rights, onEdit, className }: { rights: OfferRights; onEdit: (offer: AdminOfferDto) => void; className?: string }) {
   const { t, text, formatDate, digits } = useLang()
   const queryClient = useQueryClient()
-  const offers = useOffers()
-  const items = offers.data ?? []
+  const url = useUrlFilters(10)
+  const filters = { q: url.get('q'), service: pick(url.get('service'), SERVICE_IDS) }
+  const status = pick(url.get('status'), OFFER_STATUSES)
+  const offers = useOffers({ ...filters, status, page: url.page, limit: url.limit })
+  const stats = useOfferStats(filters)
+  const items = offers.data?.items ?? []
+  const hasFilters = Object.values(filters).some(Boolean) || !!status
   const refresh = () => queryClient.invalidateQueries({ queryKey: queryKeys.offers })
   const statusLabel: Record<OfferStatus, string> = {
     running: t('চলমান', 'Running'),
@@ -94,9 +137,30 @@ function OfferList({ manage, onEdit, className }: { manage: boolean; onEdit: (of
 
   return (
     <Card title={t('সব অফার', 'All offers')} className={className}>
+      <div className="mb-3 grid gap-2 sm:grid-cols-[2fr_1fr_auto]">
+        <SearchBox value={filters.q} onSearch={q => url.set({ q })} placeholder={t('শিরোনাম', 'Title')} />
+        <Select aria-label={t('সেবা', 'Service')} value={filters.service ?? ''} onChange={e => url.set({ service: e.target.value || undefined })}>
+          <option value="">{t('সব সেবা', 'All services')}</option>
+          {SERVICE_IDS.map(service => (
+            <option key={service} value={service}>
+              {text(SERVICE_LABELS[service])}
+            </option>
+          ))}
+        </Select>
+        <ClearFilters disabled={!hasFilters} onClear={() => url.clear()} />
+      </div>
+      <FilterTabs
+        label={t('অবস্থা', 'Status')}
+        value={status}
+        onChange={value => url.set({ status: value })}
+        items={[
+          { value: undefined, label: t('সব', 'All'), count: stats.data?.total },
+          ...OFFER_STATUSES.map(value => ({ value, label: statusLabel[value], count: stats.data?.byStatus[value] })),
+        ]}
+      />
       {offers.isPending && <Loading />}
       <ErrorNote code={offers.isError ? errorCode(offers.error) : remove.isError ? errorCode(remove.error) : null} />
-      {offers.isSuccess && !items.length && <Empty>{t('এখনো কোনো অফার নেই।', 'No offers yet.')}</Empty>}
+      {offers.isSuccess && !items.length && <Empty>{hasFilters ? t('এই ফিল্টারে কোনো অফার নেই।', 'No offers match these filters.') : t('এখনো কোনো অফার নেই।', 'No offers yet.')}</Empty>}
       <ul className="grid gap-3">
         {items.map(offer => (
           <li key={offer.id} className="grid grid-cols-[96px_minmax(0,1fr)] gap-3 rounded-xl border border-line p-3 sm:grid-cols-[128px_minmax(0,1fr)]">
@@ -119,12 +183,15 @@ function OfferList({ manage, onEdit, className }: { manage: boolean; onEdit: (of
                 {offer.startsOn === offer.endsOn ? formatDate(offer.startsOn) : `${formatDate(offer.startsOn)} – ${formatDate(offer.endsOn)}`}
                 {offer.service ? ` · ${text(SERVICE_LABELS[offer.service])}` : ''}
               </p>
-              {manage && (
+              {(rights.edit || rights.notify || rights.remove) && (
                 <div className="mt-1 flex flex-wrap gap-2">
+                  {rights.edit && (
                   <Button size="sm" variant="secondary" onClick={() => onEdit(offer)}>
                     <Pencil className="size-3.5" />
                     {t('এডিট', 'Edit')}
                   </Button>
+                  )}
+                  {rights.notify && (
                   <Button
                     size="sm"
                     variant="secondary"
@@ -138,6 +205,8 @@ function OfferList({ manage, onEdit, className }: { manage: boolean; onEdit: (of
                     <Megaphone className="size-3.5" />
                     {t('গ্রাহকদের জানান', 'Notify customers')}
                   </Button>
+                  )}
+                  {rights.remove && (
                   <Button
                     size="sm"
                     variant="danger"
@@ -149,18 +218,30 @@ function OfferList({ manage, onEdit, className }: { manage: boolean; onEdit: (of
                     <Trash2 className="size-3.5" />
                     {t('মুছুন', 'Delete')}
                   </Button>
+                  )}
                 </div>
               )}
             </div>
           </li>
         ))}
       </ul>
+      {offers.data && (
+        <Pagination
+          page={offers.data.page}
+          pageCount={offers.data.pageCount}
+          total={offers.data.total}
+          limit={offers.data.limit}
+          fetching={offers.isPlaceholderData}
+          onPage={page => url.set({ page })}
+          onLimit={limit => url.set({ limit })}
+        />
+      )}
     </Card>
   )
 }
 
 /** Add or edit an offer. Saving writes the text, then the picture, then (for a new running offer, if ticked) tells every customer. */
-function OfferForm({ offer, onDone }: { offer: AdminOfferDto | null; onDone: () => void }) {
+function OfferForm({ offer, canNotify, onDone }: { offer: AdminOfferDto | null; canNotify: boolean; onDone: () => void }) {
   const { t, text } = useLang()
   const queryClient = useQueryClient()
   const [draft, setDraft] = useState<Draft>(() => (offer ? draftOf(offer) : emptyDraft()))
@@ -202,7 +283,7 @@ function OfferForm({ offer, onDone }: { offer: AdminOfferDto | null; onDone: () 
       setSavedId(saved.id)
       if (file) saved = await api.offers.setImage(saved.id, file)
       else if (dropImage) saved = await api.offers.removeImage(saved.id)
-      const sent = !offer && notify && saved.status === 'running' ? (await api.offers.notify(saved.id)).sent : null
+      const sent = !offer && canNotify && notify && saved.status === 'running' ? (await api.offers.notify(saved.id)).sent : null
       return { saved, sent }
     },
     onSuccess: ({ sent }) => {
@@ -305,7 +386,7 @@ function OfferForm({ offer, onDone }: { offer: AdminOfferDto | null; onDone: () 
           </div>
         </div>
 
-        {!offer && (
+        {!offer && canNotify && (
           <label className={cn('flex items-center gap-2 text-sm', !runsToday && 'text-muted')}>
             <input type="checkbox" className="size-4 accent-brand-600" checked={notify && runsToday} disabled={!runsToday} onChange={e => setNotify(e.target.checked)} />
             {runsToday

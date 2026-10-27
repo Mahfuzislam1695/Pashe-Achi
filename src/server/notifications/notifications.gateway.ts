@@ -9,6 +9,7 @@ import { COOKIE_NAMES, parseCookieHeader } from '../auth/cookies'
 import { TokenService } from '../auth/token.service'
 import { type CustomerBlockedEvent, DOMAIN_EVENTS } from '../common/domain-events'
 import { PrismaService } from '../prisma/prisma.service'
+import { permissionsOf, roleSelect } from '../roles/role.mapper'
 
 export const rooms = {
   user: (id: string) => `user:${id}`,
@@ -22,6 +23,8 @@ export const UNAUTHORIZED = 'unauthorized'
 interface SocketIdentity {
   audience: Audience
   id: string
+  /** Admins only: whether their role can see orders, so they get the live order events. */
+  seesOrders?: boolean
 }
 
 /**
@@ -60,7 +63,7 @@ export class NotificationsGateway implements OnGatewayInit, OnGatewayConnection 
   async handleConnection(socket: Socket) {
     const identity = socket.data as SocketIdentity | undefined
     if (!identity) return socket.disconnect(true)
-    await socket.join(identity.audience === 'customer' ? [rooms.user(identity.id)] : [rooms.admin(identity.id), rooms.admins])
+    await socket.join(identity.audience === 'customer' ? [rooms.user(identity.id)] : [rooms.admin(identity.id), ...(identity.seesOrders ? [rooms.admins] : [])])
   }
 
   private async authenticate(socket: Socket): Promise<SocketIdentity | null> {
@@ -74,8 +77,8 @@ export class NotificationsGateway implements OnGatewayInit, OnGatewayConnection 
       const user = await this.prisma.user.findUnique({ where: { id: payload.sub }, select: { isBlocked: true } })
       return user && !user.isBlocked ? { audience, id: payload.sub } : null
     }
-    const admin = await this.prisma.admin.findUnique({ where: { id: payload.sub }, select: { isActive: true } })
-    return admin?.isActive ? { audience, id: payload.sub } : null
+    const admin = await this.prisma.admin.findUnique({ where: { id: payload.sub }, select: { isActive: true, role: { select: roleSelect } } })
+    return admin?.isActive ? { audience, id: payload.sub, seesOrders: permissionsOf(admin.role).includes('orders.view') } : null
   }
 
   toUser(userId: string, event: string, payload: unknown) {

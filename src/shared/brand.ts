@@ -16,6 +16,16 @@ export const DEVELOPED_BY = { bn: 'ডেভেলপ করেছে', en: 'Dev
 export const APP_WELCOME = { bn: 'কিংফিশার-এ স্বাগতম', en: 'WELCOME TO KINGFISHER' } as const
 export const APP_TAGLINE = { bn: 'উন্নত জীবনের – সহজ সমাধান', en: 'Better living – simple solutions' } as const
 
+// The head office, shown in the landing page's footer and contact card. `map` opens it in Google Maps (no key).
+export const HEAD_OFFICE = {
+  label: { bn: 'হেড অফিস', en: 'Head office' },
+  address: {
+    bn: '(সুন্দরবন কুরিয়ার সার্ভিস সংলগ্ন) রোড ২, বাসা ৫, ধউর মেইন রোড, তুরাগ, উত্তরা, ঢাকা',
+    en: '(Next to Sundarban Courier Service) Road 2, House 5, Dhour Main Road, Turag, Uttara, Dhaka',
+  },
+  map: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent('Sundarban Courier Service, Dhour Main Road, Turag, Uttara, Dhaka')}`,
+} as const
+
 // The Android app's links on /app-download. null shows "শীঘ্রই আসছে" (coming soon) in place of the button.
 // playStore: https://play.google.com/store/apps/details?id=<package>
 // apk: a file in public/downloads/ (e.g. '/downloads/kingfisher.apk') or a full https:// URL.

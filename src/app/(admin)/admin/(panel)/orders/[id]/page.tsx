@@ -6,6 +6,7 @@ import {
   FORM_ERROR_PRIORITY,
   type GeoPoint,
   isAwaitingPrice,
+  can,
   isQuotedService,
   mapLink,
   type MessageCode,
@@ -29,10 +30,20 @@ import { AuditFeed } from '@/admin/components/audit-feed'
 import { Badge, Button, Card, Empty, ErrorNote, Field, Input, Loading, StatusBadge, Table, Td, Textarea, Th } from '@/admin/components/ui'
 import { api } from '@/admin/lib/api'
 import { useLang } from '@/admin/lib/i18n'
-import { queryKeys, useCatalog, useOrder, useOrderHistory } from '@/admin/lib/queries'
+import { PermissionGate } from '@/admin/components/permission-gate'
+import { queryKeys, useCatalog, useCurrentAdmin, useOrder, useOrderHistory } from '@/admin/lib/queries'
 import { errorCode } from '@/admin/lib/utils'
 
 export default function OrderPage({ params }: { params: Promise<{ id: string }> }) {
+  const { t } = useLang()
+  return (
+    <PermissionGate permission="orders.view" title={t('অর্ডার', 'Order')}>
+      <Order params={params} />
+    </PermissionGate>
+  )
+}
+
+function Order({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
   const { t } = useLang()
   const order = useOrder(id)
@@ -63,6 +74,9 @@ function MapLink({ pin }: { pin: GeoPoint | null }) {
 
 function OrderView({ order }: { order: OrderDetail }) {
   const { t, text, taka, formatDate } = useLang()
+  const admin = useCurrentAdmin()
+  // Pricing and status changes are separate permissions; without them the cards are read-only or hidden.
+  const canPrice = can(admin, 'orders.send_price')
   const queryClient = useQueryClient()
   const onUpdated = (updated: OrderDetail) => {
     queryClient.setQueryData(queryKeys.order(order.id), updated)
@@ -169,8 +183,10 @@ function OrderView({ order }: { order: OrderDetail }) {
           </Card>
 
           {order.shifting
-            ? QUOTE_EDITABLE.includes(order.status) && <VehicleQuoteCard order={order} onUpdated={onUpdated} />
-            : (order.items.length > 0 || (isQuotedService(order.service) && QUOTE_EDITABLE.includes(order.status))) && <ItemsCard order={order} onUpdated={onUpdated} />}
+            ? canPrice && QUOTE_EDITABLE.includes(order.status) && <VehicleQuoteCard order={order} onUpdated={onUpdated} />
+            : (order.items.length > 0 || (canPrice && isQuotedService(order.service) && QUOTE_EDITABLE.includes(order.status))) && (
+                <ItemsCard order={order} onUpdated={onUpdated} canPrice={canPrice} />
+              )}
 
           {order.prescription && (
             <Card
@@ -199,16 +215,20 @@ function OrderView({ order }: { order: OrderDetail }) {
           <Card title={t('গ্রাহক', 'Customer')}>
             {order.customer && (
               <div className="grid gap-1 text-sm">
-                <Link href={`/admin/customers/${order.customer.id}`} className="font-semibold text-brand-700 hover:underline">
-                  {order.customer.name}
-                </Link>
+                {can(admin, 'customers.view') ? (
+                  <Link href={`/admin/customers/${order.customer.id}`} className="font-semibold text-brand-700 hover:underline">
+                    {order.customer.name}
+                  </Link>
+                ) : (
+                  <span className="font-semibold">{order.customer.name}</span>
+                )}
                 <a href={`tel:${order.customer.mobile}`} className="text-muted tabular-nums hover:underline">
                   {order.customer.mobile}
                 </a>
               </div>
             )}
           </Card>
-          <StatusCard order={order} onUpdated={onUpdated} />
+          {can(admin, 'orders.update_status') && <StatusCard order={order} onUpdated={onUpdated} />}
           <Card title={t('বিল', 'Bill')}>
             <dl className="grid gap-1.5 text-sm">
               {isAwaitingPrice(order.service, order.status) ? (
@@ -337,9 +357,9 @@ const feeValue = (value: string) => (value.trim() ? toAmount(value) : null)
  * adjust the shopping fee and delivery charge if needed, and send it; the customer then confirms
  * or cancels. Once confirmed it is read-only.
  */
-function ItemsCard({ order, onUpdated }: { order: OrderDetail; onUpdated: (order: OrderDetail) => void }) {
+function ItemsCard({ order, onUpdated, canPrice }: { order: OrderDetail; onUpdated: (order: OrderDetail) => void; canPrice: boolean }) {
   const { t, taka } = useLang()
-  const editable = isQuotedService(order.service) && QUOTE_EDITABLE.includes(order.status)
+  const editable = canPrice && isQuotedService(order.service) && QUOTE_EDITABLE.includes(order.status)
   const requoting = order.status === 'QUOTED'
   const hasShoppingFee = order.service === 'bazar'
   const [lines, setLines] = useState<QuoteLine[]>(() => linesOf(order))
