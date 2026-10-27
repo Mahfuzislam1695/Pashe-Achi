@@ -7,13 +7,13 @@ import Link from 'next/link'
 import { DeveloperCredit } from '@/customer/components/developer-credit'
 import { ContactDock, LangToggle, Logo } from '@/customer/components/ui'
 import { useLang } from '@/customer/lib/i18n'
-import { appPaths, webPaths as paths } from '@/customer/lib/paths'
+import { webPaths as paths } from '@/customer/lib/paths'
 
 /**
- * /app-download: the Android app on Google Play and as an APK, each "শীঘ্রই আসছে" until its link is
- * set in APP_DOWNLOADS (src/shared/brand.ts), and the web app, which works today. It has the landing
- * page's look and its Chat/Call dock (at every width here); `fontClass` carries the landing page's
- * headline font.
+ * /app-download: the Kingfisher app (mobile/) on Google Play and as an APK, each "শীঘ্রই আসছে" until
+ * its link is set in APP_DOWNLOADS (src/shared/brand.ts), and the website, which works in any phone's
+ * browser. It has the landing page's look and its Chat/Call dock (at every width here); `fontClass`
+ * carries the landing page's headline font.
  */
 export function DownloadScreen({ fontClass = '' }: { fontClass?: string }) {
   const { t, lang, setLang } = useLang()
@@ -74,7 +74,7 @@ export function DownloadScreen({ fontClass = '' }: { fontClass?: string }) {
                 <p>{t('Play Store ছাড়াই সরাসরি ফোনে ইনস্টল করুন।', 'Install it straight on your phone, without the Play Store.')}</p>
                 {apk && (
                   <>
-                    <a className="lp-btn lp-btn-ghost" href={apk} download>
+                    <a className={`lp-btn ${playStore ? 'lp-btn-ghost' : 'lp-btn-sun'}`} href={apk} download>
                       <FileDown size={18} />
                       {t('APK ডাউনলোড করুন', 'Download the APK')}
                     </a>
@@ -88,19 +88,19 @@ export function DownloadScreen({ fontClass = '' }: { fontClass?: string }) {
               <li className="lp-dl-option">
                 <Smartphone size={22} />
                 <strong>
-                  {t('ওয়েব অ্যাপ', 'Web app')}
+                  {t('ওয়েবসাইট', 'The website')}
                   <span className="lp-ready">{t('এখনই চালু', 'Available now')}</span>
                 </strong>
                 <p>
                   {t(
-                    'কিছু ডাউনলোড করতে হয় না। ব্রাউজারে খুলে হোম স্ক্রিনে রেখে দিন; iPhone-এ Share থেকে “Add to Home Screen”।',
-                    'Nothing to download. Open it in your browser and keep it on your home screen; on an iPhone use Share, then “Add to Home Screen”.',
+                    'কিছু ডাউনলোড করতে হয় না: iPhone সহ যেকোনো ফোনের ব্রাউজারে একই সব সেবা পাবেন।',
+                    'Nothing to download: every service works in any phone’s browser, iPhone included.',
                   )}
                 </p>
                 {/* The main button while the Android app is still coming; beside a live download it steps back. */}
-                <Link className={`lp-btn ${playStore || apk ? 'lp-btn-ghost' : 'lp-btn-sun'}`} href={appPaths.entry}>
+                <Link className={`lp-btn ${playStore || apk ? 'lp-btn-ghost' : 'lp-btn-sun'}`} href={paths.home}>
                   <Smartphone size={18} />
-                  {t('অ্যাপ ভার্সন খুলুন', 'Open the app version')}
+                  {t('ওয়েবসাইটে অর্ডার করুন', 'Order on the website')}
                 </Link>
               </li>
             </ul>
@@ -117,7 +117,7 @@ export function DownloadScreen({ fontClass = '' }: { fontClass?: string }) {
       <footer className="lp-footer lp-dl-footer">
         <div className="lp-container lp-copyright">
           <span>
-            © {new Date().getFullYear()} {APP_NAME[lang]}
+            © {new Date().getFullYear()} {APP_NAME[lang]} · <Link href={paths.privacy}>{t('প্রাইভেসি পলিসি', 'Privacy policy')}</Link>
           </span>
           <DeveloperCredit tone="dark" />
         </div>

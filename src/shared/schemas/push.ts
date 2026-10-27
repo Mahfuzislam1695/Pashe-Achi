@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-import { LANGS } from '../enums'
+import { DEVICE_PLATFORMS, LANGS } from '../enums'
 
 /**
  * The browsers' push services (Chrome and other Chromium browsers, Firefox, Safari, Edge). The API
@@ -26,17 +26,35 @@ const pushKey = (max: number) => z.string({ error: 'push.endpoint' }).regex(/^[A
 
 /**
  * This browser's push subscription (PUT /notifications/push, PUT /admin/notifications/push), as
- * PushSubscription.toJSON() gives it, plus the language to write in and, for customers, the site
- * version a tap should open (web or app).
+ * PushSubscription.toJSON() gives it, plus the language to write in.
  */
 export const pushSubscriptionSchema = z.object({
   endpoint: pushEndpoint,
   keys: z.object({ p256dh: pushKey(200), auth: pushKey(100) }),
   lang: z.enum(LANGS).default('bn'),
-  mode: z.enum(['web', 'app']).optional(),
 })
 export type PushSubscriptionInput = z.infer<typeof pushSubscriptionSchema>
 
 /** Stop pushing to this browser (DELETE …/push). */
 export const pushRemoveSchema = z.object({ endpoint: z.string().min(1).max(1000) })
 export type PushRemoveInput = z.infer<typeof pushRemoveSchema>
+
+/** A Firebase Cloud Messaging registration token (about 160 characters today; the limit leaves room). */
+const deviceToken = z.string().trim().min(1).max(4096)
+
+/**
+ * This phone's push token from the Kingfisher app (PUT /notifications/device), the language its
+ * notifications are written in, and the app version (for support). The server sends to the token
+ * once FCM is set up in .env; until then it is kept for when it is.
+ */
+export const deviceTokenSchema = z.object({
+  token: deviceToken,
+  platform: z.enum(DEVICE_PLATFORMS),
+  lang: z.enum(LANGS).default('bn'),
+  appVersion: z.string().trim().max(40).optional(),
+})
+export type DeviceTokenInput = z.infer<typeof deviceTokenSchema>
+
+/** Stop pushing to this phone (DELETE /notifications/device, also sent before logging out). */
+export const deviceRemoveSchema = z.object({ token: deviceToken })
+export type DeviceRemoveInput = z.infer<typeof deviceRemoveSchema>

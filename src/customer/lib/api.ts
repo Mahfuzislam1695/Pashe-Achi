@@ -1,8 +1,7 @@
 import { createCustomerApi } from '@/api-client'
 import { API_PREFIX } from '@/shared'
 
-import { APP_BASE } from './constants'
-import { appPaths, webPaths } from './paths'
+import { webPaths } from './paths'
 
 /** The API is served by the same server, on the same port, as these pages. */
 const API_URL = `/${API_PREFIX}`
@@ -19,10 +18,8 @@ export const api = createCustomerApi({
     if (typeof window === 'undefined' || redirecting) return
     redirecting = true
     const { pathname } = window.location
-    // Stay in the version the customer was using: /app/… goes to /app/login, the rest to /login.
-    const login = pathname === APP_BASE || pathname.startsWith(`${APP_BASE}/`) ? appPaths.login : webPaths.login
     void fetch(`${API_URL}/auth/logout`, { method: 'POST', credentials: 'include', headers: { 'content-type': 'application/json' }, body: '{}' })
       .catch(() => undefined)
-      .finally(() => window.location.assign(`${login}?next=${encodeURIComponent(pathname)}`))
+      .finally(() => window.location.assign(`${webPaths.login}?next=${encodeURIComponent(pathname)}`))
   },
 })

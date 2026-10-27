@@ -51,6 +51,7 @@ export const MESSAGES = {
   'quote.fees': { bn: 'মজুরী ও ডেলিভারী খরচ সঠিক অঙ্কে দিন (ঔষুধে মজুরী নেই)।', en: 'Enter valid amounts for the shopping fee and delivery charge (medicine has no shopping fee).' },
   'quote.vehicle': { bn: 'গাড়ী ভাড়া সঠিক অঙ্কে দিন।', en: 'Enter a valid vehicle rent.' },
   'push.endpoint': { bn: 'এই ব্রাউজারে নোটিফিকেশন চালু করা যাচ্ছে না।', en: "Notifications can't be turned on in this browser." },
+  'account.active_orders': { bn: 'চলমান অর্ডার শেষ বা বাতিল হলে তারপর অ্যাকাউন্ট মুছতে পারবেন।', en: 'Finish or cancel your running orders first, then delete your account.' },
   'offer.title': { bn: 'অফারের শিরোনাম দিন।', en: 'Enter a title for the offer.' },
   'offer.dates': { bn: 'শুরু ও শেষের তারিখ দিন; শেষ তারিখ শুরুর আগে হতে পারবে না।', en: 'Give a start and end date; the end cannot be before the start.' },
   'offer.image': { bn: 'শুধু JPG, PNG বা WebP ছবি দিন (৫ MB পর্যন্ত)।', en: 'Only a JPG, PNG or WebP picture (up to 5 MB).' },

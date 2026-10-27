@@ -1,4 +1,4 @@
-import { loadEnv } from './env'
+import { loadEnv, parseServiceAccount } from './env'
 
 const valid = {
   DATABASE_URL: 'postgresql://u:p@localhost:5432/db',
@@ -36,5 +36,19 @@ describe('loadEnv', () => {
     expect(() => loadEnv({ ...valid, ...vapid, VAPID_SUBJECT: '' })).toThrow(/VAPID_SUBJECT: required/)
     expect(() => loadEnv({ ...valid, ...vapid, VAPID_PUBLIC_KEY: 'short' })).toThrow(/VAPID_PUBLIC_KEY/)
     expect(() => loadEnv({ ...valid, ...vapid, NODE_ENV: 'production', VAPID_SUBJECT: 'mailto:admin@example.com' })).toThrow(/VAPID_SUBJECT: still has the example value/)
+  })
+
+  it('takes the Firebase service-account key as JSON or base64 for push to the app', () => {
+    const key = { type: 'service_account', project_id: 'kingfisher-bd', client_email: 'push@kingfisher-bd.iam.gserviceaccount.com', private_key: '-----BEGIN PRIVATE KEY-----\\nMIIE\\n-----END PRIVATE KEY-----\\n' }
+    expect(loadEnv(valid).FCM_SERVICE_ACCOUNT).toBeUndefined()
+    expect(parseServiceAccount(JSON.stringify(key))).toEqual({
+      projectId: 'kingfisher-bd',
+      clientEmail: 'push@kingfisher-bd.iam.gserviceaccount.com',
+      privateKey: '-----BEGIN PRIVATE KEY-----\nMIIE\n-----END PRIVATE KEY-----\n',
+    })
+    expect(parseServiceAccount(Buffer.from(JSON.stringify(key)).toString('base64'))?.projectId).toBe('kingfisher-bd')
+    expect(loadEnv({ ...valid, FCM_SERVICE_ACCOUNT: Buffer.from(JSON.stringify(key)).toString('base64') }).FCM_SERVICE_ACCOUNT).toBeTruthy()
+    expect(() => loadEnv({ ...valid, FCM_SERVICE_ACCOUNT: 'not a key' })).toThrow(/FCM_SERVICE_ACCOUNT: must be the Firebase service-account key/)
+    expect(() => loadEnv({ ...valid, FCM_SERVICE_ACCOUNT: JSON.stringify({ ...key, private_key: 'nope' }) })).toThrow(/FCM_SERVICE_ACCOUNT/)
   })
 })

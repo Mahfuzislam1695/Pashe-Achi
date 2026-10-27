@@ -17,7 +17,7 @@ It is **one project that runs as one server on one port** (3000 by default):
 | `/socket.io/` (namespace `/ws`) | Socket.IO realtime notifications |
 
 - **Wording.** The customer site started as a v0.app prototype drawn from the owner's hand-drawn Bangla sketches. Labels in Bangla mode match the sketch wording exactly, including the English words the sketches use (Loading Area, Total Bill, Total cost, Chat, Call, point).
-- **Mobile app.** A Flutter app comes later and will use the same API. So the API stays REST, versioned and documented, and it accepts `Authorization: Bearer` as well as cookies.
+- **Mobile app.** The Kingfisher app (Flutter, Android and iPhone, id `com.kingfisherbd24.app`) is in `mobile/` and uses the same API, `https://kingfisherbd24.com/api/v1`, with `Authorization: Bearer`. So the API stays REST, versioned and documented, and it accepts Bearer tokens as well as cookies. `mobile/README.md` covers building, the signing key, push, and the Play Store and App Store checklists.
 
 ## One of everything (owner's explicit requirement)
 
@@ -25,6 +25,7 @@ The project has one `package.json`, one `node_modules`, one `.env`, one port, an
 
 - Add dependencies to the root `package.json` at **exact** versions. The package manager is npm; don't add a pnpm or Yarn lockfile.
 - `.env` (gitignored) at the root holds every setting, and `.env.example` is the committed template. `src/server/config/env.ts` validates it at boot and lists every problem at once.
+- `mobile/` is the Flutter app, with its own `pubspec.yaml` (Dart, not npm). It is a separate client of the API, not a JS workspace; nothing in the JS toolchain reads it (Jest ignores it).
 
 ## Commands
 
@@ -40,6 +41,7 @@ npm run db:migrate   # prisma migrate dev (creates a migration); then npm run db
 npm run db:deploy | db:seed | db:seed:demo | db:studio | db:generate
 ```
 
+- **The app.** Its commands (`flutter test`, `flutter build apk --release`) and the portable toolchain in `E:\kingfisher-dev` are in `mobile/README.md`; `.github/workflows/mobile.yml` builds it on GitHub too.
 - **Single test file.** `npx vitest run src/shared/pricing.test.ts`, or `npx jest src/server/auth/cookies.spec.ts`.
 - **Dev vs production.** `npm run dev` runs `nest start --watch -- --dev`. That `--dev` flag, not `NODE_ENV`, puts Next.js in dev mode. `src/server/load-env.ts` then sets `NODE_ENV` to development or production to match, unless the environment already sets it.
 - **e2e database.** `test:e2e` uses `TEST_DATABASE_URL`, or `DATABASE_URL` with `_test` appended. It creates that database (UTF8), migrates it, and truncates it on every run. It runs Jest through `node --experimental-vm-modules`, because the Prisma 7 client loads its query engine with dynamic `import()`. The e2e tests boot the API alone, through `configureApp`, without the pages.
@@ -57,7 +59,8 @@ src/
   shared/      the contract every other folder uses (no framework code)
   api-client/  browser client (fetch + Socket.IO) used by the customer site and the admin panel
   proxy.ts     Next 16's name for middleware
-prisma/  schema, migrations, seed.ts        test/  API e2e tests        public/  icons
+prisma/  schema, migrations, seed.ts        test/  API e2e tests        public/  icons, downloads/kingfisher.apk
+mobile/  the Kingfisher app (Flutter)      .github/workflows/mobile.yml  its cloud build
 ```
 
 - **One port.** `src/server/main.ts` works in this order:
@@ -102,7 +105,7 @@ prisma/  schema, migrations, seed.ts        test/  API e2e tests        public/ 
 
 - **Modules:**
   - `auth` (customer and admin)
-  - `users` (`/me`, `/me/location`, `/admin/customers`)
+  - `users` (`/me`, `/me/location`, `DELETE /me`, `/admin/customers`)
   - `admins` (`/admin/staff`)
   - `catalog` (pricing, vehicles, support line, delivery hours)
   - `uploads`
@@ -125,11 +128,18 @@ prisma/  schema, migrations, seed.ts        test/  API e2e tests        public/ 
   - Customers (`User`) and staff (`Admin`) are separate tables, with separate JWT secrets and separate cookies. Customers get `pa_at` / `pa_rt`; admins get `pa_admin_at` / `pa_admin_rt`. Both live on the one origin with path `/`.
   - Access tokens are 15-minute JWTs.
   - Refresh tokens are random strings stored as SHA-256 hashes. They rotate on every use. A replayed token, outside a 30-second grace window, revokes its whole family (`auth/token.service.ts`).
-  - Customer sessions never expire. Their refresh tokens have a null `expiresAt`, and the `pa_rt` cookie lasts 400 days (the browser maximum) and is renewed on every refresh. They end only on logout, a password change, a block or a replay. Admin sessions end after `REFRESH_TOKEN_TTL_DAYS`.
+  - Customer sessions never expire. Their refresh tokens have a null `expiresAt`, and the `pa_rt` cookie lasts 400 days (the browser maximum) and is renewed on every refresh. They end only on logout, a password change, a block, an account deletion or a replay. Admin sessions end after `REFRESH_TOKEN_TTL_DAYS`.
+  - Sign-up and login use `AuthThrottle` (`AUTH_THROTTLE_LIMIT` per minute and IP). The customer `POST /auth/refresh` uses only the global limit: a refresh token can't be guessed, and phones on mobile data share a few carrier IPs, so a strict limit there would sign app users out.
   - **Customer password switch (owner's rule).** The `Setting` row `auth.customerPassword` (`on`; missing or anything else is off) decides whether customers need a password. Changing it needs `catalog.customer_signin`, which only the Super admin has at first (`PUT /admin/catalog/customer-auth`, the Catalog page's "Customer sign-in" card, history `CUSTOMER_AUTH_UPDATED`). `GET /catalog` carries it as `customerAuth.password`, and the sign-in screens show the password box and Profile's Change password only while it is on.
     - Off (the default): signup takes no password and stores the mobile number as one; login takes the mobile number alone for **every** customer (`auth.no_account` for an unknown number). Anyone who knows a number can open that account, so an SMS code (OTP) is the planned replacement.
     - On: signup and login need the password (`password.required`); accounts opened while it was off log in with their mobile number as the password. Staff login always needs a password.
   - `CustomerGuard` and `AdminGuard` re-read the account (and the admin's role) on every request, so blocking someone, deactivating them or changing their role's permissions takes effect on the next request.
+  - **Deleting an account (`DELETE /me`; a Google Play and App Store rule).** Refused while an order is PENDING, QUOTED, BOOKED or IN_PROGRESS (`account.active_orders`, `ACTIVE_ORDER_STATUSES`). `UsersService.deleteAccount` works in one transaction:
+    - The `User` row stays, emptied, because orders point to it: name `Deleted customer`, mobile `deleted-<id>` (so the number can sign up again), location cleared, an unusable password, `deletedAt` set.
+    - Refresh tokens, push subscriptions, device tokens, notifications and uploads are deleted; the prescription files go after the commit.
+    - The customer's orders keep their number, service, lines, bill and timeline as sales records; their addresses, pins, phone numbers and notes, and the shifting and parcel summaries (which name the addresses), are cleared.
+    - History: `CUSTOMER_DELETED`. The `customerDeleted` event closes the customer's sockets.
+    - Afterwards `CustomerGuard` and the gateway refuse the account (401); the admin customers list, its stats, the dashboard's customer count and `notifyUsers('all')` skip it; `AdminCustomerDto.deleted` shows a badge on the customer page and hides block and points. The app, the website's Profile and `/account-deletion` all offer it.
   - **Roles are data (owner's rule: fully dynamic).** Each admin has one `Role` row (`Admin.roleId`); a role is two names, optional descriptions and a list of `module.action` permissions. The matrix is `PERMISSION_MODULES` in `src/shared/permissions.ts` (dashboard, orders, customers, catalog, offers, notifications, history, staff, roles); any action also grants its module's `view` (`normalizePermissions`). Labels and hints are `PERMISSION_MODULE_LABELS` / `PERMISSION_LABELS` in `labels.ts`.
     - Routes declare what they need with `@Can('orders.send_price')` (on the class, or on a route, which replaces the class's). Where one route covers two permissions the controller or service checks `can()` itself: customer PATCH (`customers.block` for `isBlocked`, `customers.edit_points` for `points`) and staff PATCH (`staff.edit`, `staff.reset_password` for `password`). `AdminPrincipal` carries `role` (`RoleRef`) and `permissions`; `AdminDto` (login, `/me`) carries the same, so the panel checks `can(admin, …)` too.
     - **The system role** (`isSystem`, key `super_admin`, "Super admin") has every permission, including ones added later, and is never edited or deleted (`role.locked`). Roles are managed by staff holding `roles.create`/`roles.edit`/`roles.delete` (the Roles & permissions module, which no preset has: the Super admin ticks it); `GET /admin/roles` is open to any admin for names and pickers. Anyone but the Super admin gives or takes away only permissions they hold (`role.beyond_own`), so nobody grants more than they have, and never changes their own role (`role.own`). A role is deleted only when no admin holds it (`role.in_use`); English names are unique (`role.name_taken`).
@@ -149,20 +159,25 @@ prisma/  schema, migrations, seed.ts        test/  API e2e tests        public/ 
 - **History log (`AuditLog`):**
   - Every change writes one row in the same transaction: `AuditService.record(entry, tx)`. Changes come from orders, bills, catalog, customers, staff, broadcasts, signups, profiles, and admin sign-ins and failed sign-ins.
   - Each row stores who did it, as snapshots: actor name and role, entity label, IP and user agent. It also stores only the changed fields (`diffChanges` in `audit/diff.ts`), plus a note and meta. No-op updates write nothing, and passwords are never stored.
-  - Controllers pass the actor with `@Actor()` (or `clientInfo(request)` before sign-in). Add new actions to the Prisma enum, `AUDIT_ACTIONS`/`AUDIT_ACTIONS_BY_ENTITY` in `enums.ts`, and the labels in `labels.ts`.
+  - Controllers pass the actor with `@Actor()` (or `clientInfo(request)` before sign-in). Add new actions to the Prisma enum, `AUDIT_ACTIONS`/`AUDIT_ACTIONS_BY_ENTITY` in `enums.ts`, the labels in `labels.ts`, and an icon in `ACTION_ICONS` (`src/admin/components/audit-feed.tsx`; the typecheck fails without it).
   - `GET /admin/audit` needs `history.view`; `GET /admin/orders/:id/history` needs `orders.view`. Admin entries snapshot the role name as `actorRole` (`{ bn, en }`); STAFF_* entries record the role by its English name (the old enum values, e.g. `MANAGER`, are named by `LEGACY_ROLE_NAMES`). Role changes are `ROLE_CREATED`/`ROLE_UPDATED`/`ROLE_DELETED` on entity `ROLE`, one `permission.added`/`permission.removed` change per permission.
   - The `audit_log` migration backfills history from `OrderStatusEvent`, users and admins.
 - **Notifications:**
   - `notifications.listener.ts` turns those domain events into stored bilingual `Notification` rows, plus Socket.IO pushes.
   - The gateway is at namespace `/ws`. It authenticates in Socket.IO middleware, and rejected handshakes get `connect_error` "unauthorized". Sockets join the rooms `user:<id>`, `admin:<id>` and `admins`.
   - The wording is in `notification.content.ts` (plain functions, also used by the demo seed). Quote notifications carry the whole bill (`billBreakdown`) and the changed charges (`feeChanges`).
-  - Delivery goes through the `NOTIFICATION_CHANNELS` list in `notifications.module.ts`: `RealtimeChannel` (Socket.IO) and `WebPushChannel`. Add FCM (the Flutter app) or SMS there.
+  - Delivery goes through the `NOTIFICATION_CHANNELS` list in `notifications.module.ts`: `RealtimeChannel` (Socket.IO), `WebPushChannel` and `FcmChannel`. Add SMS there.
+  - **Push to the app (Firebase Cloud Messaging):**
+    - On only when `.env` has `FCM_SERVICE_ACCOUNT` (the Firebase service-account key, as JSON or base64; `parseServiceAccount` in `config/env.ts` checks it at boot).
+    - `DeviceToken` rows (token unique, one customer each, platform, lang, app version): `PUT/DELETE /notifications/device` (`deviceTokenSchema` in `schemas/push.ts`). Tokens are kept while FCM is off, so switching it on reaches phones that already have the app.
+    - `fcm.sender.ts` signs the service-account JWT with `node:crypto` (no Google library), exchanges it for an access token (cached until 5 minutes before it expires) and POSTs FCM HTTP v1. `FCM_SENDER` is that call; the e2e tests replace it with a recorder.
+    - `fcm.channel.ts` sends customer notifications in the background like Web Push: in the phone's language, on Android channel `orders` (ORDER_*, high priority) or `news`, with Web Push's tags (`order-<id>`, `offer-<id>`) and `data` (`notificationId`, `orderId`, `offerId`) for the tap. `UNREGISTERED` (404) deletes the token.
   - **Phone and desktop push (Web Push):**
     - On only when `.env` has `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` and `VAPID_SUBJECT` (generate the keys with `npx web-push generate-vapid-keys`); otherwise `GET …/push` answers `{ publicKey: null }` and the switches are hidden.
     - `PushSubscription` rows, at most one customer and one admin owner per browser endpoint (`@@unique([endpoint, audience])`), so a shared phone follows whoever signs in. Routes: `GET/PUT/DELETE /notifications/push` and `/admin/notifications/push`. Endpoints must be on a known push service (`isPushEndpoint` in `schemas/push.ts`), so the server never posts to an arbitrary address.
-    - `web-push.channel.ts` sends in the background (8 at a time, finished before shutdown), in the language the browser subscribed with, opening the customer's own version (`basePath` `''` or `/app`) or `/admin`. A 404/410 from the push service deletes the row. `PUSH_SENDER` (`push.service.ts`) is the `web-push` call; the e2e tests replace it with a recorder.
+    - `web-push.channel.ts` sends in the background (8 at a time, finished before shutdown), in the language the browser subscribed with, opening the customer site (`basePath` `''`) or `/admin` (the `mobile_app` migration moved the old `/app` rows to `''`). A 404/410 from the push service deletes the row. `PUSH_SENDER` (`push.service.ts`) is the `web-push` call; the e2e tests replace it with a recorder.
     - The browser side: `public/sw.js` (scope `/`, no fetch handler; skips the system notification when a tab of that side is focused, since the toast shows it; a tap focuses or opens the URL), `src/api-client/push.ts` (`enablePush`, `syncPush` on every load and language change, `disablePush`, `forgetPush` before logout), and `PushProvider`/`usePush` in `src/customer/lib/push.tsx` and `src/admin/lib/push.tsx`. Each side remembers its own choice in localStorage (`pa_push`, `pa_admin_push`).
-    - Browsers allow push only on HTTPS (localhost works without it). iPhones and iPads get it only after Add to Home Screen, which `src/app/manifest.ts` (start URL `/app`) and the customer layout's `appleWebApp` make possible.
+    - Browsers allow push only on HTTPS (localhost works without it). iPhones and iPads get it only after Add to Home Screen, which `src/app/manifest.ts` (start URL `/bazar`) and the customer layout's `appleWebApp` make possible.
 - **Prisma 7:**
   - `prisma.config.ts` (root) holds the datasource URL and loads `.env`.
   - The `prisma-client` generator writes to `src/server/generated/prisma`, which is gitignored. It uses `moduleFormat = "cjs"` and `importFileExtension = "js"`.
@@ -188,17 +203,17 @@ prisma/  schema, migrations, seed.ts        test/  API e2e tests        public/ 
   - Unknown URLs get `src/app/global-not-found.tsx` (`experimental.globalNotFound`). The font is defined in `src/app/fonts.ts`.
 - **`src/proxy.ts`.** Redirects based only on whether a session cookie exists. The API does the real auth check.
   - Under `/admin` it checks `pa_admin_rt` and redirects to `/admin/login`.
-  - Everywhere else it checks `pa_rt` and redirects to `/login`, except the public `/` and `/app-download` (`PUBLIC_PATHS`).
+  - Everywhere else it checks `pa_rt` and redirects to `/login`, except the public `/`, `/app-download`, `/privacy` and `/account-deletion` (`PUBLIC_PATHS`).
+  - `next.config.mjs` `redirects()` sends the old phone version's links on before the proxy runs: `/app` → `/bazar`, `/app/…` → `/…` (permanent; `/app-download` is a different path).
 - **Calling the API.** Both front ends call the API on their own origin: the base is `/${API_PREFIX}`, and Socket.IO connects with `io(SOCKET_NAMESPACE)`. There is no API URL setting and no CORS.
 
 ### Customer site (src/customer, src/app/(customer))
 
-- **Two versions, same screens.** The feature screens are shared. Only the shell, the links and the CSS differ.
+- **One site, phone-first.** The desktop layout from 1024px, the phone layout below it. The phone version that lived under `/app` became the Kingfisher app (`mobile/`); its old links redirect to the same pages here.
 
-  | Version | Entry and auth | Signed-in screens | Look |
-  |---|---|---|---|
-  | Web | `/` (landing, `features/landing.tsx`), `/app-download` (the app's links, `features/download.tsx`, with the Chat/Call dock at every width), `/login`, `/signup` | `(web)/…`: `/bazar`, `/shifting`, `/medicine`, `/parcel`, `/orders`, `/orders/[id]`, `/notifications`, `/offers`, `/profile` | Desktop layout from 1024px, phone layout below |
-  | App | `app/(entry)/…`: `/app` (welcome screen), `/app/login`, `/app/signup` | `app/(main)/…`: `/app/bazar` … `/app/profile` | The original phone design at every width |
+  | Public | Signed-in screens (`(web)/…`) |
+  |---|---|
+  | `/` (landing, `features/landing.tsx`), `/app-download` (the app's links, `features/download.tsx`, with the Chat/Call dock at every width), `/privacy` and `/account-deletion` (`features/legal.tsx`: reading pages in the landing's look, contact details from the live Catalog), `/login`, `/signup` | `/bazar`, `/shifting`, `/medicine`, `/parcel`, `/orders`, `/orders/[id]`, `/notifications`, `/offers`, `/profile` |
 
   - **The landing page.** It has a deep indigo hero. Its one bold element is `components/service-switcher.tsx`, an ARIA tablist of the four services. Each tab shows that service's photo, its live Catalog charges and delivery hours, and an order link.
     - The sections after the hero:
@@ -215,20 +230,19 @@ prisma/  schema, migrations, seed.ts        test/  API e2e tests        public/ 
     - Headlines use Anek Bangla (`displayFont` in `src/app/fonts.ts`). Only the landing root carries its variable, passed from `app/(customer)/page.tsx`.
     - Its CSS is the "Landing page" section, with `lp-` classes.
     - Signed-in visitors see "Open app" in place of Sign up / Login.
-  - Each layout renders `<AppShell mode="web|app">`. `AuthScreen` and `AuthShell` take `version`.
-  - Build every customer URL with `usePaths()` from `lib/paths.tsx` (inside a shell) or `webPaths` / `appPaths`, never a string literal. That way a link never leaves its version.
-  - `src/proxy.ts` keeps each version separate:
-    - Signed out: a screen goes to its version's login with `?next=`.
-    - Signed in: a login, signup or `/app` welcome screen goes to `next` or that version's home (`HOME_PATH` `/bazar` or `APP_HOME_PATH` `/app/bazar`).
+  - Build every customer URL with `usePaths()` / `webPaths` from `lib/paths.tsx`, never a string literal.
+  - `src/proxy.ts`: signed out, a screen goes to `/login?next=`; signed in, `/login` or `/signup` goes to `next` or `HOME_PATH` (`/bazar`).
+  - Signup links to `/privacy` ("By signing up you agree to our Privacy Policy"); the landing footer and the download page link to both public pages.
 - **Shell.** `components/app-shell.tsx` (sidebar or drawer, top bar with bell, bottom nav, Chat/Call dock) renders only after the customer and catalog queries load. Below it, screens call `useSession()`.
-- **Locations and map.** `components/address-field.tsx` is the address box of signup and every order form: a read-only card (nothing is typed into it, and no chips below it) that opens the map sheet when tapped. Bazar, medicine, the shifting loading area and the parcel pickup start from the customer's location. An empty box opens the sheet at the device's position (`locate` defaults to `!initial`): a drag before the position arrives wins, and a rough position (over 100 m, typical of laptops) asks the customer to check the pin. `components/location-sheet.tsx` is the map sheet (a portal, full height in the phone column, a dialog on the web from 1024px): the address comes from the map, and the customer adds only an optional house/flat/road. Signup, the forms and Profile's আমার লোকেশন all use it; `AuthShell` provides `ModeProvider` so it keeps each version's look. The Leaflet map (`components/map-picker.tsx`, OpenStreetMap tiles, a fixed centre pin) needs the browser, so it loads through `next/dynamic` with `ssr: false`. `navigator.geolocation` works only on HTTPS or localhost.
+- **Locations and map.** `components/address-field.tsx` is the address box of signup and every order form: a read-only card (nothing is typed into it, and no chips below it) that opens the map sheet when tapped. Bazar, medicine, the shifting loading area and the parcel pickup start from the customer's location. An empty box opens the sheet at the device's position (`locate` defaults to `!initial`): a drag before the position arrives wins, and a rough position (over 100 m, typical of laptops) asks the customer to check the pin. `components/location-sheet.tsx` is the map sheet (a portal, full height in the phone column, a dialog on the web from 1024px): the address comes from the map, and the customer adds only an optional house/flat/road. Signup, the forms and Profile's আমার লোকেশন all use it. The Leaflet map (`components/map-picker.tsx`, OpenStreetMap tiles, a fixed centre pin) needs the browser, so it loads through `next/dynamic` with `ssr: false`. `navigator.geolocation` works only on HTTPS or localhost.
 - **Prices and quotes.** Bazar and medicine forms have no price column: their bill shows the Catalog fees plus "we will send the price" (`QuoteNotice`, which says the charges may change with the distance) and the button sends the order. The shifting form shows each vehicle's rate as "… টাকা থেকে", and its bill is labour and floors plus "গাড়ী ভাড়া: দূরত্ব দেখে জানানো হবে". On the order page a QUOTED order shows a price card with the whole bill, Confirm (sending the `quoteVersion` and total it shows) and Cancel; a price that arrives while the page is open is flagged. While a price is coming, `components/push-prompt.tsx` offers phone notifications; the Notifications screen has the on/off switch. `features/offers.tsx` is আজকের অফার (also used by the landing page), linked from the sidebar with a count of running offers.
 - **Photos and banners** (`components/banner.tsx`).
   - `Photo` is an `<img>` with the srcSet from `photo()`.
   - `ServiceBanner` (photo, name, blurb, charge) tops the shifting, medicine and parcel forms, passed as `ServiceCard`'s `banner`.
   - `PromoSlider` is the home screen's banner on the bazar form: running offers, then the four services. It uses scroll-snap, dots and arrows, and auto-advances except on hover, on focus, in a hidden tab or under reduced motion.
-  - `useServiceBlurbs` and `useServiceCharges` are shared with the landing page, which also uses the photos in its switcher, services bento and closing band. The web login/signup panels and the `/app` welcome screen use the Old Dhaka photo.
-- **Drafts.** Form input survives switching services because `lib/drafts.tsx`'s `useDraft` stores it in the version's layout, which stays mounted.
+  - `useServiceBlurbs` and `useServiceCharges` are shared with the landing page, which also uses the photos in its switcher, services bento and closing band. The login/signup panels use the Old Dhaka photo.
+- **Drafts.** Form input survives switching services because `lib/drafts.tsx`'s `useDraft` stores it in the signed-in layout, which stays mounted.
+- **Deleting an account.** Profile's last section says what goes and what stays, asks for the mobile number to confirm, calls `DELETE /me` (after `forgetCustomerPush`) and returns to `/`.
 - **Screens and data.**
   - Screens live in `features/*.tsx`; the pieces they share live in `components/ui.tsx`, `line-table.tsx` and `delivery-schedule.tsx`.
   - Data goes through TanStack Query (`lib/queries.ts`) and `lib/api.ts`. That client comes from `src/api-client`: fetch with credentials, plus one automatic refresh and retry on 401.
@@ -242,11 +256,11 @@ prisma/  schema, migrations, seed.ts        test/  API e2e tests        public/ 
   - Screens use the hand-written classes in `globals.css` (`.page-card`, `.field`, `.line-table`, `.bill` and so on), not Tailwind utilities.
   - The file is minified old v0 CSS, then "Screens from the paper sketches", then "Live data screens (API)", then "Landing page", then "Kingfisher theme", then "Photos and banners", then "Web version". Later rules win.
   - Colours are tokens on `:root` (the Kingfisher palette from the logo): `--blue` is the primary `#1265d8`, `--navy` (indigo, the logo's head) the headings, `--ink` the text, and `--green` success. The logo's other colours are `--teal`, `--sky`, `--sun`, `--orange` and `--coral`, plus `--brand-gradient` and `--warm-gradient`. Teal is too light for text on white, so text uses `--teal-ink`. Use tokens (or `color-mix` on them), never raw hex.
-  - The "Kingfisher theme" section sets colours, type and shape for both versions. Service tints come from `.svc-bazar` / `.svc-shifting` / `.svc-medicine` / `.svc-parcel` (or `.tone-*`), which set `--svc`, `--svc-soft` and `--svc-ink`.
+  - The "Kingfisher theme" section sets colours, type and shape for the whole site. Service tints come from `.svc-bazar` / `.svc-shifting` / `.svc-medicine` / `.svc-parcel` (or `.tone-*`), which set `--svc`, `--svc-soft` and `--svc-ink`.
   - Bangla needs `letter-spacing: 0` (via `html[lang='bn']`) to keep the headstroke (মাত্রা).
-  - Everything before the "Web version" section is the app version's look: a 430px phone column at every width. Leave it alone.
+  - Everything before the "Web version" section is the phone design (a 430px column; it was also the old `/app` version's look at every width). The web shells start from it. Leave it alone.
   - Every web-only rule is scoped to `.mode-web`, the class on the web shells. Add new web styles there.
-    - Phones (≤800px) get the same layout as the app.
+    - Phones (≤800px) get the phone design as it is.
     - Tablets (801–1023px) get a wider centred column.
     - The web (≥1024px) gets a fixed sidebar, a titled top bar, two-column screens and the split login.
   - Service forms pass their bill and Confirm as `ServiceCard`'s `summary`, which becomes a sticky column only on the web.

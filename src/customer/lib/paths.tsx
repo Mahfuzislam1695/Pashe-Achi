@@ -1,46 +1,33 @@
-'use client'
-
 import type { ServiceId } from '@/shared'
-import { createContext, useContext } from 'react'
 
-import { APP_BASE, DOWNLOAD_PATH } from './constants'
+import { ACCOUNT_DELETION_PATH, DOWNLOAD_PATH, PRIVACY_PATH } from './constants'
 
 /**
- * The customer site has two versions with the same screens:
- * - web: /, /login, /bazar, /orders/… (wide layout on a desktop, phone layout below 1024px)
- * - app: /app, /app/login, /app/bazar, /app/orders/… (the phone design at every width)
- * Screens build links with usePaths(), so a link never leaves the version it was clicked in.
+ * Every customer URL: /, /login, /bazar, /orders/… (the wide layout on a desktop, the phone layout
+ * below 1024px). The phone version that lived under /app is now the Kingfisher app (mobile/); its
+ * old links redirect here (next.config.mjs). Build links from these, never from string literals.
  */
-export type Mode = 'web' | 'app'
-
-const makePaths = (base: string) => ({
-  /** The version's front door: the landing page (web) or the welcome screen (app). */
-  entry: base || '/',
-  login: `${base}/login`,
-  signup: `${base}/signup`,
-  home: `${base}/bazar`,
-  service: (id: ServiceId) => `${base}/${id}`,
-  orders: `${base}/orders`,
-  order: (id: string) => `${base}/orders/${encodeURIComponent(id)}`,
-  notifications: `${base}/notifications`,
+export const webPaths = {
+  /** The landing page. */
+  entry: '/',
+  login: '/login',
+  signup: '/signup',
+  home: '/bazar',
+  service: (id: ServiceId) => `/${id}`,
+  orders: '/orders',
+  order: (id: string) => `/orders/${encodeURIComponent(id)}`,
+  notifications: '/notifications',
   /** আজকের অফার */
-  offers: `${base}/offers`,
-  profile: `${base}/profile`,
-  /** The app download page: public, and the same page for both versions. */
+  offers: '/offers',
+  profile: '/profile',
+  /** The app download page (public). */
   download: DOWNLOAD_PATH,
-})
-
-export type Paths = ReturnType<typeof makePaths>
-
-export const webPaths = makePaths('')
-export const appPaths = makePaths(APP_BASE)
-export const pathsFor = (mode: Mode): Paths => (mode === 'app' ? appPaths : webPaths)
-
-const ModeContext = createContext<Mode>('web')
-
-export function ModeProvider({ mode, children }: { mode: Mode; children: React.ReactNode }) {
-  return <ModeContext.Provider value={mode}>{children}</ModeContext.Provider>
+  /** The privacy policy and the account-deletion page (both public). */
+  privacy: PRIVACY_PATH,
+  accountDeletion: ACCOUNT_DELETION_PATH,
 }
 
-export const useMode = () => useContext(ModeContext)
-export const usePaths = () => pathsFor(useMode())
+export type Paths = typeof webPaths
+
+/** The customer paths, for screens (kept as a hook so the screens read the same as before). */
+export const usePaths = (): Paths => webPaths

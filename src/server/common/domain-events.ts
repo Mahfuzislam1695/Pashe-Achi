@@ -11,6 +11,7 @@ export const DOMAIN_EVENTS = {
   orderStatusChanged: 'order.status_changed',
   orderQuoted: 'order.quoted',
   customerBlocked: 'customer.blocked',
+  customerDeleted: 'customer.deleted',
 } as const
 
 export interface OrderCreatedEvent {
@@ -41,6 +42,7 @@ export interface OrderQuotedEvent {
   note: string | null
 }
 
+/** customerBlocked and customerDeleted: the customer's open sockets are closed. */
 export interface CustomerBlockedEvent {
   userId: string
 }

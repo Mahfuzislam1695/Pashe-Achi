@@ -29,42 +29,32 @@ import { BillPreviewCard, OrderTrackerCard, SplitHeadline } from '@/customer/com
 import { ContactDock, Field, FormError, LangToggle, Logo } from '@/customer/components/ui'
 import { api } from '@/customer/lib/api'
 import { useLang } from '@/customer/lib/i18n'
-import { appPaths, type Mode, ModeProvider, type Paths, pathsFor } from '@/customer/lib/paths'
+import { webPaths as paths } from '@/customer/lib/paths'
 import { errorCode, queryKeys, useCatalog } from '@/customer/lib/queries'
 import { SERVICE_ICONS } from './orders'
 
-/**
- * The signed-out frame. The app version (/app, /app/login, /app/signup) keeps the phone design at
- * every width; the web version (/login, /signup) puts a brand panel beside the form on a wide screen.
- */
-function AuthShell({ version, children }: { version: Mode; children: React.ReactNode }) {
+/** The signed-out frame (/login, /signup): a brand panel beside the form on a wide screen, a header band above it on a phone. */
+function AuthShell({ children }: { children: React.ReactNode }) {
   return (
-    <ModeProvider mode={version}>
-      <main className={`auth-shell mode-${version}`}>
-        {version === 'web' && <BrandPanel />}
-        <section className="auth-panel">
-          {version === 'web' && <AuthHero />}
-          <div className="auth-form">
-            <div className="mobile-auth-logo">
-              <Logo />
-            </div>
-            {children}
-          </div>
-        </section>
-        <ContactDock />
-      </main>
-    </ModeProvider>
+    <main className="auth-shell mode-web">
+      <BrandPanel />
+      <section className="auth-panel">
+        <AuthHero />
+        <div className="auth-form">{children}</div>
+      </section>
+      <ContactDock />
+    </main>
   )
 }
 
-/** The web version's brand panel beside the form on a wide screen. */
+/** The brand panel beside the form on a wide screen. */
 function BrandPanel() {
   const { t, lang, text } = useLang()
   const support = useCatalog().data?.support
   return (
     <aside className="auth-visual">
       <Photo name="welcome" className="auth-visual-photo" sizes="55vw" priority />
-      <Link href={pathsFor('web').entry} className="auth-visual-brand">
+      <Link href={paths.entry} className="auth-visual-brand">
         <Logo />
       </Link>
       <div className="auth-message">
@@ -103,13 +93,13 @@ function BrandPanel() {
   )
 }
 
-/** The web version's header band on phones and tablets, where the brand panel is hidden. */
+/** The header band on phones and tablets, where the brand panel is hidden. */
 function AuthHero() {
   const { lang, text } = useLang()
   return (
     <div className="auth-hero">
       <Photo name="welcome" className="auth-hero-photo" sizes="100vw" />
-      <Link href={pathsFor('web').entry} className="auth-hero-brand">
+      <Link href={paths.entry} className="auth-hero-brand">
         <img src={APP_LOGO_LARGE} alt="" />
         <span>
           <strong>{APP_NAME[lang]}</strong>
@@ -130,58 +120,14 @@ function AuthHero() {
   )
 }
 
-/** The app version's entry screen (/app): language, sign up and login in one row, then the four services. */
-export function WelcomeScreen() {
-  const { t, lang, setLang, text } = useLang()
-  return (
-    <AuthShell version="app">
-      <div className="welcome">
-        <div className="welcome-banner">
-          <Photo name="welcome" sizes="430px" alt={t('পুরান ঢাকায় ফলের দোকান', 'Fruit stalls in Old Dhaka')} priority />
-          <img className="welcome-logo" src={APP_LOGO_LARGE} alt={APP_NAME[lang]} />
-        </div>
-        <p className="eyebrow">{APP_WELCOME[lang]}</p>
-        <h2>{APP_TAGLINE[lang]}</h2>
-        <p className="auth-subtitle">{t('কাঁচা বাজার, বাসা বদল, জরুরী ঔষুধ ও পণ্য আদান প্রদান।', 'Fresh market, house shifting, emergency medicine and parcel delivery.')}</p>
-        <div className="welcome-actions">
-          <LangToggle lang={lang} onChange={setLang} />
-          <Link className="primary-button" href={appPaths.signup}>
-            <UserPlus size={16} />
-            {t('সাইন আপ', 'Sign up')}
-          </Link>
-          <Link className="secondary-button" href={appPaths.login}>
-            <LogIn size={16} />
-            {t('লগইন', 'Login')}
-          </Link>
-        </div>
-        <div className="welcome-services">
-          {SERVICE_IDS.map(service => {
-            const Icon = SERVICE_ICONS[service]
-            return (
-              <div key={service} className={`svc-${service}`}>
-                <Icon size={20} />
-                <span>{text(SERVICE_LABELS[service])}</span>
-              </div>
-            )
-          })}
-        </div>
-        <div className="auth-credit">
-          <DeveloperCredit />
-        </div>
-      </div>
-    </AuthShell>
-  )
-}
-
-/** Only same-site paths are allowed as a post-login destination; otherwise the version's home screen. */
-const safeNext = (paths: Paths) => {
+/** Only same-site paths are allowed as a post-login destination; otherwise the home screen. */
+const safeNext = () => {
   const next = new URLSearchParams(window.location.search).get('next')
   return next && next.startsWith('/') && !next.startsWith('//') && next !== paths.login && next !== paths.signup ? next : paths.home
 }
 
-export function AuthScreen({ mode, version }: { mode: 'login' | 'signup'; version: Mode }) {
+export function AuthScreen({ mode }: { mode: 'login' | 'signup' }) {
   const { t, lang, setLang } = useLang()
-  const paths = pathsFor(version)
   const router = useRouter()
   const queryClient = useQueryClient()
   const isSignup = mode === 'signup'
@@ -210,7 +156,7 @@ export function AuthScreen({ mode, version }: { mode: 'login' | 'signup'; versio
     },
     onSuccess: result => {
       queryClient.setQueryData(queryKeys.me, result.user)
-      router.replace(safeNext(paths))
+      router.replace(safeNext())
     },
     onError: failure => setError(typeof failure === 'string' ? (failure as MessageCode) : errorCode(failure, priority)),
   })
@@ -224,7 +170,7 @@ export function AuthScreen({ mode, version }: { mode: 'login' | 'signup'; versio
   })
 
   return (
-    <AuthShell version={version}>
+    <AuthShell>
       <form
         noValidate
         onSubmit={event => {
@@ -239,7 +185,7 @@ export function AuthScreen({ mode, version }: { mode: 'login' | 'signup'; versio
           </Link>
           <LangToggle compact lang={lang} onChange={setLang} />
         </div>
-        {version === 'web' && <img className="auth-form-mark" src={APP_LOGO} alt="" />}
+        <img className="auth-form-mark" src={APP_LOGO} alt="" />
         <h2>{isSignup ? t('সাইন আপ', 'Sign up') : t('লগইন', 'Login')}</h2>
         <p className="auth-subtitle">
           {isSignup ? t('নতুন অ্যাকাউন্ট খুলুন, সব সেবা এক জায়গায় পান।', 'Create an account to use every service.') : t('আপনার মোবাইল নম্বর দিয়ে লগইন করুন।', 'Log in with your mobile number.')}
@@ -311,19 +257,28 @@ export function AuthScreen({ mode, version }: { mode: 'login' | 'signup'; versio
           {isSignup ? <UserPlus size={17} /> : <LogIn size={17} />}
           {isSignup ? t('সাইন আপ', 'Sign up') : t('লগইন', 'Login')}
         </button>
+        {isSignup && (
+          <p className="auth-consent">
+            {t('সাইন আপ করে আপনি আমাদের ', 'By signing up you agree to our ')}
+            <Link className="link-button" href={paths.privacy}>
+              {t('প্রাইভেসি পলিসি', 'Privacy Policy')}
+            </Link>
+            {t(' মেনে নিচ্ছেন।', '.')}
+          </p>
+        )}
         <p className="switch-auth">
           {isSignup ? t('আগে থেকেই অ্যাকাউন্ট আছে?', 'Already have an account?') : t('নতুন গ্রাহক?', `New to ${APP_NAME.en}?`)}{' '}
           <Link className="link-button" href={isSignup ? paths.login : paths.signup}>
             {isSignup ? t('লগইন', 'Login') : t('সাইন আপ', 'Sign up')}
           </Link>
         </p>
-        {version === 'web' && support && (
+        {support && (
           <p className="auth-help">
             <Headset size={15} />
             {isSignup ? t('সাহায্য দরকার?', 'Need help?') : t('লগইনে সমস্যা?', 'Trouble logging in?')} <a href={`tel:${support.phone}`}>{t(`কল করুন ${support.phone}`, `Call ${support.phone}`)}</a>
           </p>
         )}
-        {/* The web brand panel carries the credit from 1024px, so this one shows only below it (and always in the app). */}
+        {/* The brand panel carries the credit from 1024px, so this one shows only below it. */}
         <div className="auth-credit">
           <DeveloperCredit />
         </div>

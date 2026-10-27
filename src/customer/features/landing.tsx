@@ -11,7 +11,7 @@ import { ServiceSwitcher } from '@/customer/components/service-switcher'
 import { QuotePreviewCard } from '@/customer/components/showcase'
 import { ContactDock, LangToggle, Logo } from '@/customer/components/ui'
 import { useLang } from '@/customer/lib/i18n'
-import { appPaths, webPaths as paths } from '@/customer/lib/paths'
+import { webPaths as paths } from '@/customer/lib/paths'
 import { useCatalog, useOffers } from '@/customer/lib/queries'
 import { OfferCard } from './offers'
 import { SERVICE_ICONS } from './orders'
@@ -280,6 +280,8 @@ export function LandingScreen({ signedIn, fontClass = '' }: { signedIn: boolean;
             <Link href={paths.download}>{sectionLabel.app}</Link>
             <a href="#pricing">{sectionLabel.pricing}</a>
             <a href="#faq">{sectionLabel.faq}</a>
+            <Link href={paths.privacy}>{t('প্রাইভেসি পলিসি', 'Privacy policy')}</Link>
+            <Link href={paths.accountDeletion}>{t('অ্যাকাউন্ট মুছে ফেলা', 'Delete your account')}</Link>
           </nav>
           <div>
             <strong>{t('ভাষা', 'Language')}</strong>
@@ -456,7 +458,7 @@ function Steps() {
   )
 }
 
-/** The app version: a real screenshot of it, what it does on a phone, the way in, and the download page. */
+/** The Kingfisher app (mobile/): a screenshot of its home screen, what it does, and the download page. */
 function AppSection() {
   const { t, lang } = useLang()
   const android = APP_DOWNLOADS.playStore || APP_DOWNLOADS.apk
@@ -470,11 +472,11 @@ function AppSection() {
         </div>
         <div>
           <SectionHead
-            title={t('ফোনে চলে অ্যাপের মতো', 'Works like an app on your phone')}
+            title={t('ফোনে কিংফিশার অ্যাপ', 'Kingfisher on your phone')}
             subtitle={
               android
-                ? t('ফোনের ব্রাউজারে খুলে হোম স্ক্রিনে রেখে দিন, অথবা Android অ্যাপ ডাউনলোড করুন।', 'Open it in your phone’s browser and keep it on your home screen, or download the Android app.')
-                : t('এখনই ফোনের ব্রাউজারে খুলে হোম স্ক্রিনে রেখে দিন। Android অ্যাপও আসছে।', 'Open it in your phone’s browser and keep it on your home screen today. An Android app is on the way.')
+                ? t('Android অ্যাপ ডাউনলোড করুন; দাম এলেই ফোনে নোটিফিকেশন পাবেন। ওয়েবসাইটও ফোনের ব্রাউজারে চলে।', 'Download the Android app and get a notification the moment your price arrives. The website works in your phone’s browser too.')
+                : t('Android অ্যাপ আসছে। ততক্ষণ ফোনের ব্রাউজারে ওয়েবসাইটটি ব্যবহার করুন।', 'The Android app is on the way. Until then, use the website in your phone’s browser.')
             }
           />
           <ul className="lp-app-points">
@@ -485,8 +487,8 @@ function AppSection() {
             </li>
             <li>
               <Smartphone size={22} />
-              <strong>{t('হোম স্ক্রিনে যোগ করুন', 'Add it to your home screen')}</strong>
-              <span>{t('iPhone-এ Share থেকে “Add to Home Screen”, Android-এ ব্রাউজারের মেনু থেকে।', 'On an iPhone use Share, then “Add to Home Screen”; on Android, the browser menu.')}</span>
+              <strong>{t('ম্যাপে ঠিকানা, এক ট্যাপে কল', 'Map addresses, one-tap call')}</strong>
+              <span>{t('ঠিকানা ম্যাপ থেকে বসান, আর Chat বা Call চাপলেই আমাদের পাবেন।', 'Pick every address on the map, and reach us with Chat or Call.')}</span>
             </li>
             <li>
               <Languages size={22} />
@@ -495,13 +497,13 @@ function AppSection() {
             </li>
           </ul>
           <div className="lp-app-actions">
-            <Link className="lp-btn lp-btn-sun" href={appPaths.entry}>
-              <Smartphone size={18} />
-              {t('অ্যাপ ভার্সন খুলুন', 'Open the app version')}
-            </Link>
-            <Link className="lp-btn lp-btn-ghost" href={paths.download}>
+            <Link className="lp-btn lp-btn-sun" href={paths.download}>
               <Download size={18} />
               {t('অ্যাপ ডাউনলোড', 'Get the app')}
+            </Link>
+            <Link className="lp-btn lp-btn-ghost" href={paths.home}>
+              <Smartphone size={18} />
+              {t('ব্রাউজারে ব্যবহার করুন', 'Use it in the browser')}
             </Link>
           </div>
         </div>

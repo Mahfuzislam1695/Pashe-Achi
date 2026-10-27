@@ -26,8 +26,6 @@ export interface PushOptions {
   /** localStorage key that remembers this side's choice ("on" / "off"). */
   choiceKey: string
   lang: Lang
-  /** Customers: the site version a tap opens. */
-  mode?: 'web' | 'app'
 }
 
 const WORKER = '/sw.js'
@@ -101,7 +99,6 @@ function toInput(subscription: PushSubscription, options: PushOptions): PushSubs
     endpoint: subscription.endpoint,
     keys: { p256dh: json.keys?.p256dh ?? '', auth: json.keys?.auth ?? '' },
     lang: options.lang,
-    ...(options.mode ? { mode: options.mode } : {}),
   }
 }
 

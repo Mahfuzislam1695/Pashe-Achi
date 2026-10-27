@@ -47,9 +47,10 @@ export class CustomerAuthController {
     return result
   }
 
+  // The global limit only, not AuthThrottle: a refresh token is 48 random bytes, so there is nothing to
+  // guess, and phones on mobile data share a few carrier IPs; a stricter limit would sign app users out.
   @Post('refresh')
   @HttpCode(200)
-  @AuthThrottle()
   @ApiOperation({ summary: 'Exchange a refresh token (cookie or body) for a new token pair' })
   async refresh(@Body() body: RefreshDto, @Req() request: Request, @Res({ passthrough: true }) response: Response): Promise<AuthResponse<CustomerDto>> {
     try {

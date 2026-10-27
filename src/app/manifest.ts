@@ -2,8 +2,9 @@ import { APP_LOGO_HERO, APP_NAME, APP_TAGLINE } from '@/shared'
 import type { MetadataRoute } from 'next'
 
 /**
- * The web app manifest (/manifest.webmanifest). "Add to Home Screen" opens the app version, and on
- * an iPhone or iPad push notifications work only once the site is added this way.
+ * The web app manifest (/manifest.webmanifest). "Add to Home Screen" opens the fresh market screen,
+ * and on an iPhone or iPad push notifications work only once the site is added this way. (Shortcuts
+ * added when the start page was /app still work: next.config.mjs redirects /app to /bazar.)
  */
 export default function manifest(): MetadataRoute.Manifest {
   return {
@@ -11,7 +12,7 @@ export default function manifest(): MetadataRoute.Manifest {
     short_name: APP_NAME.bn,
     description: APP_TAGLINE.bn,
     lang: 'bn',
-    start_url: '/app',
+    start_url: '/bazar',
     scope: '/',
     display: 'standalone',
     background_color: '#ffffff',

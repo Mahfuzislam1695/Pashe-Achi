@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common'
-import type { PushKeyDto, PushSubscriptionInput } from '@/shared'
+import type { DeviceTokenInput, PushKeyDto, PushSubscriptionInput } from '@/shared'
 import { sendNotification } from 'web-push'
 
 import { AppException } from '../common/app.exception'
@@ -31,12 +31,10 @@ export function createPushSender(env: Env): PushSender | null {
   return (target, payload, options) => sendNotification(target, payload, { ...options, vapidDetails })
 }
 
-/** Customer sites a tap can open (the web version, or the app version under /app). The admin panel is /admin. */
-const CUSTOMER_BASE = { web: '', app: '/app' } as const
-
 /**
- * The browsers that get phone or desktop notifications (Web Push). A browser has at most one
- * customer and one admin owner, so whoever signs in on a shared phone gets its notifications.
+ * The browsers that get phone or desktop notifications (Web Push), and the phones running the
+ * Kingfisher app (Firebase Cloud Messaging). A browser has at most one customer and one admin owner,
+ * and a phone one customer, so whoever signs in on a shared phone gets its notifications.
  */
 @Injectable()
 export class PushService {
@@ -58,7 +56,7 @@ export class PushService {
       p256dh: input.keys.p256dh,
       auth: input.keys.auth,
       ...(isCustomer ? { userId: owner.userId, adminId: null } : { adminId: owner.adminId, userId: null }),
-      basePath: isCustomer ? CUSTOMER_BASE[input.mode ?? 'web'] : '/admin',
+      basePath: isCustomer ? '' : '/admin',
       lang: input.lang,
       userAgent: userAgent?.slice(0, 300) ?? null,
     }
@@ -72,5 +70,18 @@ export class PushService {
   /** Only the signed-in owner's row goes; the same browser may also be subscribed for the admin panel. */
   async unsubscribe(owner: Recipient, endpoint: string) {
     await this.prisma.pushSubscription.deleteMany({ where: { endpoint, ...owner } })
+  }
+
+  /**
+   * A phone's FCM token from the app. Kept even while FCM is off in .env, so phones get push as soon
+   * as it is switched on; the app sends it again after every sign-in, token change and language change.
+   */
+  async registerDevice(userId: string, input: DeviceTokenInput) {
+    const fields = { userId, platform: input.platform === 'ios' ? ('IOS' as const) : ('ANDROID' as const), lang: input.lang, appVersion: input.appVersion ?? null }
+    await this.prisma.deviceToken.upsert({ where: { token: input.token }, create: { token: input.token, ...fields }, update: fields })
+  }
+
+  async removeDevice(userId: string, token: string) {
+    await this.prisma.deviceToken.deleteMany({ where: { token, userId } })
   }
 }

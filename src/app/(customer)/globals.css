@@ -51,11 +51,7 @@ button { cursor: pointer; }
   .menu-trigger, .mobile-logo { display: grid; }
   .secure-label { display: none; }
   .page-body { padding: 32px 20px 96px; }
-  .welcome-row { align-items: flex-start; flex-direction: column; }
   .date-chip { align-self: stretch; justify-content: center; }
-  .mobile-tabs { display: flex; gap: 6px; margin-bottom: 16px; overflow-x: auto; }
-  .mobile-tabs button { display: flex; align-items: center; gap: 6px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 9px; background: #fff; color: var(--muted-2); white-space: nowrap; font-size: 10px; }
-  .mobile-tabs button.active { border-color: var(--blue-line); background: var(--blue-soft); color: var(--blue); font-weight: 700; }
   .page-card { padding: 17px; }
   .form-grid, .labour-grid, .office-actions { grid-template-columns: 1fr; }
   .medicine-search { flex-direction: column; }
@@ -66,7 +62,6 @@ button { cursor: pointer; }
   .auth-shell { display: block; background: #fff; }
   .auth-visual { display: none; }
   .auth-panel { min-height: 100vh; padding: 28px 22px; place-items: start center; }
-  .mobile-auth-logo { display: block; margin-bottom: 54px; }
   .auth-form { width: 100%; }
 }
 
@@ -77,8 +72,6 @@ button { cursor: pointer; }
 .file-picker { position: relative; display: inline-flex; overflow: hidden; }.file-picker input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
 .profile-card { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-2); }.profile-avatar { width: 45px; height: 45px; display: grid; place-items: center; border-radius: 50%; background: var(--blue-soft); color: var(--blue); font-size: 18px; font-weight: 800; }.profile-card h3 { margin: 0; font-size: 14px; }.profile-card p { margin: 4px 0 0; color: var(--muted-2); font-size: 10px; }.profile-card .icon-button { margin-left: auto; color: var(--blue); }.profile-fields { display: grid; gap: 14px; margin-bottom: 16px; }
 .order-list { display: grid; gap: 10px; }.order-card { display: flex; align-items: flex-start; gap: 10px; padding: 13px 11px; border: 1px solid var(--line); border-radius: 11px; background: #fff; }.order-icon { display: grid; place-items: center; width: 32px; height: 32px; flex: 0 0 32px; border-radius: 9px; background: var(--blue-soft); color: var(--blue); }.order-info { min-width: 0; flex: 1; }.order-info > div { display: flex; justify-content: space-between; gap: 8px; }.order-info strong { font-size: 11px; }.order-info span { color: var(--muted-2); font-size: 9px; }.order-info p { margin: 5px 0 4px; color: var(--muted); font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }.order-info small { color: var(--muted-2); font-size: 9px; }.order-total { display: grid; justify-items: end; gap: 7px; }.order-total strong { color: var(--ink); font-size: 11px; }.status-pill { padding: 4px 7px; border-radius: 99px; background: var(--green-soft); color: var(--green-ink); font-size: 8px; }
-/* Keep the focused phone workflow free of the old welcome banner. */
-.welcome-row, .mobile-tabs { display: none; }
 .invoice-upload { margin-bottom: 16px; }
 .invoice-upload input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
 .invoice-upload label { display: flex; align-items: center; gap: 11px; padding: 12px 14px; border: 1px dashed var(--blue-line); border-radius: 12px; background: var(--surface-2); color: var(--blue); cursor: pointer; }
@@ -115,20 +108,12 @@ img.brand-mark { border-radius: 50%; background: #fff; object-fit: cover; box-sh
 
 /* Entry screen: language, sign up and login in one row */
 .auth-panel { padding-bottom: 96px; }
-.welcome-logo { display: block; width: 112px; height: 112px; margin: 0 auto 22px; border-radius: 50%; object-fit: cover; box-shadow: 0 10px 24px #10213a1f; }
-.welcome h2 { margin: 0; font-size: 26px; line-height: 1.3; letter-spacing: 0; text-wrap: balance; }
-.welcome-actions { display: grid; grid-template-columns: auto 1fr 1fr; gap: 8px; align-items: center; margin-top: 26px; }
-.welcome-actions .primary-button, .welcome-actions .secondary-button { min-height: 42px; padding: 0 10px; font-size: 12px; }
-.welcome-services { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 30px; }
-.welcome-services div { display: grid; justify-items: center; gap: 7px; padding: 12px 4px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-2); color: var(--blue); text-align: center; }
-.welcome-services span { color: var(--ink-2); font-size: 10px; font-weight: 600; line-height: 1.25; }
 .auth-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 22px; }
 .back { display: inline-flex; align-items: center; gap: 5px; padding: 0; }
 .auth-form .field { margin-bottom: 16px; }
 .auth-form h2 { line-height: 1.3; }
 /* Letter-spacing breaks the Bangla headstroke (মাত্রা), so Bangla text keeps normal spacing. */
 html[lang='bn'] .eyebrow, html[lang='bn'] .nav-label, html[lang='bn'] .auth-form h2, html[lang='bn'] .brand strong { letter-spacing: 0; }
-@media (max-width: 360px) { .welcome-actions { grid-template-columns: 1fr 1fr; } .welcome-actions .lang-toggle { grid-column: 1 / -1; justify-self: center; } }
 
 /* Chat and Call: bottom centre on every screen */
 .contact-dock { position: fixed; left: 50%; bottom: 20px; z-index: 9; display: flex; gap: 10px; transform: translateX(-50%); }
@@ -601,6 +586,31 @@ html[lang='bn'] .lp-steps li::before { content: counter(step, bengali); }
   .lp-dl-grid { grid-template-columns: minmax(0, 1.15fr) minmax(0, .85fr); }
 }
 
+/* Privacy policy and account deletion (/privacy, /account-deletion; features/legal.tsx): public reading
+   pages with the landing's header and footer around one light card, linked from the landing footer,
+   signup, the download page, Profile and the app. */
+.lp-legal-page { background: var(--canvas); }
+.lp-legal { padding: 28px 0 56px; }
+.lp-legal-card { width: min(100% - 32px, 780px); padding: 26px 20px; border: 1px solid var(--line); border-radius: 24px; background: var(--surface); box-shadow: var(--shadow-card); }
+.lp-legal h1 { margin: 0; color: var(--navy); font-size: clamp(28px, 4.4vw, 40px); font-weight: 750; line-height: 1.2; text-wrap: balance; }
+.lp-legal-updated { margin: 8px 0 0; color: var(--muted); font-size: 13px; }
+.lp-legal-lead { margin: 18px 0 0; color: var(--ink-2); font-size: 16px; line-height: 1.75; }
+.lp-legal section { margin-top: 26px; padding-top: 22px; border-top: 1px solid var(--line); }
+.lp-legal h2 { margin: 0 0 10px; color: var(--navy); font-size: 19px; font-weight: 700; line-height: 1.35; }
+.lp-legal p, .lp-legal li { color: var(--ink-2); font-size: 15px; line-height: 1.75; }
+.lp-legal p { margin: 0 0 10px; }
+.lp-legal ul, .lp-legal ol { margin: 0 0 10px; padding-left: 22px; }
+.lp-legal li + li { margin-top: 6px; }
+.lp-legal strong { color: var(--ink); }
+.lp-legal a:not(.primary-button) { color: var(--blue); font-weight: 600; }
+.lp-legal-contact { display: grid; gap: 10px; margin-top: 12px; padding: 16px; border: 1px solid var(--blue-line); border-radius: 16px; background: var(--blue-tint); }
+.lp-legal-contact a, .lp-legal-contact span { display: inline-flex; align-items: flex-start; gap: 8px; color: var(--ink-2); font-size: 14px; line-height: 1.6; }
+.lp-legal-contact svg { flex-shrink: 0; margin-top: 3px; color: var(--blue); }
+.lp-legal-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
+.lp-legal-actions .primary-button { text-decoration: none; }
+.lp-legal-page .contact-dock { display: flex; }
+@media (min-width: 768px) { .lp-legal { padding: 48px 0 88px; } .lp-legal-card { padding: 40px 48px; } }
+
 /* Motion: one sequence as the page opens (the headline, then the switcher) and a fade when a new
    service is picked. Nothing moves under reduced motion. */
 .lp-hero-copy > * { animation: rise .6s ease both; }
@@ -651,7 +661,6 @@ img.brand-mark { width: 46px; height: 46px; border-radius: 0; background: none; 
 .danger-button:hover { border-color: var(--danger); background: var(--danger-soft); color: var(--danger-ink); }
 .link-button, .edit-button, .add-row { color: var(--blue); font-weight: 600; }
 .link-button:hover, .add-row:hover { color: var(--blue-hover); }
-.welcome-actions .primary-button, .welcome-actions .secondary-button { min-height: 48px; font-size: 13px; }
 
 /* Form fields */
 .field, .field-row { color: var(--ink-2); font-size: 12px; font-weight: 600; }
@@ -780,16 +789,14 @@ input::placeholder { color: var(--muted-3); }
 /* Toast */
 .toast { border-color: var(--line); border-left: 4px solid var(--blue); border-radius: 14px; box-shadow: var(--shadow-raised); }
 
-/* Sign in, sign up and the app's welcome screen */
+/* Sign in and sign up */
 .auth-shell { background: var(--surface); }
 .auth-form h2 { color: var(--navy); font-weight: 700; }
 .auth-subtitle { color: var(--muted); font-size: 13px; line-height: 1.6; }
 .switch-auth { color: var(--muted); font-size: 13px; }
 .switch-auth .link-button { font-size: 13px; }
-.welcome h2 { color: var(--navy); font-weight: 700; }
-.welcome-logo { padding: 6px; background: var(--surface); object-fit: contain; box-shadow: 0 0 0 1px var(--line), 0 14px 32px #10213a1f; }
-.welcome-services div { border: 0; border-radius: 14px; background: var(--svc-soft, var(--blue-soft)); color: var(--svc, var(--blue)); }
-.welcome-services span { color: var(--svc-ink, var(--navy)); }
+.auth-consent { margin: 12px 0 0; color: var(--muted); font-size: 12px; line-height: 1.6; text-align: center; }
+.auth-consent .link-button { font-size: 12px; }
 
 /* Locations and map: the address chips in the order forms, the map sheet (Leaflet + OpenStreetMap),
    আমার লোকেশন in Profile and the map links in an order. Both versions; the web tweaks are in "Web version". */
@@ -906,8 +913,8 @@ input::placeholder { color: var(--muted-3); }
 .toast-body .toast-cta { color: var(--blue); font-size: 11px; font-weight: 700; }
 
 /* Photos and banners (components/banner.tsx; photos in public/images): the banner on top of the
-   shifting, medicine and parcel forms, the home slider on the bazar form, and the app's welcome
-   banner. Both versions at phone size; the web sizes are in "Web version". Tokens only. */
+   shifting, medicine and parcel forms and the home slider on the bazar form, at phone size; the
+   wide-screen sizes are in "Web version". Tokens only. */
 .nav-item.active::before { background: var(--brand-gradient); }
 .sidebar-top .brand, .mobile-logo .brand { gap: 8px; }
 
@@ -950,16 +957,11 @@ input::placeholder { color: var(--muted-3); }
 @media (hover: hover) { .promo-arrow { display: grid; } }
 @media (prefers-reduced-motion: reduce) { .promo-track { scroll-behavior: auto; } }
 
-/* The app's welcome screen (/app): the photo banner carries the logo, so the small one above it goes. */
-.auth-form:has(.welcome) > .mobile-auth-logo { display: none; }
-.welcome-banner { position: relative; margin: 0 0 54px; }
-.welcome-banner > img:first-child { display: block; width: 100%; aspect-ratio: 16 / 10; border-radius: 22px; object-fit: cover; box-shadow: var(--shadow-raised); }
-.welcome-banner::after { content: ''; position: absolute; inset: 0; border-radius: 22px; background: linear-gradient(180deg, transparent 50%, color-mix(in srgb, var(--navy) 45%, transparent)); pointer-events: none; }
-.welcome-banner .welcome-logo { position: absolute; left: 50%; bottom: -44px; z-index: 1; width: 96px; height: 96px; margin: 0; padding: 8px; border-radius: 50%; background: var(--surface); object-fit: contain; box-shadow: 0 0 0 4px color-mix(in srgb, var(--teal) 35%, transparent), var(--shadow-raised); transform: translateX(-50%); }
 
-/* Web version (/login, /bazar, /orders/…): every rule below is scoped to .mode-web, so the app version
-   (/app/…, .mode-app) keeps the phone design above at every width. Last in the file so it wins.
-   - Phones (≤800px): the same phone layout as the app version.
+/* Web version (/login, /bazar, /orders/…): every rule below is scoped to .mode-web, the class on the
+   customer shells; the rules above are the phone design they start from. Last in the file so it wins.
+   (The phone version that lived under /app is now the Kingfisher app, mobile/.)
+   - Phones (≤800px): the phone layout above.
    - Tablets (801–1023px): the phone layout in a wider centred column.
    - Web (≥1024px): a fixed sidebar, a titled top bar and wider, two-column screens. */
 .topbar-title { display: none; }
@@ -1085,7 +1087,6 @@ html[lang='bn'] .auth-message h1, html[lang='bn'] .landing h1, html[lang='bn'] .
 @media (max-width: 1023px) {
   .auth-shell.mode-web { background: var(--canvas); }
   .auth-shell.mode-web .auth-panel { display: block; min-height: 100vh; padding: 0 0 110px; place-items: normal; }
-  .auth-shell.mode-web .mobile-auth-logo { display: none; }
   .auth-shell.mode-web .auth-hero { position: relative; isolation: isolate; overflow: hidden; display: grid; gap: 18px; padding: 28px 22px 88px; border-radius: 0 0 28px 28px; background: var(--navy); color: #fff; }
   .auth-hero-photo { position: absolute; inset: 0; z-index: -2; width: 100%; height: 100%; object-fit: cover; }
   .auth-shell.mode-web .auth-hero::before { content: ''; position: absolute; inset: 0; z-index: -1; background: linear-gradient(160deg, color-mix(in srgb, var(--navy) 90%, transparent) 10%, color-mix(in srgb, var(--blue) 70%, transparent) 100%); }
@@ -1104,7 +1105,6 @@ html[lang='bn'] .auth-message h1, html[lang='bn'] .landing h1, html[lang='bn'] .
 
 @media (min-width: 1024px) {
   .auth-shell.mode-web { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); width: auto; min-height: 100vh; margin: 0; background: var(--canvas); box-shadow: none; }
-  .auth-shell.mode-web .mobile-auth-logo { display: none; }
 
   /* Brand panel */
   /* The Old Dhaka photo under a navy wash that is darkest behind the text */
@@ -1166,5 +1166,4 @@ html[lang='bn'] .auth-shell.mode-web .auth-message .eyebrow { letter-spacing: 0;
 @media (prefers-reduced-motion: reduce) { .dev-credit, .dev-credit-arrow { transition: none; } .dev-credit:hover, .dev-credit:hover .dev-credit-arrow { transform: none; } }
 .lp-copyright { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 24px; }
 .auth-credit { display: flex; justify-content: center; margin-top: 24px; }
-.welcome .auth-credit { margin-top: 20px; }
 @media (min-width: 1024px) { .auth-shell.mode-web .auth-credit { display: none; } }

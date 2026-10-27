@@ -11,6 +11,7 @@ import request from 'supertest'
 import { AppModule } from '../src/server/app.module'
 import { configureApp } from '../src/server/bootstrap'
 import { ENV, type Env } from '../src/server/config/env'
+import { FCM_SENDER, FcmError, type FcmMessage, type FcmSender } from '../src/server/notifications/fcm.sender'
 import { PUSH_SENDER, type PushOptions, type PushSender } from '../src/server/notifications/push.service'
 import type { PushPayload } from '../src/server/notifications/web-push.channel'
 import { PrismaService } from '../src/server/prisma/prisma.service'
@@ -47,13 +48,21 @@ const recordPush: PushSender = async (target, payload, options) => {
   pushes.push({ endpoint: target.endpoint, payload: JSON.parse(payload) as PushPayload, options })
 }
 
+/** Push to the app's phones (FCM) without the network; tokens in `uninstalled` answer like a phone whose app is gone. */
+const fcmMessages: FcmMessage[] = []
+const uninstalled = new Set<string>()
+const recordFcm: FcmSender = async message => {
+  if (uninstalled.has(message.token)) throw new FcmError(404, 'UNREGISTERED', 'Requested entity was not found.')
+  fcmMessages.push(message)
+}
+
 describe('Pashe Achi API (e2e)', () => {
   let app: NestExpressApplication
   let prisma: PrismaService
   let baseUrl: string
 
   beforeAll(async () => {
-    const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).overrideProvider(PUSH_SENDER).useValue(recordPush).compile()
+    const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).overrideProvider(PUSH_SENDER).useValue(recordPush).overrideProvider(FCM_SENDER).useValue(recordFcm).compile()
     app = moduleRef.createNestApplication<NestExpressApplication>({ logger: false })
     configureApp(app, app.get<Env>(ENV))
     await app.listen(0)
@@ -433,7 +442,7 @@ describe('Pashe Achi API (e2e)', () => {
     const keys = { p256dh: 'BNcRdreALRFXTkOOUHK1EtK2wtaz5Ry4YfYCA_0QTpQtUbVlUls0VJXg7A8u-Ts1XbjhazAkj7I99e8QcYP7DkM', auth: 'tBHItJI5svbpez7KI4CCXg' }
     const pushedTo = (endpoint: string) => pushes.filter(push => push.endpoint === endpoint)
 
-    it("sends a customer's price to their phone, in their language, opening their version of the site", async () => {
+    it("sends a customer's price to their browser, in their language, opening the order", async () => {
       const { agent } = await signup('01712000070')
       const admin = await adminAgent()
       await agent.get(api('/notifications/push')).expect(200).expect(res => expect(res.body.publicKey).toBe(process.env.VAPID_PUBLIC_KEY))
@@ -441,18 +450,18 @@ describe('Pashe Achi API (e2e)', () => {
       await request(app.getHttpServer()).put(api('/notifications/push')).send({ endpoint: 'https://fcm.googleapis.com/fcm/send/x', keys }).expect(401)
 
       const endpoint = 'https://fcm.googleapis.com/fcm/send/e2e-customer-70'
-      await agent.put(api('/notifications/push')).send({ endpoint, keys, lang: 'en', mode: 'app' }).expect(204)
+      await agent.put(api('/notifications/push')).send({ endpoint, keys, lang: 'en' }).expect(204)
       const order = (await agent.post(api('/orders/bazar')).send({ address: 'x', addressPin: PIN, contactMobile: '01712000070', schedule, items: [{ name: 'চাল', quantity: '1' }] }).expect(201)).body as OrderDetail
       await admin.put(api(`/admin/orders/${order.id}/quote`)).send({ items: [{ id: order.items[0]!.id, name: 'চাল', quantity: '1', price: 70 }] }).expect(200)
       const price = await waitFor(() => pushedTo(endpoint)[0])
       expect(price).toMatchObject({
-        payload: { title: `Order ${order.code}: price ready`, url: `/app/orders/${order.id}`, tag: `order-${order.id}`, area: 'customer', lang: 'en' },
+        payload: { title: `Order ${order.code}: price ready`, url: `/orders/${order.id}`, tag: `order-${order.id}`, area: 'customer', lang: 'en' },
         options: { urgency: 'high', TTL: 86_400 },
       })
       expect(price.payload.body).toContain('= Tk 300')
 
-      // The same browser again (a page load in Bangla on the web version) updates the one row.
-      await agent.put(api('/notifications/push')).send({ endpoint, keys, lang: 'bn', mode: 'web' }).expect(204)
+      // The same browser again (a page load in Bangla) updates the one row.
+      await agent.put(api('/notifications/push')).send({ endpoint, keys, lang: 'bn' }).expect(204)
       expect(await prisma.pushSubscription.count({ where: { endpoint } })).toBe(1)
       await admin.patch(api(`/admin/orders/${order.id}/status`)).send({ status: 'CANCELLED' }).expect(200)
       const cancelled = await waitFor(() => pushedTo(endpoint)[1])
@@ -497,6 +506,117 @@ describe('Pashe Achi API (e2e)', () => {
       const push = await waitFor(() => pushedTo(endpoint).find(item => item.payload.url === `/admin/orders/${order.id}`))
       expect(push.payload).toMatchObject({ title: `New order ${order.code}`, area: 'admin', tag: `order-${order.id}` })
       await admin.delete(api('/admin/notifications/push')).send({ endpoint }).expect(204)
+    })
+  })
+
+  describe('push to the app (FCM)', () => {
+    const sentTo = (token: string) => fcmMessages.filter(message => message.token === token)
+
+    it('registers a phone and sends it the price as a popup, in the language the app is in', async () => {
+      const { agent, body } = await signup('01712000080')
+      const admin = await adminAgent()
+      const token = 'e2e-fcm-80:APA91b' + 'x'.repeat(120)
+      await request(app.getHttpServer()).put(api('/notifications/device')).send({ token, platform: 'android' }).expect(401)
+      await agent.put(api('/notifications/device')).send({ token, platform: 'windows' }).expect(400)
+      await agent.put(api('/notifications/device')).send({ token, platform: 'android', lang: 'en', appVersion: '1.0.0+1' }).expect(204)
+      expect(await prisma.deviceToken.findUniqueOrThrow({ where: { token } })).toMatchObject({ userId: body.user.id, platform: 'ANDROID', lang: 'en', appVersion: '1.0.0+1' })
+
+      const order = (await agent.post(api('/orders/bazar')).send({ address: 'x', addressPin: PIN, contactMobile: '01712000080', schedule, items: [{ name: 'চাল', quantity: '1' }] }).expect(201)).body as OrderDetail
+      await admin.put(api(`/admin/orders/${order.id}/quote`)).send({ items: [{ id: order.items[0]!.id, name: 'চাল', quantity: '1', price: 70 }] }).expect(200)
+      const price = await waitFor(() => sentTo(token)[0])
+      expect(price.notification.title).toBe(`Order ${order.code}: price ready`)
+      expect(price.data).toMatchObject({ type: 'ORDER_BILL', orderId: order.id })
+      expect(price.android).toMatchObject({ priority: 'HIGH', notification: { channel_id: 'orders', tag: `order-${order.id}` } })
+
+      // The app switched to Bangla: the same token is updated, not added.
+      await agent.put(api('/notifications/device')).send({ token, platform: 'android', lang: 'bn' }).expect(204)
+      await admin.patch(api(`/admin/orders/${order.id}/status`)).send({ status: 'CANCELLED' }).expect(200)
+      expect((await waitFor(() => sentTo(token)[1])).notification.title).toBe(`অর্ডার ${order.code}: বাতিল`)
+      expect(await prisma.deviceToken.count({ where: { token } })).toBe(1)
+    })
+
+    it('moves a shared phone to whoever signs in, and forgets a phone whose app was uninstalled', async () => {
+      const first = await signup('01712000081')
+      const second = await signup('01712000082')
+      const admin = await adminAgent()
+      const token = 'e2e-fcm-shared:APA91b' + 'y'.repeat(120)
+      await first.agent.put(api('/notifications/device')).send({ token, platform: 'ios' }).expect(204)
+      await second.agent.put(api('/notifications/device')).send({ token, platform: 'ios' }).expect(204)
+      expect(await prisma.deviceToken.findMany({ where: { token } })).toEqual([expect.objectContaining({ userId: second.body.user.id, platform: 'IOS' })])
+      // Only the owner can remove it.
+      await first.agent.delete(api('/notifications/device')).send({ token }).expect(204)
+      expect(await prisma.deviceToken.count({ where: { token } })).toBe(1)
+
+      uninstalled.add(token)
+      await admin.post(api('/admin/notifications/broadcast')).send({ titleBn: 'ঘোষণা', titleEn: 'Notice', bodyBn: 'আজ ছুটি', bodyEn: 'Closed today', userIds: [second.body.user.id] }).expect(201)
+      await waitFor(async () => (await prisma.deviceToken.count({ where: { token } })) === 0)
+
+      const again = 'e2e-fcm-again:APA91b' + 'z'.repeat(120)
+      await second.agent.put(api('/notifications/device')).send({ token: again, platform: 'android' }).expect(204)
+      await second.agent.delete(api('/notifications/device')).send({ token: again }).expect(204)
+      expect(await prisma.deviceToken.count({ where: { token: again } })).toBe(0)
+    })
+  })
+
+  describe('deleting an account', () => {
+    it('waits for running orders, then removes the person and keeps their past orders as sales records', async () => {
+      const { agent, body } = await signup('01712000090', 'সাকিব')
+      const admin = await adminAgent()
+      await agent.put(api('/notifications/device')).send({ token: 'e2e-fcm-90:APA91b' + 'd'.repeat(120), platform: 'android' }).expect(204)
+      const png = Buffer.from('89504e470d0a1a0a0000000d49484452', 'hex')
+      const upload = await agent.post(api('/uploads/prescription')).attach('file', png, { filename: 'rx.png', contentType: 'image/png' }).expect(201)
+      const medicine = (await agent.post(api('/orders/medicine')).send({ address: 'বাসা ৫, উত্তরা', addressPin: PIN, contactMobile: '01712000090', schedule, prescriptionUploadId: upload.body.id, items: [], note: 'গেটে কল দিন' }).expect(201))
+        .body as OrderDetail
+      const parcel = (
+        await agent.post(api('/orders/parcel')).send({ product: 'বই', pickupAddress: 'মিরপুর', dropoffAddress: 'উত্তরা', pickupPin: PIN, dropoffPin: PIN, receiverMobile: '01711111190', schedule }).expect(201)
+      ).body as OrderDetail
+
+      await agent.delete(api('/me')).expect(409).expect(res => expect(res.body.code).toBe('account.active_orders'))
+      await agent.post(api(`/orders/${medicine.id}/cancel`)).expect(200)
+      await admin.patch(api(`/admin/orders/${parcel.id}/status`)).send({ status: 'BOOKED' }).expect(200)
+      await agent.delete(api('/me')).expect(409)
+      await admin.patch(api(`/admin/orders/${parcel.id}/status`)).send({ status: 'COMPLETED' }).expect(200)
+      // The two status notifications are written after the responses; let them land first.
+      await waitFor(async () => (await prisma.notification.count({ where: { userId: body.user.id } })) === 2)
+
+      await agent.delete(api('/me')).expect(204)
+      // Signed out everywhere: the access token, the refresh token and the socket are all refused.
+      await request(app.getHttpServer()).get(api('/auth/me')).set('Authorization', `Bearer ${body.tokens.accessToken}`).expect(401)
+      await request(app.getHttpServer()).post(api('/auth/refresh')).send({ refreshToken: body.tokens.refreshToken }).expect(401)
+      const socket = io(`${baseUrl}${SOCKET_NAMESPACE}`, { auth: { token: body.tokens.accessToken }, transports: ['websocket'], reconnection: false })
+      expect((await new Promise<Error>(resolve => socket.on('connect_error', resolve))).message).toBe('unauthorized')
+      socket.close()
+
+      const user = await prisma.user.findUniqueOrThrow({ where: { id: body.user.id } })
+      expect(user).toMatchObject({ name: 'Deleted customer', mobile: `deleted-${body.user.id}`, location: '', locationLat: null, points: 0 })
+      expect(user.deletedAt).not.toBeNull()
+      for (const count of [
+        prisma.refreshToken.count({ where: { userId: user.id } }),
+        prisma.deviceToken.count({ where: { userId: user.id } }),
+        prisma.notification.count({ where: { userId: user.id } }),
+        prisma.upload.count({ where: { ownerId: user.id } }),
+      ]) {
+        expect(await count).toBe(0)
+      }
+      const orders = await prisma.order.findMany({ where: { userId: user.id }, include: { parcel: true }, orderBy: { number: 'asc' } })
+      expect(orders.map(order => [order.status, order.total, order.address, order.contactMobile, order.note])).toEqual([
+        ['CANCELLED', medicine.total, null, '', null],
+        ['COMPLETED', parcel.total, null, '', null],
+      ])
+      expect(orders[1]!.summary).toBe('—')
+      expect(orders[1]!.parcel).toMatchObject({ product: 'বই', pickupAddress: '', dropoffAddress: '', pickupLat: null, receiverMobile: '' })
+
+      // Staff see the orders under a deleted account, which they can no longer block or reward.
+      const seen = await admin.get(api(`/admin/customers/${user.id}`)).expect(200)
+      expect(seen.body).toMatchObject({ name: 'Deleted customer', deleted: true, orderCount: 2 })
+      await admin.patch(api(`/admin/customers/${user.id}`)).send({ isBlocked: true }).expect(404)
+      const list = await admin.get(api('/admin/customers?limit=100')).expect(200)
+      expect(list.body.items.map((item: { id: string }) => item.id)).not.toContain(user.id)
+      const history = await admin.get(api(`/admin/audit?entityType=CUSTOMER&entityId=${user.id}`)).expect(200)
+      expect(history.body.items[0]).toMatchObject({ action: 'CUSTOMER_DELETED', actor: { type: 'CUSTOMER', id: user.id } })
+
+      // The number is free for a new account.
+      await signup('01712000090')
     })
   })
 
@@ -781,10 +901,11 @@ describe('Pashe Achi API (e2e)', () => {
       const byTotal = (await admin.get(api('/admin/orders?sort=total_desc&limit=100')).expect(200)).body.items as { total: number }[]
       expect(byTotal.map(order => order.total)).toEqual([...byTotal.map(order => order.total)].sort((a, b) => b - a))
 
+      // Deleted accounts stay in the table for their orders but not in the customer list.
       const customers = await admin.get(api('/admin/customers?limit=1&ordered=true')).expect(200)
-      expect(customers.body.total).toBe(await prisma.user.count({ where: { orders: { some: {} } } }))
+      expect(customers.body.total).toBe(await prisma.user.count({ where: { deletedAt: null, orders: { some: {} } } }))
       const customerStats = await admin.get(api('/admin/customers/stats')).expect(200)
-      expect(customerStats.body).toMatchObject({ total: await prisma.user.count(), blocked: await prisma.user.count({ where: { isBlocked: true } }) })
+      expect(customerStats.body).toMatchObject({ total: await prisma.user.count({ where: { deletedAt: null } }), blocked: await prisma.user.count({ where: { deletedAt: null, isBlocked: true } }) })
       expect(customerStats.body.ordered + customerStats.body.neverOrdered).toBe(customerStats.body.total)
 
       const staff = await admin.get(api(`/admin/staff?roleId=${ROLE_ID.SUPER_ADMIN}`)).expect(200)

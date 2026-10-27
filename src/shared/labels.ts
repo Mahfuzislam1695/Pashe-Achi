@@ -133,6 +133,7 @@ export const AUDIT_ACTION_LABELS: Record<AuditAction, Text> = {
   ROLE_CREATED: { bn: 'নতুন রোল', en: 'Role added' },
   ROLE_UPDATED: { bn: 'রোল আপডেট', en: 'Role updated' },
   ROLE_DELETED: { bn: 'রোল মুছে ফেলা', en: 'Role deleted' },
+  CUSTOMER_DELETED: { bn: 'অ্যাকাউন্ট মুছে ফেলা', en: 'Account deleted' },
 }
 
 /** Names of the fields a history entry can show as "before → after". Pricing names match the Catalog page. */

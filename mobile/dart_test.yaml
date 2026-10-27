@@ -1,0 +1,3 @@
+tags:
+  # test/contract_test.dart: the API client against a real local server (it runs only when KF_API is set).
+  contract:

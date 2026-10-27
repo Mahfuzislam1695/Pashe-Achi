@@ -1,4 +1,4 @@
-import { Body, Controller, HttpCode, Inject, Patch, Post, Put, Res, UseGuards } from '@nestjs/common'
+import { Body, Controller, Delete, HttpCode, Inject, Patch, Post, Put, Res, UseGuards } from '@nestjs/common'
 import { ApiBearerAuth, ApiCookieAuth, ApiOperation, ApiTags } from '@nestjs/swagger'
 import type { CustomerDto } from '@/shared'
 import type { Response } from 'express'
@@ -44,6 +44,14 @@ export class MeController {
     @Res({ passthrough: true }) response: Response,
   ) {
     await this.users.changePassword(customer.id, body, actor)
+    clearAuthCookies(response, this.env, 'customer')
+  }
+
+  @Delete()
+  @HttpCode(204)
+  @ApiOperation({ summary: 'Delete my account (refused while an order is running; ends every session)' })
+  async deleteAccount(@CurrentCustomer() customer: CustomerPrincipal, @Actor() actor: AuditActor, @Res({ passthrough: true }) response: Response) {
+    await this.users.deleteAccount(customer.id, actor)
     clearAuthCookies(response, this.env, 'customer')
   }
 }

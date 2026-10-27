@@ -14,7 +14,7 @@ type AuthRequest = Request & AuthenticatedRequest
 
 /**
  * Requires a customer access token (Bearer or pa_at cookie). The account is re-checked on every
- * request, so blocking a customer takes effect immediately.
+ * request, so blocking or deleting it takes effect immediately.
  */
 @Injectable()
 export class CustomerGuard implements CanActivate {
@@ -29,8 +29,8 @@ export class CustomerGuard implements CanActivate {
     const payload = token ? await this.tokens.verifyAccessToken('customer', token) : null
     if (!payload) throw AppException.unauthorized()
 
-    const user = await this.prisma.user.findUnique({ where: { id: payload.sub }, select: { id: true, name: true, isBlocked: true } })
-    if (!user) throw AppException.unauthorized()
+    const user = await this.prisma.user.findUnique({ where: { id: payload.sub }, select: { id: true, name: true, isBlocked: true, deletedAt: true } })
+    if (!user || user.deletedAt) throw AppException.unauthorized()
     if (user.isBlocked) throw AppException.forbidden('auth.blocked')
     request.customer = { kind: 'customer', id: user.id, name: user.name }
     return true

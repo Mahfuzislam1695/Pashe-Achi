@@ -10,7 +10,7 @@ import { SERVICE_ICONS } from '@/customer/features/orders'
 import { api } from '@/customer/lib/api'
 import { DraftsProvider } from '@/customer/lib/drafts'
 import { useLang } from '@/customer/lib/i18n'
-import { type Mode, ModeProvider, usePaths } from '@/customer/lib/paths'
+import { usePaths } from '@/customer/lib/paths'
 import { forgetCustomerPush, PushProvider } from '@/customer/lib/push'
 import { useCatalog, useMe, useOffers, useUnreadCount } from '@/customer/lib/queries'
 import { RealtimeProvider } from '@/customer/lib/realtime'
@@ -22,18 +22,9 @@ import { ContactDock, FormError, LangToggle, Logo } from './ui'
  * the four services. Renders nothing but a splash until the customer and the catalog are loaded,
  * so every screen below can rely on useSession().
  *
- * `mode` picks the version: "app" keeps the phone design at every width, "web" adds the desktop
- * layout (the `.mode-web` rules in globals.css). Links inside follow the mode through usePaths().
+ * The phone layout below 1024px and the desktop layout from 1024px (the `.mode-web` rules in globals.css).
  */
-export function AppShell({ mode, children }: { mode: Mode; children: React.ReactNode }) {
-  return (
-    <ModeProvider mode={mode}>
-      <SessionGate mode={mode}>{children}</SessionGate>
-    </ModeProvider>
-  )
-}
-
-function SessionGate({ mode, children }: { mode: Mode; children: React.ReactNode }) {
+export function AppShell({ children }: { children: React.ReactNode }) {
   const me = useMe()
   const catalog = useCatalog()
   const { t } = useLang()
@@ -42,8 +33,8 @@ function SessionGate({ mode, children }: { mode: Mode; children: React.ReactNode
     return (
       <DraftsProvider>
         <RealtimeProvider>
-          <PushProvider mode={mode}>
-            <Frame mode={mode}>{children}</Frame>
+          <PushProvider>
+            <Frame>{children}</Frame>
           </PushProvider>
         </RealtimeProvider>
       </DraftsProvider>
@@ -52,7 +43,7 @@ function SessionGate({ mode, children }: { mode: Mode; children: React.ReactNode
 
   const failed = (me.isError && me.error) || (catalog.isError && catalog.error)
   return (
-    <main className={`app-shell splash mode-${mode}`}>
+    <main className="app-shell splash mode-web">
       <Logo />
       {failed && (
         <div className="confirm splash-error">
@@ -74,7 +65,7 @@ function SessionGate({ mode, children }: { mode: Mode; children: React.ReactNode
   )
 }
 
-function Frame({ mode, children }: { mode: Mode; children: React.ReactNode }) {
+function Frame({ children }: { children: React.ReactNode }) {
   const { t, text, lang, setLang, digits } = useLang()
   const router = useRouter()
   const paths = usePaths()
@@ -116,7 +107,7 @@ function Frame({ mode, children }: { mode: Mode; children: React.ReactNode }) {
   }
 
   return (
-    <main className={`app-shell mode-${mode}`}>
+    <main className="app-shell mode-web">
       <aside className={`sidebar ${menuOpen ? 'open' : ''}`}>
         <div className="sidebar-top">
           <Logo />

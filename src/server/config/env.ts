@@ -2,6 +2,31 @@ import { z } from 'zod'
 
 const secret = z.string().min(32, 'must be at least 32 characters')
 
+/** What the FCM sender needs from a Firebase service-account key. */
+export interface ServiceAccount {
+  projectId: string
+  clientEmail: string
+  privateKey: string
+}
+
+/**
+ * FCM_SERVICE_ACCOUNT: the service-account key file Firebase gives you (Project settings → Service
+ * accounts → Generate new private key), pasted as JSON or as that JSON in base64. Null if it is neither.
+ */
+export function parseServiceAccount(value: string): ServiceAccount | null {
+  const raw = value.trim()
+  try {
+    const json = JSON.parse(raw.startsWith('{') ? raw : Buffer.from(raw, 'base64').toString('utf8')) as Record<string, unknown>
+    const { project_id: projectId, client_email: clientEmail, private_key: privateKey } = json
+    if (typeof projectId !== 'string' || !projectId || typeof clientEmail !== 'string' || !clientEmail.includes('@')) return null
+    if (typeof privateKey !== 'string' || !privateKey.includes('PRIVATE KEY')) return null
+    // A key whose newlines arrive escaped (\n) still works.
+    return { projectId, clientEmail, privateKey: privateKey.replace(/\\n/g, '\n') }
+  } catch {
+    return null
+  }
+}
+
 export const envSchema = z
   .object({
     // Set by src/server/load-env.ts: development for `npm run dev`, production for `npm start`.
@@ -21,6 +46,8 @@ export const envSchema = z
     VAPID_PUBLIC_KEY: z.string().trim().regex(/^[A-Za-z0-9_-]{87}$/, 'must be the public key from `npx web-push generate-vapid-keys`').optional().or(z.literal('')),
     VAPID_PRIVATE_KEY: z.string().trim().regex(/^[A-Za-z0-9_-]{43}$/, 'must be the private key from `npx web-push generate-vapid-keys`').optional().or(z.literal('')),
     VAPID_SUBJECT: z.string().trim().regex(/^(mailto:\S+@\S+|https:\/\/\S+)$/, 'must be mailto:you@yourdomain or an https:// URL').optional().or(z.literal('')),
+    // Push to the Kingfisher app's phones (Firebase Cloud Messaging). Empty: off.
+    FCM_SERVICE_ACCOUNT: z.string().trim().optional().or(z.literal('')),
   })
   .superRefine((env, ctx) => {
     if (env.JWT_ACCESS_SECRET === env.ADMIN_JWT_ACCESS_SECRET) {
@@ -31,6 +58,9 @@ export const envSchema = z
     }
     if (env.VAPID_PUBLIC_KEY && !env.VAPID_SUBJECT) {
       ctx.addIssue({ code: 'custom', path: ['VAPID_SUBJECT'], message: 'required with the VAPID keys (mailto:you@yourdomain)' })
+    }
+    if (env.FCM_SERVICE_ACCOUNT && !parseServiceAccount(env.FCM_SERVICE_ACCOUNT)) {
+      ctx.addIssue({ code: 'custom', path: ['FCM_SERVICE_ACCOUNT'], message: 'must be the Firebase service-account key: its JSON, or that JSON in base64' })
     }
     if (env.NODE_ENV === 'production') {
       for (const key of ['JWT_ACCESS_SECRET', 'ADMIN_JWT_ACCESS_SECRET'] as const) {

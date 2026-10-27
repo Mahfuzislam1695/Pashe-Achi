@@ -6,9 +6,9 @@ import { toNotificationDto } from './notification.mapper'
 import { NotificationsGateway } from './notifications.gateway'
 
 /**
- * A way of delivering a stored notification. In-app realtime is the only channel today. Push
- * (FCM, for the Flutter app) or SMS can be added as another class in NOTIFICATION_CHANNELS
- * without changing anything that sends notifications.
+ * A way of delivering a stored notification: in-app realtime (below), Web Push to browsers
+ * (web-push.channel.ts) and push to the Kingfisher app's phones (fcm.channel.ts). SMS could be
+ * another class in NOTIFICATION_CHANNELS without changing anything that sends notifications.
  */
 export interface NotificationChannel {
   readonly name: string
@@ -16,6 +16,15 @@ export interface NotificationChannel {
 }
 
 export const NOTIFICATION_CHANNELS = Symbol('NOTIFICATION_CHANNELS')
+
+/** Runs `work` over `items`, at most `limit` at a time. */
+export async function inBatches<T>(items: T[], limit: number, work: (item: T) => Promise<void>) {
+  let next = 0
+  const worker = async () => {
+    while (next < items.length) await work(items[next++]!)
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker))
+}
 
 @Injectable()
 export class RealtimeChannel implements NotificationChannel {

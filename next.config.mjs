@@ -11,6 +11,15 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
+  // The phone version that lived under /app is now the Kingfisher app (mobile/). Its old links,
+  // home-screen shortcuts and notifications open the same page here (/app/orders/12 → /orders/12).
+  // /app-download is a different path and is not matched.
+  async redirects() {
+    return [
+      { source: '/app', destination: '/bazar', permanent: true },
+      { source: '/app/:path+', destination: '/:path+', permanent: true },
+    ]
+  },
   // The push notification worker (public/sw.js): always fetched fresh, and it may load nothing else.
   async headers() {
     return [

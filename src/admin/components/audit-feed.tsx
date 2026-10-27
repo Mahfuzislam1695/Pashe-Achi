@@ -50,6 +50,7 @@ import {
   Truck,
   UserPen,
   UserPlus,
+  UserX,
 } from 'lucide-react'
 import Link from 'next/link'
 
@@ -77,6 +78,7 @@ const ACTION_ICONS: Record<AuditAction, [LucideIcon, Tone]> = {
   CUSTOMER_BLOCKED: [Ban, 'danger'],
   CUSTOMER_UNBLOCKED: [CircleCheck, 'success'],
   CUSTOMER_POINTS_CHANGED: [Star, 'brand'],
+  CUSTOMER_DELETED: [UserX, 'danger'],
   ORDER_CREATED: [ClipboardList, 'success'],
   ORDER_STATUS_CHANGED: [ArrowRightLeft, 'brand'],
   ORDER_BILL_UPDATED: [Receipt, 'brand'],

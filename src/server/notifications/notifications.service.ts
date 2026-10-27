@@ -33,11 +33,11 @@ export class NotificationsService {
     return this.notifyUsers([userId], content)
   }
 
-  /** Sends to the given customers, or to every customer who isn't blocked. Returns how many were notified. */
+  /** Sends to the given customers, or to every customer who isn't blocked (or gone). Returns how many were notified. */
   async notifyUsers(userIds: string[] | 'all', content: NotificationContent): Promise<number> {
     const ids =
       userIds === 'all'
-        ? (await this.prisma.user.findMany({ where: { isBlocked: false }, select: { id: true } })).map(user => user.id)
+        ? (await this.prisma.user.findMany({ where: { isBlocked: false, deletedAt: null }, select: { id: true } })).map(user => user.id)
         : [...new Set(userIds)]
     const row = toNotificationRow(content)
     let sent = 0

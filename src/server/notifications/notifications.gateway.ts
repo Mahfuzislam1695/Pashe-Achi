@@ -74,8 +74,8 @@ export class NotificationsGateway implements OnGatewayInit, OnGatewayConnection 
     if (!payload) return null
 
     if (audience === 'customer') {
-      const user = await this.prisma.user.findUnique({ where: { id: payload.sub }, select: { isBlocked: true } })
-      return user && !user.isBlocked ? { audience, id: payload.sub } : null
+      const user = await this.prisma.user.findUnique({ where: { id: payload.sub }, select: { isBlocked: true, deletedAt: true } })
+      return user && !user.isBlocked && !user.deletedAt ? { audience, id: payload.sub } : null
     }
     const admin = await this.prisma.admin.findUnique({ where: { id: payload.sub }, select: { isActive: true, role: { select: roleSelect } } })
     return admin?.isActive ? { audience, id: payload.sub, seesOrders: permissionsOf(admin.role).includes('orders.view') } : null
@@ -96,5 +96,10 @@ export class NotificationsGateway implements OnGatewayInit, OnGatewayConnection 
   @OnEvent(DOMAIN_EVENTS.customerBlocked)
   disconnectBlocked({ userId }: CustomerBlockedEvent) {
     this.server.in(rooms.user(userId)).disconnectSockets(true)
+  }
+
+  @OnEvent(DOMAIN_EVENTS.customerDeleted)
+  disconnectDeleted(event: CustomerBlockedEvent) {
+    this.disconnectBlocked(event)
   }
 }

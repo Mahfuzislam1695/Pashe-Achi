@@ -1,0 +1,118 @@
+# The Kingfisher app (mobile/): checks, tests and builds the Android APK and the Google Play bundle on
+# GitHub's machines, so a new APK doesn't need the office PC. The upload key and Firebase come from
+# repository secrets (mobile/README.md, "Building in the cloud"); without the key the files are only
+# for testing, and no release is made.
+name: Mobile app
+
+on:
+  push:
+    branches: [main]
+    paths: ['mobile/**', '.github/workflows/mobile.yml']
+    # A tag such as app-v1.0.1 also publishes kingfisher.apk as a GitHub Release.
+    tags: ['app-v*']
+  pull_request:
+    paths: ['mobile/**', '.github/workflows/mobile.yml']
+  workflow_dispatch:
+    inputs:
+      ios:
+        description: Also check that the iPhone app compiles (macOS runner, unsigned)
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mobile-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: mobile
+    env:
+      HAS_KEY: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+      HAS_FIREBASE: ${{ secrets.GOOGLE_SERVICES_JSON != '' }}
+    outputs:
+      signed: ${{ steps.key.outputs.signed }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.47.8
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - run: flutter analyze
+      - run: flutter test
+
+      - name: Firebase config (push when the app is closed)
+        if: env.HAS_FIREBASE == 'true'
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: printf '%s' "$GOOGLE_SERVICES_JSON" > android/app/google-services.json
+
+      - name: Upload key
+        id: key
+        if: env.HAS_KEY == 'true'
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: |
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/upload.jks"
+          printf 'storeFile=%s\nstorePassword=%s\nkeyAlias=%s\nkeyPassword=%s\n' \
+            "$RUNNER_TEMP/upload.jks" "$ANDROID_KEYSTORE_PASSWORD" "${ANDROID_KEY_ALIAS:-upload}" "$ANDROID_KEYSTORE_PASSWORD" > android/key.properties
+          echo "signed=true" >> "$GITHUB_OUTPUT"
+
+      - run: flutter build apk --release
+      - run: flutter build appbundle --release
+      - name: Name the files
+        run: |
+          mkdir -p dist
+          cp build/app/outputs/flutter-apk/app-release.apk dist/kingfisher.apk
+          cp build/app/outputs/bundle/release/app-release.aab dist/kingfisher.aab
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.key.outputs.signed == 'true' && 'kingfisher-android' || 'kingfisher-android-UNSIGNED-test-only' }}
+          path: mobile/dist/
+          if-no-files-found: error
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/app-v') && needs.android.outputs.signed == 'true'
+    needs: android
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: kingfisher-android
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: kingfisher.apk
+          generate_release_notes: true
+
+  ios:
+    if: github.event_name == 'workflow_dispatch' && inputs.ios
+    runs-on: macos-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v5
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.47.8
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - run: flutter build ios --release --no-codesign

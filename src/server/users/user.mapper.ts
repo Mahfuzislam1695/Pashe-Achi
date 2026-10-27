@@ -13,6 +13,9 @@ export const locationColumns = (input: CustomerLocationInput) => ({
 
 export const LOCATION_FIELDS = ['location', 'locationDetails', 'locationLat', 'locationLng'] as const
 
+/** The name a deleted account keeps (staff still see it on its past orders). */
+export const DELETED_CUSTOMER_NAME = 'Deleted customer'
+
 export const toCustomerDto = (user: User): CustomerDto => {
   const pin = toGeoPoint(user.locationLat, user.locationLng)
   return {
@@ -29,6 +32,7 @@ export const toCustomerDto = (user: User): CustomerDto => {
 export const toAdminCustomerDto = (user: User & { _count: { orders: number }; orders: { createdAt: Date }[] }): AdminCustomerDto => ({
   ...toCustomerDto(user),
   isBlocked: user.isBlocked,
+  deleted: user.deletedAt !== null,
   orderCount: user._count.orders,
   lastOrderAt: user.orders[0]?.createdAt.toISOString() ?? null,
 })

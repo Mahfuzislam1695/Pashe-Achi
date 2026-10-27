@@ -84,6 +84,7 @@ enum AuditAction {
   ROLE_CREATED
   ROLE_UPDATED
   ROLE_DELETED
+  CUSTOMER_DELETED
 }
 
 enum AuditEntity {
@@ -115,6 +116,9 @@ model User {
   points            Int                @default(0)
   lang              Lang               @default(bn)
   isBlocked         Boolean            @default(false)
+  /// Set when the customer deleted their account. The row stays, emptied of personal details, so
+  /// past bills still add up; the mobile becomes "deleted-<id>", freeing the number for a new signup.
+  deletedAt         DateTime?
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
   orders            Order[]
@@ -123,6 +127,7 @@ model User {
   refreshTokens     RefreshToken[]
   auditLogs         AuditLog[]
   pushSubscriptions PushSubscription[]
+  deviceTokens      DeviceToken[]
 
   @@index([createdAt])
 }
@@ -439,7 +444,7 @@ model PushSubscription {
   audience  PushAudience
   userId    String?
   adminId   String?
-  /// Where a tap opens: "" (customer web), "/app" (customer app) or "/admin".
+  /// Where a tap opens: "" (customer site) or "/admin".
   basePath  String       @default("")
   lang      Lang         @default(bn)
   userAgent String?
@@ -451,4 +456,26 @@ model PushSubscription {
   @@unique([endpoint, audience])
   @@index([userId])
   @@index([adminId])
+}
+
+enum DevicePlatform {
+  ANDROID
+  IOS
+}
+
+/// A phone running the Kingfisher app (Flutter, mobile/) that gets push notifications through Firebase
+/// Cloud Messaging. A token has one customer: signing in as someone else on the phone moves it to them.
+model DeviceToken {
+  id         String         @id @default(cuid())
+  token      String         @unique
+  platform   DevicePlatform
+  userId     String
+  /// The language the app was in when it registered (or last changed language).
+  lang       Lang           @default(bn)
+  appVersion String?
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+  user       User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }

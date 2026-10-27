@@ -72,7 +72,11 @@ function CustomerView({ customer }: { customer: AdminCustomerDto }) {
         <div>
           <div className="flex items-center gap-2.5">
             <h1 className="text-2xl font-bold">{customer.name}</h1>
-            {customer.isBlocked && <Badge tone="danger">{t('বন্ধ', 'Blocked')}</Badge>}
+            {customer.deleted ? (
+              <Badge tone="danger">{t('অ্যাকাউন্ট মুছে ফেলা হয়েছে', 'Account deleted')}</Badge>
+            ) : (
+              customer.isBlocked && <Badge tone="danger">{t('বন্ধ', 'Blocked')}</Badge>
+            )}
           </div>
           <p className="mt-1 text-sm text-muted">
             <a href={`tel:${customer.mobile}`} className="tabular-nums hover:underline">
@@ -82,6 +86,7 @@ function CustomerView({ customer }: { customer: AdminCustomerDto }) {
           </p>
         </div>
         {can(admin, 'customers.block') &&
+          !customer.deleted &&
           (customer.isBlocked ? (
             <Button variant="secondary" loading={update.isPending} onClick={() => update.mutate({ isBlocked: false })}>
               <CheckCircle2 className="size-4" />
@@ -107,7 +112,7 @@ function CustomerView({ customer }: { customer: AdminCustomerDto }) {
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-[1fr_2fr]">
         <div className="grid min-w-0 content-start gap-5">
           <Card title={t('পয়েন্ট', 'Reward points')}>
-            {can(admin, 'customers.edit_points') ? (
+            {can(admin, 'customers.edit_points') && !customer.deleted ? (
               <form
                 className="flex items-end gap-2"
                 onSubmit={event => {

@@ -3,7 +3,7 @@ import type { Lang, NotificationData } from '@/shared'
 
 import type { Notification, PushSubscription } from '../generated/prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
-import type { NotificationChannel } from './channels'
+import { inBatches, type NotificationChannel } from './channels'
 import { PUSH_SENDER, type PushOptions, type PushSender } from './push.service'
 
 const CONCURRENCY = 8
@@ -22,7 +22,7 @@ export interface PushPayload {
   lang: Lang
 }
 
-/** The message for one browser. Customer paths match src/customer/lib/paths.tsx under the browser's version (web or /app). */
+/** The message for one browser. Customer paths match src/customer/lib/paths.tsx; admin paths are under /admin. */
 export function pushMessage(
   row: Pick<Notification, 'id' | 'type' | 'titleBn' | 'titleEn' | 'bodyBn' | 'bodyEn' | 'data'>,
   subscription: Pick<PushSubscription, 'audience' | 'basePath' | 'lang'>,
@@ -44,15 +44,6 @@ export function pushMessage(
     // Order news is time-critical (a price waiting for a confirm); offers and announcements are not.
     options: { TTL: ONE_DAY, urgency: row.type.startsWith('ORDER_') ? 'high' : 'normal' },
   }
-}
-
-/** Runs `work` over `items`, at most `limit` at a time. */
-async function inBatches<T>(items: T[], limit: number, work: (item: T) => Promise<void>) {
-  let next = 0
-  const worker = async () => {
-    while (next < items.length) await work(items[next++]!)
-  }
-  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker))
 }
 
 /**

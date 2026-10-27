@@ -26,9 +26,10 @@ export const HEAD_OFFICE = {
   map: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent('Sundarban Courier Service, Dhour Main Road, Turag, Uttara, Dhaka')}`,
 } as const
 
-// The Android app's links on /app-download. null shows "শীঘ্রই আসছে" (coming soon) in place of the button.
-// playStore: https://play.google.com/store/apps/details?id=<package>
-// apk: a file in public/downloads/ (e.g. '/downloads/kingfisher.apk') or a full https:// URL.
+// The Kingfisher app's links on /app-download (the Flutter app in mobile/, id com.kingfisherbd24.app).
+// null shows "শীঘ্রই আসছে" (coming soon) in place of the button.
+// playStore: https://play.google.com/store/apps/details?id=com.kingfisherbd24.app once it is published.
+// apk: a file in public/downloads/ (mobile/README.md: build it, copy it there) or a full https:// URL.
 export const APP_DOWNLOADS: { playStore: string | null; apk: string | null } = { playStore: null, apk: null }
 
 // Photos for the banners, each in public/images as {base}-800.webp and {base}-1600.webp (800 and 1600 px wide).
@@ -42,8 +43,8 @@ export const APP_DOWNLOADS: { playStore: string | null; apk: string | null } = {
 //   medicine  pharmacist at the shelves unsplash.com/photos/byGTytEGjBo
 //   parcel    a parcel handed over      unsplash.com/photos/BFdSCxmqvYc
 // hero, welcome and street are 4:5, city 16:9, the four services 3:2.
-// public/images/app-bn.webp and app-en.webp (780×1688) are screenshots of the app's /app/bazar screen
-// with the demo customer, shown in the landing page's phone frame; retake them when that screen changes.
+// public/images/app-bn.webp and app-en.webp (780×1688) are screenshots of the fresh market screen on a
+// phone with the demo customer, shown in the landing page's phone frame; retake them when that screen changes.
 export const PHOTOS = {
   hero: '/images/hero',
   welcome: '/images/welcome',

@@ -6,14 +6,14 @@ export const LANG_COOKIE = 'pa_lang'
 /** The API's refresh-token cookie. src/proxy.ts only checks that it exists; the API does the real check. */
 export const SESSION_COOKIE = 'pa_rt'
 
-/** The app version (the phone design at every width) lives under this prefix; the web version at the root. */
-export const APP_BASE = '/app'
-
-/** Where a signed-in customer lands on the web version. */
+/** Where a signed-in customer lands. */
 export const HOME_PATH = '/bazar'
 
-/** Where a signed-in customer lands on the app version. */
-export const APP_HOME_PATH = `${APP_BASE}/bazar`
-
-/** The public page with the Android app's links (and the web app). One page for both versions. */
+/** The public page with the Kingfisher app's links (Google Play and the APK). */
 export const DOWNLOAD_PATH = '/app-download'
+
+/** The public privacy policy (Google Play and the App Store link to it). */
+export const PRIVACY_PATH = '/privacy'
+
+/** The public page on deleting an account (the "web link" Google Play asks for). */
+export const ACCOUNT_DELETION_PATH = '/account-deletion'

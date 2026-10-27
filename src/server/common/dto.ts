@@ -11,6 +11,8 @@ import {
   customerLocationSchema,
   dashboardQuerySchema,
   deliveryHoursSchema,
+  deviceRemoveSchema,
+  deviceTokenSchema,
   idParamSchema,
   auditStatsQuerySchema,
   customerStatsQuerySchema,
@@ -103,6 +105,8 @@ export class ListAdminNotificationsQueryDto extends createZodDto(listAdminNotifi
 export class NotificationStatsQueryDto extends createZodDto(notificationStatsQuerySchema) {}
 export class PushSubscriptionDto extends createZodDto(pushSubscriptionSchema) {}
 export class PushRemoveDto extends createZodDto(pushRemoveSchema) {}
+export class DeviceTokenDto extends createZodDto(deviceTokenSchema) {}
+export class DeviceRemoveDto extends createZodDto(deviceRemoveSchema) {}
 export class DashboardQueryDto extends createZodDto(dashboardQuerySchema) {}
 export class ListAuditQueryDto extends createZodDto(listAuditQuerySchema) {}
 export class AuditStatsQueryDto extends createZodDto(auditStatsQuerySchema) {}

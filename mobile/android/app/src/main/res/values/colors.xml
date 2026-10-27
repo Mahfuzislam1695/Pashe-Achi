@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="ic_launcher_background">#FFFFFF</color>
+    <!-- The Kingfisher palette's primary blue: the tint of the status-bar notification icon. -->
+    <color name="notification_color">#1265D8</color>
+</resources>

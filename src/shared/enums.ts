@@ -43,6 +43,9 @@ export const CUSTOMER_CANCELLABLE: readonly OrderStatus[] = ['PENDING', 'QUOTED'
 /** Staff can price (and re-price) a quoted order until the customer confirms; then the bill is locked. */
 export const QUOTE_EDITABLE: readonly OrderStatus[] = ['PENDING', 'QUOTED']
 
+/** Orders still in motion. A customer can delete their account only when none are left. */
+export const ACTIVE_ORDER_STATUSES = ['PENDING', 'QUOTED', 'BOOKED', 'IN_PROGRESS'] as const satisfies readonly OrderStatus[]
+
 /**
  * The orders whose bill counts as revenue: the bills customers have accepted (booked, on the way or
  * delivered). A PENDING bazar or medicine order holds only its fees until staff price it, and a
@@ -65,6 +68,10 @@ export type OfferStatus = (typeof OFFER_STATUSES)[number]
 
 export const NOTIFICATION_TYPES = ['ORDER_CREATED', 'ORDER_STATUS', 'ORDER_BILL', 'ANNOUNCEMENT', 'OFFER'] as const
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number]
+
+/** The phones the Kingfisher app (Flutter) runs on; each registers for push through Firebase Cloud Messaging. */
+export const DEVICE_PLATFORMS = ['android', 'ios'] as const
+export type DevicePlatform = (typeof DEVICE_PLATFORMS)[number]
 
 /** Who acted, in the order timeline and the history log. */
 export const ACTOR_TYPES = ['CUSTOMER', 'ADMIN', 'SYSTEM'] as const
@@ -109,6 +116,7 @@ export const AUDIT_ACTIONS = [
   'ROLE_CREATED',
   'ROLE_UPDATED',
   'ROLE_DELETED',
+  'CUSTOMER_DELETED',
 ] as const
 export type AuditAction = (typeof AUDIT_ACTIONS)[number]
 
@@ -125,6 +133,7 @@ export const AUDIT_ACTIONS_BY_ENTITY: Record<AuditEntity, readonly AuditAction[]
     'CUSTOMER_BLOCKED',
     'CUSTOMER_UNBLOCKED',
     'CUSTOMER_POINTS_CHANGED',
+    'CUSTOMER_DELETED',
   ],
   STAFF: ['STAFF_CREATED', 'STAFF_UPDATED', 'STAFF_PASSWORD_RESET', 'ADMIN_SIGNED_IN', 'ADMIN_SIGN_IN_FAILED', 'ADMIN_SIGNED_OUT', 'ADMIN_PASSWORD_CHANGED'],
   PRICING: ['PRICING_UPDATED'],

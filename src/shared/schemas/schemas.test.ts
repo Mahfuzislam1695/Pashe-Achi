@@ -17,7 +17,7 @@ import {
   quoteOrderSchema,
   shiftingQuoteSchema,
 } from './orders'
-import { isPushEndpoint, pushSubscriptionSchema } from './push'
+import { deviceRemoveSchema, deviceTokenSchema, isPushEndpoint, pushSubscriptionSchema } from './push'
 
 const today = isoDateInBd()
 const schedule = { date: today, time: '09:30' }
@@ -205,7 +205,7 @@ describe('push subscriptions', () => {
       'https://web.push.apple.com/QGuQyavXutnMH',
       'https://wns2-par02p.notify.windows.com/w/?token=BQYAAA',
     ]) {
-      expect(pushSubscriptionSchema.safeParse({ endpoint, keys, lang: 'en', mode: 'app' }).success).toBe(true)
+      expect(pushSubscriptionSchema.safeParse({ endpoint, keys, lang: 'en' }).success).toBe(true)
     }
     expect(pushSubscriptionSchema.parse({ endpoint: 'https://fcm.googleapis.com/fcm/send/x', keys }).lang).toBe('bn')
   })
@@ -228,6 +228,22 @@ describe('push subscriptions', () => {
 
   it('needs base64url keys', () => {
     expect(codes(pushSubscriptionSchema.safeParse({ endpoint: 'https://fcm.googleapis.com/x', keys: { p256dh: 'not base64!', auth: keys.auth } }))).toContain('push.endpoint')
+  })
+})
+
+describe('app phones (FCM tokens)', () => {
+  const token = 'dGVzdA:APA91bH' + 'x'.repeat(140)
+
+  it('takes the token, the platform and the language (Bangla unless told otherwise)', () => {
+    expect(deviceTokenSchema.parse({ token, platform: 'android' })).toEqual({ token, platform: 'android', lang: 'bn' })
+    expect(deviceTokenSchema.parse({ token: ` ${token} `, platform: 'ios', lang: 'en', appVersion: '1.0.0+1' })).toEqual({ token, platform: 'ios', lang: 'en', appVersion: '1.0.0+1' })
+  })
+
+  it('refuses an empty token, an unknown platform or a token that is far too long', () => {
+    expect(deviceTokenSchema.safeParse({ token: '  ', platform: 'android' }).success).toBe(false)
+    expect(deviceTokenSchema.safeParse({ token, platform: 'web' }).success).toBe(false)
+    expect(deviceTokenSchema.safeParse({ token: 'x'.repeat(4097), platform: 'android' }).success).toBe(false)
+    expect(deviceRemoveSchema.parse({ token })).toEqual({ token })
   })
 })
 

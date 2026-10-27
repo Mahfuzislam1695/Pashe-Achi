@@ -9,7 +9,6 @@ import { createPortal } from 'react-dom'
 import { api } from '@/customer/lib/api'
 import { getCurrentPosition } from '@/customer/lib/geo'
 import { useLang } from '@/customer/lib/i18n'
-import { useMode } from '@/customer/lib/paths'
 import { errorCode } from '@/customer/lib/queries'
 import type { MapTarget } from './map-picker'
 import { FormError } from './ui'
@@ -45,7 +44,6 @@ interface LocationSheetProps {
  */
 export function LocationSheet({ title, initial, locate = !initial, submitLabel, onSubmit, onClose }: LocationSheetProps) {
   const { t, lang, digits } = useLang()
-  const mode = useMode()
   const titleId = useId()
   const areaId = useId()
   const detailsId = useId()
@@ -160,7 +158,7 @@ export function LocationSheet({ title, initial, locate = !initial, submitLabel, 
   if (typeof document === 'undefined') return null
   return createPortal(
     <div
-      className={`sheet-layer mode-${mode}`}
+      className="sheet-layer mode-web"
       onMouseDown={event => {
         if (event.target === event.currentTarget) onClose()
       }}

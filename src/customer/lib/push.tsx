@@ -5,7 +5,6 @@ import { createContext, useContext, useEffect, useMemo, useState } from 'react'
 
 import { api } from './api'
 import { useLang } from './i18n'
-import type { Mode } from './paths'
 
 const CHOICE_KEY = 'pa_push'
 
@@ -29,15 +28,15 @@ export const forgetCustomerPush = () => forgetPush(api.notifications.push).catch
 
 /**
  * Inside the signed-in shell. On load and whenever the language changes it brings the server's copy
- * of this browser's subscription up to date (if the customer turned notifications on here), so a
- * tap opens this version (web or app) and the text comes in the chosen language.
+ * of this browser's subscription up to date (if the customer turned notifications on here), so the
+ * text comes in the chosen language.
  */
-export function PushProvider({ mode, children }: { mode: Mode; children: React.ReactNode }) {
+export function PushProvider({ children }: { children: React.ReactNode }) {
   const { lang } = useLang()
   const [status, setStatus] = useState<PushStatus | null>(null)
   const [busy, setBusy] = useState(false)
   const [failed, setFailed] = useState(false)
-  const options = useMemo<PushOptions>(() => ({ endpoints: api.notifications.push, choiceKey: CHOICE_KEY, lang, mode }), [lang, mode])
+  const options = useMemo<PushOptions>(() => ({ endpoints: api.notifications.push, choiceKey: CHOICE_KEY, lang }), [lang])
 
   useEffect(() => {
     let live = true

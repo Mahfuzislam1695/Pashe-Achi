@@ -1,6 +1,9 @@
-import { Injectable } from '@nestjs/common'
+import { randomBytes } from 'node:crypto'
+
+import { Injectable, Logger } from '@nestjs/common'
 import { EventEmitter2 } from '@nestjs/event-emitter'
 import {
+  ACTIVE_ORDER_STATUSES,
   addDays,
   type AdminCustomerDto,
   type ChangePasswordInput,
@@ -26,16 +29,18 @@ import { DOMAIN_EVENTS } from '../common/domain-events'
 import { bdDayRange, offsetArgs, toPaged } from '../common/pagination'
 import type { Prisma } from '../generated/prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
-import { LOCATION_FIELDS, locationColumns, toAdminCustomerDto, toCustomerDto } from './user.mapper'
+import { StorageService } from '../uploads/storage.service'
+import { DELETED_CUSTOMER_NAME, LOCATION_FIELDS, locationColumns, toAdminCustomerDto, toCustomerDto } from './user.mapper'
 
 const withStats = {
   _count: { select: { orders: true } },
   orders: { select: { createdAt: true }, orderBy: { createdAt: 'desc' }, take: 1 },
 } satisfies Prisma.UserInclude
 
-/** Name, mobile or location. */
-const searchWhere = (q: string | undefined): Prisma.UserWhereInput =>
-  q
+/** Name, mobile or location, among the accounts that still exist (deleted ones stay only for their orders). */
+const searchWhere = (q: string | undefined): Prisma.UserWhereInput => ({
+  deletedAt: null,
+  ...(q
     ? {
         OR: [
           { name: { contains: q, mode: 'insensitive' } },
@@ -43,7 +48,8 @@ const searchWhere = (q: string | undefined): Prisma.UserWhereInput =>
           { location: { contains: q, mode: 'insensitive' } },
         ],
       }
-    : {}
+    : {}),
+})
 
 /** The admin list's sort orders; `id` breaks ties so pages never overlap. */
 const CUSTOMER_SORT_ORDER: Record<CustomerSort, Prisma.UserOrderByWithRelationInput[]> = {
@@ -56,11 +62,14 @@ const CUSTOMER_SORT_ORDER: Record<CustomerSort, Prisma.UserOrderByWithRelationIn
 
 @Injectable()
 export class UsersService {
+  private readonly logger = new Logger(UsersService.name)
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly tokens: TokenService,
     private readonly events: EventEmitter2,
     private readonly audit: AuditService,
+    private readonly storage: StorageService,
   ) {}
 
   async updateProfile(userId: string, input: UpdateProfileInput, actor: AuditActor): Promise<CustomerDto> {
@@ -105,6 +114,61 @@ export class UsersService {
     await this.tokens.revokeAll('customer', userId)
   }
 
+  /**
+   * The customer deletes their account (a Play Store and App Store rule). Refused while an order is
+   * still in motion. The row stays so past bills still add up, but without the person: the name and
+   * mobile are replaced (the number can sign up again), and the location, sessions, browsers, phones,
+   * notifications and prescriptions are deleted. Their orders stay as sales records (number, service,
+   * lines, bill, timeline) with the addresses, pins, phone numbers and notes cleared.
+   */
+  async deleteAccount(userId: string, actor: AuditActor) {
+    const unusableHash = await hashPassword(randomBytes(32).toString('base64url'))
+    const files = await this.prisma.$transaction(async tx => {
+      if (await tx.order.count({ where: { userId, status: { in: [...ACTIVE_ORDER_STATUSES] } } })) throw AppException.conflict('account.active_orders')
+      const uploads = await tx.upload.findMany({ where: { ownerId: userId }, select: { storageKey: true } })
+
+      await tx.user.update({
+        where: { id: userId },
+        data: {
+          name: DELETED_CUSTOMER_NAME,
+          mobile: `deleted-${userId}`,
+          location: '',
+          locationDetails: '',
+          locationLat: null,
+          locationLng: null,
+          passwordHash: unusableHash,
+          points: 0,
+          deletedAt: new Date(),
+        },
+      })
+      await tx.refreshToken.deleteMany({ where: { userId } })
+      await tx.pushSubscription.deleteMany({ where: { userId } })
+      await tx.deviceToken.deleteMany({ where: { userId } })
+      await tx.notification.deleteMany({ where: { userId } })
+      await tx.upload.deleteMany({ where: { ownerId: userId } })
+
+      await tx.order.updateMany({ where: { userId }, data: { address: null, addressLat: null, addressLng: null, contactMobile: '', note: null } })
+      // A shifting or parcel order's one-line summary names its two addresses.
+      await tx.order.updateMany({ where: { userId, service: { in: ['shifting', 'parcel'] } }, data: { summary: '—' } })
+      await tx.shiftingDetail.updateMany({
+        where: { order: { userId } },
+        data: { loadingArea: '', unloadingArea: '', loadingLat: null, loadingLng: null, unloadingLat: null, unloadingLng: null },
+      })
+      await tx.parcelDetail.updateMany({
+        where: { order: { userId } },
+        data: { pickupAddress: '', dropoffAddress: '', pickupLat: null, pickupLng: null, dropoffLat: null, dropoffLng: null, receiverMobile: '' },
+      })
+
+      await this.audit.record({ action: 'CUSTOMER_DELETED', actor, entity: { type: 'CUSTOMER', id: userId, label: DELETED_CUSTOMER_NAME } }, tx)
+      return uploads.map(upload => upload.storageKey)
+    })
+
+    for (const key of files) {
+      await this.storage.remove(key).catch(error => this.logger.warn(`Could not delete ${key}: ${String(error)}`))
+    }
+    this.events.emit(DOMAIN_EVENTS.customerDeleted, { userId })
+  }
+
   async listCustomers(query: ListCustomersQuery): Promise<PagedList<AdminCustomerDto>> {
     const where: Prisma.UserWhereInput = {
       ...searchWhere(query.q),
@@ -144,8 +208,8 @@ export class UsersService {
   /** Block/unblock or set reward points. Blocking logs the customer out everywhere at once. */
   async updateCustomer(id: string, input: UpdateCustomerInput, actor: AuditActor): Promise<AdminCustomerDto> {
     const user = await this.prisma.$transaction(async tx => {
-      const before = await tx.user.findUnique({ where: { id }, select: { isBlocked: true, points: true } })
-      if (!before) throw AppException.notFound()
+      const before = await tx.user.findUnique({ where: { id }, select: { isBlocked: true, points: true, deletedAt: true } })
+      if (!before || before.deletedAt) throw AppException.notFound()
       const updated = await tx.user.update({ where: { id }, data: input, include: withStats })
       const entity = { type: 'CUSTOMER' as const, id, label: updated.name }
       for (const change of diffChanges(before, input, ['isBlocked', 'points'])) {

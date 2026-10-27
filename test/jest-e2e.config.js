@@ -12,6 +12,8 @@ module.exports = {
   moduleFileExtensions: ['ts', 'js', 'json'],
   // Generated Prisma files import siblings as './x.js' while only './x.ts' exists.
   moduleNameMapper: { '^@/(.*)$': '<rootDir>/src/$1', '^(\\.{1,2}/.*)\\.js$': '$1' },
+  // The Flutter app (mobile/) has its own tests and large build folders; Jest never needs to look there.
+  modulePathIgnorePatterns: ['<rootDir>/mobile/'],
   globalSetup: '<rootDir>/test/global-setup.js',
   setupFiles: ['<rootDir>/test/test-env.js'],
   testTimeout: 30000,

@@ -51,7 +51,7 @@ export class DashboardService {
         this.prisma.order.count({ where: { status: 'PENDING' } }),
         this.prisma.order.count({ where: { status: 'QUOTED' } }),
         this.prisma.order.count({ where: { status: { in: ['BOOKED', 'IN_PROGRESS'] } } }),
-        this.prisma.user.count(),
+        this.prisma.user.count({ where: { deletedAt: null } }),
       ]),
       this.prisma.order.groupBy({ by: ['service', 'status'], where: createdIn(range), _count: { _all: true }, _sum: { total: true } }),
       this.series(range, bucket),

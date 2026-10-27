@@ -88,9 +88,14 @@ The site has its own server (NestJS serves the pages too), so it can't be hosted
 
 ## Mobile app (Flutter)
 
-The Flutter app uses the same API.
+The Kingfisher app for Android and iPhone is in `mobile/`. It uses the same API as the website. `mobile/README.md` covers:
+- building the APK and the Google Play bundle
+- the signing key
+- turning on push notifications
+- the Google Play and App Store checklists
 
-- **Contract.** The OpenAPI document at `/api/docs-json` can generate a Dart client.
 - **Login.** Log in with `POST /api/v1/auth/login`. Send `Authorization: Bearer <tokens.accessToken>` on every request, and renew with `POST /api/v1/auth/refresh` and `{ "refreshToken": "…" }` in the body.
 - **Realtime.** Connect Socket.IO to the `/ws` namespace with `auth: { token: <accessToken> }`, and listen for `notification:new` and `order:updated`.
-- **Push.** Push notifications (FCM) can be added as another delivery channel in `src/server/notifications/channels.ts`.
+- **Push.** The app registers its Firebase token with `PUT /api/v1/notifications/device`. The server sends through Firebase Cloud Messaging once `FCM_SERVICE_ACCOUNT` is set in `.env` (see `.env.example`).
+- **Download.** The website's `/app-download` page offers the APK from `public/downloads/kingfisher.apk`.
+- **Policies.** The privacy policy is at `/privacy`, and account deletion is explained at `/account-deletion` (the app's Profile has the same Delete account button as the website's).

@@ -45,6 +45,8 @@ export interface ReverseGeocodeDto {
 
 export interface AdminCustomerDto extends CustomerDto {
   isBlocked: boolean
+  /** The customer deleted their account: the row stays (their past orders point to it) without personal details. */
+  deleted: boolean
   orderCount: number
   lastOrderAt: string | null
 }

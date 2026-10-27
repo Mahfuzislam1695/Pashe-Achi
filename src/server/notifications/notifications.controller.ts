@@ -7,7 +7,17 @@ import { Actor, type AuditActor, clientInfo } from '../audit/actor'
 import { AuditService } from '../audit/audit.service'
 import type { AdminPrincipal, CustomerPrincipal } from '../auth/auth.types'
 import { AdminGuard, Can, CurrentAdmin, CurrentCustomer, CustomerGuard } from '../auth/guards'
-import { BroadcastDto, IdParamDto, ListAdminNotificationsQueryDto, ListNotificationsQueryDto, NotificationStatsQueryDto, PushRemoveDto, PushSubscriptionDto } from '../common/dto'
+import {
+  BroadcastDto,
+  DeviceRemoveDto,
+  DeviceTokenDto,
+  IdParamDto,
+  ListAdminNotificationsQueryDto,
+  ListNotificationsQueryDto,
+  NotificationStatsQueryDto,
+  PushRemoveDto,
+  PushSubscriptionDto,
+} from '../common/dto'
 import { NotificationsService } from './notifications.service'
 import { PushService } from './push.service'
 
@@ -61,6 +71,20 @@ export class NotificationsController {
   @ApiOperation({ summary: 'Stop sending this browser notifications (also called before logging out)' })
   async unsubscribePush(@CurrentCustomer() customer: CustomerPrincipal, @Body() body: PushRemoveDto): Promise<void> {
     await this.push.unsubscribe({ userId: customer.id }, body.endpoint)
+  }
+
+  @Put('device')
+  @HttpCode(204)
+  @ApiOperation({ summary: "Send this phone the customer's notifications (the Kingfisher app, through Firebase Cloud Messaging)" })
+  async registerDevice(@CurrentCustomer() customer: CustomerPrincipal, @Body() body: DeviceTokenDto): Promise<void> {
+    await this.push.registerDevice(customer.id, body)
+  }
+
+  @Delete('device')
+  @HttpCode(204)
+  @ApiOperation({ summary: 'Stop sending this phone notifications (also called before logging out)' })
+  async removeDevice(@CurrentCustomer() customer: CustomerPrincipal, @Body() body: DeviceRemoveDto): Promise<void> {
+    await this.push.removeDevice(customer.id, body.token)
   }
 }
 

@@ -46,6 +46,8 @@ export function createCustomerApi(options: Omit<HttpClientOptions, 'audience'>) 
       changePassword: (body: ChangePasswordInput) => http.post<void>('/me/password', body),
       /** আমার লোকেশন: the one location, picked on the map. Replaces the old one. */
       setLocation: (body: CustomerLocationInput) => http.put<CustomerDto>('/me/location', body),
+      /** Deletes the account (refused with account.active_orders while an order is running) and ends every session. */
+      delete: () => http.request<void>('DELETE', '/me'),
     },
     geo: {
       /** The address text for a map pin; `address` is null when nothing was found. */

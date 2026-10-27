@@ -6,7 +6,7 @@ import { displayFont } from '../../fonts'
 
 export const metadata: Metadata = {
   title: `Get the app — ${APP_NAME.en}`,
-  description: `${APP_NAME.bn} অ্যাপ: Android ও ওয়েব অ্যাপ। Get the ${APP_NAME.en} app for Android, or use the web app.`,
+  description: `${APP_NAME.bn} অ্যাপ ডাউনলোড করুন। Get the ${APP_NAME.en} app for Android, or order on the website.`,
 }
 
 // Public, like the landing page (src/proxy.ts): the links are in APP_DOWNLOADS (src/shared/brand.ts).

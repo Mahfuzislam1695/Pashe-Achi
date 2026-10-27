@@ -1,8 +1,9 @@
 'use client'
 
-import { changePasswordSchema, FORM_ERROR_PRIORITY, mapLink, type MessageCode, updateProfileSchema, validateForm } from '@/shared'
+import { changePasswordSchema, FORM_ERROR_PRIORITY, mapLink, type MessageCode, normalizeMobile, updateProfileSchema, validateForm } from '@/shared'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { Award, Check, ExternalLink, KeyRound, LocateFixed, Map as MapIcon, MapPin, UserRound } from 'lucide-react'
+import { Award, Check, ExternalLink, KeyRound, LocateFixed, Map as MapIcon, MapPin, Trash2, UserRound, X } from 'lucide-react'
+import Link from 'next/link'
 import { useState } from 'react'
 
 import { fromMyLocation } from '@/customer/components/address-field'
@@ -11,6 +12,7 @@ import { Field, FormError, PageCard } from '@/customer/components/ui'
 import { api } from '@/customer/lib/api'
 import { useLang } from '@/customer/lib/i18n'
 import { usePaths } from '@/customer/lib/paths'
+import { forgetCustomerPush } from '@/customer/lib/push'
 import { errorCode, queryKeys, useSession } from '@/customer/lib/queries'
 
 const PRIORITY = FORM_ERROR_PRIORITY.profile
@@ -75,6 +77,7 @@ export function ProfileScreen() {
       <MyLocation />
       {/* Customers have a password only while the super admin asks for one. */}
       {catalog.customerAuth.password && <ChangePassword />}
+      <DeleteAccount />
     </PageCard>
   )
 }
@@ -138,6 +141,81 @@ function MyLocation() {
           onClose={() => setSheet(null)}
         />
       )}
+    </section>
+  )
+}
+
+/**
+ * Deleting the account (a Google Play and App Store rule; the app has the same button, and
+ * /account-deletion explains it). The customer types their mobile number to confirm.
+ */
+function DeleteAccount() {
+  const paths = usePaths()
+  const { t } = useLang()
+  const { user } = useSession()
+  const [open, setOpen] = useState(false)
+  const [typed, setTyped] = useState('')
+  const [error, setError] = useState<MessageCode | null>(null)
+  const remove = useMutation({
+    mutationFn: async () => {
+      // While the session still works: this browser stops getting notifications.
+      await forgetCustomerPush()
+      await api.me.delete()
+    },
+    onSuccess: () => window.location.assign(paths.entry),
+    onError: failure => setError(errorCode(failure)),
+  })
+  const confirmed = normalizeMobile(typed) === user.mobile
+
+  return (
+    <section id="delete-account" className="detail-section section-gap">
+      <h3 className="section-title">{t('অ্যাকাউন্ট মুছে ফেলুন', 'Delete your account')}</h3>
+      <p className="section-note">
+        {t(
+          'নাম, মোবাইল নম্বর, লোকেশন, নোটিফিকেশন আর প্রেসক্রিপশন মুছে যাবে, আর সব ডিভাইস থেকে লগআউট হবেন। আগের অর্ডার শুধু বিক্রির হিসাব হিসেবে থাকবে, আপনার পরিচয় ছাড়া। এটি আর ফেরানো যায় না।',
+          'Your name, mobile number, location, notifications and prescriptions are deleted, and you are signed out everywhere. Past orders stay only as sales records, without anything that identifies you. This can’t be undone.',
+        )}{' '}
+        <Link className="link-button" href={paths.accountDeletion}>
+          {t('বিস্তারিত', 'Details')}
+        </Link>
+      </p>
+      {open ? (
+        <div className="profile-fields">
+          <Field label={t(`নিশ্চিত করতে আপনার মোবাইল নম্বর (${user.mobile}) লিখুন`, `Type your mobile number (${user.mobile}) to confirm`)}>
+            <input
+              type="tel"
+              inputMode="tel"
+              value={typed}
+              onChange={e => {
+                setTyped(e.target.value)
+                setError(null)
+              }}
+              placeholder="01XXXXXXXXX"
+              autoComplete="off"
+            />
+          </Field>
+        </div>
+      ) : null}
+      <div className="confirm my-location-actions">
+        <FormError code={error} />
+        {open ? (
+          <>
+            <button type="button" className="secondary-button" onClick={() => setOpen(false)} disabled={remove.isPending}>
+              <X size={16} />
+              {t('থাক', 'Keep it')}
+            </button>
+            <button type="button" className="secondary-button danger-button" onClick={() => remove.mutate()} disabled={!confirmed || remove.isPending}>
+              <Trash2 size={16} />
+              {remove.isPending ? t('অপেক্ষা করুন…', 'Please wait…') : t('চিরতরে মুছে ফেলুন', 'Delete for good')}
+            </button>
+          </>
+        ) : (
+          <button type="button" className="secondary-button danger-button" onClick={() => setOpen(true)}>
+            <Trash2 size={16} />
+            {t('অ্যাকাউন্ট মুছে ফেলুন', 'Delete account')}
+          </button>
+        )}
+      </div>
     </section>
   )
 }
