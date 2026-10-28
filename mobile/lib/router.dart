@@ -18,6 +18,13 @@ import 'features/shell/main_shell.dart';
 
 const _signedOutPaths = {'/welcome', '/login', '/signup'};
 
+/// Opening a screen, dialog or sheet closes the keyboard. Otherwise coming back would give the
+/// focus, and the keyboard, back to the box typed in last.
+class _CloseKeyboardOnPush extends NavigatorObserver {
+  @override
+  void didPush(Route<dynamic> route, Route<dynamic>? previousRoute) => FocusManager.instance.primaryFocus?.unfocus();
+}
+
 /// The screens. Signed out: welcome, login, sign up. Signed in: the four services as tabs (each
 /// keeps its place), with orders, notifications, offers and the profile opened on top.
 final routerProvider = Provider<GoRouter>((ref) {
@@ -26,6 +33,7 @@ final routerProvider = Provider<GoRouter>((ref) {
 
   final router = GoRouter(
     navigatorKey: rootNavigatorKey,
+    observers: [_CloseKeyboardOnPush()],
     initialLocation: '/bazar',
     refreshListenable: changes,
     redirect: (context, state) {

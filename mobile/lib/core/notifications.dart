@@ -37,7 +37,10 @@ enum PushStatus {
 }
 
 const _offKey = 'push_off';
+// The offer after the first order was made (it is made once; "Not now" is not a refusal).
 const _askedKey = 'push_asked';
+// The phone itself was asked and said no; from then on only its settings can turn popups on.
+const _deniedKey = 'push_denied';
 
 /// Order and offer popups, the way the owner asked for them: a heads-up notification on the phone.
 ///
@@ -154,8 +157,8 @@ class PushService {
     final allowed = await _allowed();
     if (await _turnedOff()) return PushStatus.off;
     if (allowed) return PushStatus.on;
-    final asked = (await SharedPreferences.getInstance()).getBool(_askedKey) ?? false;
-    return asked ? PushStatus.blocked : PushStatus.off;
+    final denied = (await SharedPreferences.getInstance()).getBool(_deniedKey) ?? false;
+    return denied ? PushStatus.blocked : PushStatus.off;
   }
 
   /// Asks the phone (Android 13+, iOS), then registers it with the server. True when popups are on.
@@ -175,6 +178,7 @@ class PushService {
         allowed = await ios?.requestPermissions(alert: true, badge: true, sound: true) ?? false;
       }
     }
+    await prefs.setBool(_deniedKey, !allowed);
     if (allowed) await syncDevice();
     _ref.invalidate(pushStatusProvider);
     return allowed;

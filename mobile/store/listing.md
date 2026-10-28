@@ -66,4 +66,17 @@ Kingfisher does your fresh market shopping, brings emergency medicine, delivers 
 |---|---|
 | App icon, 512×512 | `store/icon-512.png` |
 | Feature graphic, 1024×500 | `store/feature-graphic.png` |
-| Phone screenshots, 2 to 8 | `store/screenshots/` |
+| Phone screenshots, 2 to 8 | `store/screenshots/`: eight, 1080×1920 |
+
+The screenshots were taken on the app itself (Android 16, the demo data from `npm run db:seed:demo`), in this order:
+
+1. Welcome (বাংলা)
+2. Home with today's offer
+3. A price to confirm, with the staff note
+4. A price arriving as a phone popup
+5. House shifting, step by step
+6. Picking a location on the map
+7. Home in English
+8. A price to confirm, in English
+
+Upload 1–6 to the Bangla listing and 7–8 (or all eight) to the English one.

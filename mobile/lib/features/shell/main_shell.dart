@@ -125,13 +125,15 @@ class _MainShellState extends ConsumerState<MainShell> {
         body: Stack(
           children: [
             Positioned.fill(child: widget.shell),
-            Positioned(left: 0, right: 0, bottom: 90 + bottomInset, child: const Center(child: ContactDock())),
-            Positioned(
-              left: 10,
-              right: 10,
-              bottom: 10 + bottomInset,
-              child: _BottomNav(current: widget.shell.currentIndex, onSelect: (i) => _goService(ServiceId.values[i])),
-            ),
+            if (!keyboardOpen(context)) ...[
+              Positioned(left: 0, right: 0, bottom: 90 + bottomInset, child: const Center(child: ContactDock())),
+              Positioned(
+                left: 10,
+                right: 10,
+                bottom: 10 + bottomInset,
+                child: _BottomNav(current: widget.shell.currentIndex, onSelect: (i) => _goService(ServiceId.values[i])),
+              ),
+            ],
           ],
         ),
       ),
@@ -198,14 +200,21 @@ class _BottomNav extends ConsumerWidget {
                         child: Icon(ServiceTone.of(service).icon, size: 20, color: service.index == current ? Kf.blue : Kf.muted2),
                       ),
                       const SizedBox(height: 4),
-                      Text(
-                        l.text(service.label),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: service.index == current ? FontWeight.w700 : FontWeight.w500,
-                          color: service.index == current ? Kf.blue : Kf.muted,
+                      // The whole name, as on the website; a long one ("Emergency medicine")
+                      // shrinks to fit rather than being cut.
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 3),
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text(
+                            l.text(service.label),
+                            maxLines: 1,
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: service.index == current ? FontWeight.w700 : FontWeight.w500,
+                              color: service.index == current ? Kf.blue : Kf.muted,
+                            ),
+                          ),
                         ),
                       ),
                     ],

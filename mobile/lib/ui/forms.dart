@@ -105,6 +105,12 @@ class _LineTableState extends State<LineTable> {
         const numberWidth = 22.0;
         const priceFlex = 8;
         Widget cell(int flex, Widget child) => Expanded(flex: flex, child: Padding(padding: const EdgeInsets.symmetric(horizontal: 2), child: child));
+        // Headings wrap between words; a one-word heading too wide for its column ("Quantity")
+        // shrinks instead of breaking in the middle of the word.
+        Widget heading(String text) {
+          final label = Text(text, style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: tone.ink, height: 1.25));
+          return text.trim().contains(' ') ? label : FittedBox(fit: BoxFit.scaleDown, alignment: AlignmentDirectional.centerStart, child: label);
+        }
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -114,9 +120,8 @@ class _LineTableState extends State<LineTable> {
               child: Row(
                 children: [
                   const SizedBox(width: numberWidth),
-                  for (final column in widget.columns)
-                    cell(column.flex, Text(column.label, style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: tone.ink, height: 1.25))),
-                  cell(priceFlex, Text(widget.priceLabel, style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: tone.ink))),
+                  for (final column in widget.columns) cell(column.flex, heading(column.label)),
+                  cell(priceFlex, heading(widget.priceLabel)),
                 ],
               ),
             ),
@@ -136,7 +141,9 @@ class _LineTableState extends State<LineTable> {
                           textInputAction: TextInputAction.next,
                           decoration: InputDecoration(
                             hintText: widget.columns[j].hint,
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+                            // The theme's hint is a size larger; in these narrow cells "1 কেজি" would be cut.
+                            hintStyle: const TextStyle(color: Kf.muted3, fontSize: 13, letterSpacing: 0),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 7, vertical: 12),
                             border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Kf.lineStrong)),
                             enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Kf.lineStrong)),
                           ),
@@ -325,10 +332,13 @@ class BillSummary extends StatelessWidget {
                 ),
               ),
             const Padding(padding: EdgeInsets.symmetric(vertical: 6), child: Divider(color: Kf.navy, thickness: 2, height: 2)),
+            // The label keeps its own width and the total takes the rest, so "230 টাকা + বাজারের দাম"
+            // stays on one line.
             Row(
               children: [
-                Expanded(child: Text(totalLabel, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: Kf.navy))),
-                Flexible(child: Text(total, textAlign: TextAlign.right, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: Kf.blue))),
+                Text(totalLabel, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: Kf.navy)),
+                const SizedBox(width: 12),
+                Expanded(child: Text(total, textAlign: TextAlign.right, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: Kf.blue))),
               ],
             ),
           ],

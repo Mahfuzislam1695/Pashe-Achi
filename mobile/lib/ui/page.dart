@@ -34,7 +34,8 @@ class PageScaffold extends StatelessWidget {
       body: Stack(
         children: [
           Positioned.fill(child: body),
-          Positioned(left: 0, right: 0, bottom: 16 + MediaQuery.paddingOf(context).bottom, child: const Center(child: ContactDock())),
+          if (!keyboardOpen(context))
+            Positioned(left: 0, right: 0, bottom: 16 + MediaQuery.paddingOf(context).bottom, child: const Center(child: ContactDock())),
         ],
       ),
     );

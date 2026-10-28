@@ -183,7 +183,7 @@ class _PushSettingState extends ConsumerState<_PushSetting> {
     final on = status == PushStatus.on;
     final hint = switch (status) {
       PushStatus.on when push.hasFirebase => l.t('দাম, অর্ডারের খবর ও অফার অ্যাপ বন্ধ থাকলেও পপআপ হয়ে আসবে।', 'Prices, order updates and offers pop up even when the app is closed.'),
-      PushStatus.on => l.t('অ্যাপ খোলা বা পেছনে চালু থাকলে দাম ও অর্ডারের খবর পপআপ হয়ে আসবে।', 'While the app is open or running in the background, prices and order updates pop up.'),
+      PushStatus.on => l.t('অ্যাপ খোলা থাকলে দাম ও অর্ডারের খবর পপআপ হয়ে আসবে।', 'While the app is open, prices and order updates pop up.'),
       PushStatus.off => l.t('চালু করলে দাম ও অর্ডারের খবর ফোনে পপআপ হয়ে আসবে।', 'Turn them on to get prices and order updates as popups on this phone.'),
       PushStatus.blocked => l.t('ফোনের সেটিংসে এই অ্যাপের নোটিফিকেশন বন্ধ করা আছে। সেটিংস থেকে চালু করুন।', "Notifications are off for this app in the phone's settings. Turn them on there."),
     };

@@ -117,7 +117,12 @@ class SendOrderButton extends ConsumerWidget {
           label: busy ? l.t('অপেক্ষা করুন…', 'Please wait…') : (label ?? l.t('অর্ডার পাঠান', 'Send order')),
           icon: LucideIcons.check,
           busy: busy,
-          onPressed: onPressed,
+          onPressed: () {
+            // Close the keyboard so the message or the result shows, and so coming back from
+            // Orders doesn't reopen it on the last box typed in.
+            FocusManager.instance.primaryFocus?.unfocus();
+            onPressed();
+          },
         ),
       ],
     );

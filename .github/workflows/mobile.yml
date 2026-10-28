@@ -72,7 +72,9 @@ jobs:
             "$RUNNER_TEMP/upload.jks" "$ANDROID_KEYSTORE_PASSWORD" "${ANDROID_KEY_ALIAS:-upload}" "$ANDROID_KEYSTORE_PASSWORD" > android/key.properties
           echo "signed=true" >> "$GITHUB_OUTPUT"
 
-      - run: flutter build apk --release
+      # The website's APK: ARM phones only, native code compressed, for a small download
+      # (mobile/README.md, "The APK on the website"). The Play bundle keeps everything.
+      - run: flutter build apk --release --target-platform android-arm,android-arm64 -P websiteApk=true
       - run: flutter build appbundle --release
       - name: Name the files
         run: |

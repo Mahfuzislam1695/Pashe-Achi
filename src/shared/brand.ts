@@ -29,8 +29,9 @@ export const HEAD_OFFICE = {
 // The Kingfisher app's links on /app-download (the Flutter app in mobile/, id com.kingfisherbd24.app).
 // null shows "শীঘ্রই আসছে" (coming soon) in place of the button.
 // playStore: https://play.google.com/store/apps/details?id=com.kingfisherbd24.app once it is published.
-// apk: a file in public/downloads/ (mobile/README.md: build it, copy it there) or a full https:// URL.
-export const APP_DOWNLOADS: { playStore: string | null; apk: string | null } = { playStore: null, apk: null }
+// apk: a file in public/downloads/ (mobile/README.md, "The APK on the website": build it, copy it there)
+// or a full https:// URL.
+export const APP_DOWNLOADS: { playStore: string | null; apk: string | null } = { playStore: null, apk: '/downloads/kingfisher.apk' }
 
 // Photos for the banners, each in public/images as {base}-800.webp and {base}-1600.webp (800 and 1600 px wide).
 // All are from Unsplash under the Unsplash License (free for commercial use, no credit required):

@@ -61,6 +61,18 @@ android {
             signingConfig = signingConfigs.findByName("release") ?: signingConfigs.getByName("debug")
         }
     }
+
+    // The website's APK is built with -P websiteApk=true (README.md, "The APK on the website"). It
+    // carries only the ARM code phones run (x86_64 is for emulators and some Chromebooks, which get
+    // the app from Google Play), stored compressed and unpacked at install: a third of the download.
+    // Play bundles keep every ABI, uncompressed and 16 KB-aligned, as Play prefers.
+    val websiteApk = providers.gradleProperty("websiteApk").orNull == "true"
+    packaging {
+        jniLibs {
+            useLegacyPackaging = websiteApk
+            if (websiteApk) excludes += "lib/x86_64/**"
+        }
+    }
 }
 
 kotlin {

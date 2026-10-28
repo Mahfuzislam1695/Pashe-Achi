@@ -16,13 +16,16 @@ cd E:\pashe-achi\Pashe-Achi\mobile
 flutter pub get
 flutter analyze
 flutter test
-flutter build apk --release        # build/app/outputs/flutter-apk/app-release.apk (for the website)
-flutter build appbundle --release  # build/app/outputs/bundle/release/app-release.aab (for Google Play)
+# For the website: build/app/outputs/flutter-apk/app-release.apk, about 22 MB ("The APK on the website")
+flutter build apk --release --target-platform android-arm,android-arm64 -P websiteApk=true
+# For Google Play: build/app/outputs/bundle/release/app-release.aab
+flutter build appbundle --release
 ```
 
-To try the app against the server on this computer, run `npm run dev` in the project folder, start an Android emulator, then:
+To try the app against the server on this computer, run `npm run dev` in the project folder, start the emulator, then run the app on it. The emulator `kingfisher16k` is an Android 16 phone with 16 KB memory pages, the kind Google Play checks apps against.
 
 ```powershell
+emulator -avd kingfisher16k        # opens the phone in its own window; leave it running
 flutter run --dart-define=API_BASE=http://10.0.2.2:3000/api/v1
 ```
 
@@ -33,11 +36,13 @@ Release builds always use `https://kingfisherbd24.com`.
 `/app-download` links to `public/downloads/kingfisher.apk` (`APP_DOWNLOADS` in `../src/shared/brand.ts`). After a new build:
 
 1. Raise the build number in `pubspec.yaml`.
-2. `flutter build apk --release`.
+2. Build it with the website command: `flutter build apk --release --target-platform android-arm,android-arm64 -P websiteApk=true`.
 3. Copy `build/app/outputs/flutter-apk/app-release.apk` to `../public/downloads/kingfisher.apk`.
 4. Deploy the website.
 
 Phones that installed the APK from the website update by installing the new one over it.
+
+**Why the website build is different.** A plain `flutter build apk --release` works too, but it comes to about 65 MB, because it carries uncompressed code for three kinds of processor. The website build keeps only the two that phones use (64-bit ARM and older 32-bit ARM) and compresses them. That brings it to about 22 MB, which matters on mobile data. Google Play gets the bundle, which keeps everything and sends each phone only its own part.
 
 ## The signing key (keep it safe)
 
@@ -49,7 +54,7 @@ Release builds are signed with the upload key `E:\kingfisher-dev\keys\kingfisher
 
 ## Turning on push (popups when the app is closed)
 
-Without these steps, the app already shows popups for order updates while it is open or running in the background (through the live connection). With Firebase Cloud Messaging (FCM, free) they also arrive when the app is closed.
+Without these steps, popups come only through the live connection, so only while the app is open. Android freezes an app in the background within a minute or two, and a frozen app hears nothing (checked on Android 16). With Firebase Cloud Messaging (FCM, free) they also arrive in the background and when the app is closed. The store listing promises them, so set this up before publishing.
 
 1. Go to <https://console.firebase.google.com>, then **Create a project** (for example "Kingfisher"). Google Analytics is not needed.
 2. **Add app → Android**:
@@ -98,9 +103,10 @@ Without the key, the cloud builds are marked UNSIGNED and are for testing only. 
    - **Account deletion:** in the app (Profile → Delete account) and on the web at `https://kingfisherbd24.com/account-deletion`.
    - **Health apps declaration:** the app delivers medicine people order, with their prescription; it gives no diagnosis or treatment advice.
    - **Government apps, Financial features, News:** none.
-4. **Store listing**: texts in `store/listing.md`, the 512×512 icon `store/icon-512.png`, a 1024×500 feature graphic `store/feature-graphic.png`, and at least two phone screenshots.
+4. **Store listing**: texts in `store/listing.md`, the 512×512 icon `store/icon-512.png`, a 1024×500 feature graphic `store/feature-graphic.png`, and the eight phone screenshots in `store/screenshots/`.
 5. **App signing**: upload your own key (see "The signing key").
-6. **Release**: upload `app-release.aab` to the closed test track, then production once Play allows.
+6. **Push**: set up Firebase first ("Turning on push"), then build the bundle; the listing promises a notification at every step.
+7. **Release**: upload `app-release.aab` to the closed test track, then production once Play allows.
 
 What the app already does for Play's rules:
 - Targets Android 16 (API 36), with 16 KB memory pages supported.

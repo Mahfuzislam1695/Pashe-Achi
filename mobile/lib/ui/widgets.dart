@@ -335,6 +335,11 @@ class StatusPill extends ConsumerWidget {
   }
 }
 
+/// Whether the on-screen keyboard is up. The floating Chat/Call dock and the services bar hide
+/// meanwhile, or they would ride up over the box being typed in. Ask with a context above the
+/// Scaffold: its body doesn't see the keyboard (the body is made shorter instead).
+bool keyboardOpen(BuildContext context) => MediaQuery.viewInsetsOf(context).bottom > 0;
+
 /// Chat (WhatsApp) and Call (the support phone), from the live Catalog. Literal "Chat"/"Call" as in the sketches.
 class ContactDock extends ConsumerWidget {
   const ContactDock({super.key});

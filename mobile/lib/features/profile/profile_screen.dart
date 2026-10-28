@@ -296,19 +296,14 @@ class _MyLocationState extends ConsumerState<_MyLocation> {
           ),
         if (_saved) ...[const SizedBox(height: 10), NoteBox(text: l.t('লোকেশন সেভ হয়েছে।', 'Location saved.'), icon: LucideIcons.circleCheck, tone: NoteTone.green)],
         const SizedBox(height: 12),
-        Row(
-          children: [
-            Expanded(
-              child: SecondaryButton(
-                label: location != null ? l.t('ম্যাপে পরিবর্তন করুন', 'Change on map') : l.t('ম্যাপে লোকেশন দিন', 'Set on map'),
-                icon: LucideIcons.map,
-                onPressed: () => _edit(locate: location == null),
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(child: SecondaryButton(label: l.t('বর্তমান লোকেশন', 'Current location'), icon: LucideIcons.locateFixed, onPressed: () => _edit(locate: true))),
-          ],
+        // One above the other: side by side, "ম্যাপে পরিবর্তন করুন" wraps onto two lines on a phone.
+        SecondaryButton(
+          label: location != null ? l.t('ম্যাপে পরিবর্তন করুন', 'Change on map') : l.t('ম্যাপে লোকেশন দিন', 'Set on map'),
+          icon: LucideIcons.map,
+          onPressed: () => _edit(locate: location == null),
         ),
+        const SizedBox(height: 10),
+        SecondaryButton(label: l.t('বর্তমান লোকেশন', 'Current location'), icon: LucideIcons.locateFixed, onPressed: () => _edit(locate: true)),
       ],
     );
   }

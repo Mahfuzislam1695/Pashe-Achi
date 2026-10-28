@@ -41,7 +41,7 @@ npm run db:migrate   # prisma migrate dev (creates a migration); then npm run db
 npm run db:deploy | db:seed | db:seed:demo | db:studio | db:generate
 ```
 
-- **The app.** Its commands (`flutter test`, `flutter build apk --release`) and the portable toolchain in `E:\kingfisher-dev` are in `mobile/README.md`; `.github/workflows/mobile.yml` builds it on GitHub too.
+- **The app.** Its commands (`flutter test`; the website's APK with `-P websiteApk=true`, ARM only and compressed, about 22 MB; the Play bundle), the portable toolchain in `E:\kingfisher-dev` and the `kingfisher16k` emulator are in `mobile/README.md`; `.github/workflows/mobile.yml` builds it on GitHub too.
 - **Single test file.** `npx vitest run src/shared/pricing.test.ts`, or `npx jest src/server/auth/cookies.spec.ts`.
 - **Dev vs production.** `npm run dev` runs `nest start --watch -- --dev`. That `--dev` flag, not `NODE_ENV`, puts Next.js in dev mode. `src/server/load-env.ts` then sets `NODE_ENV` to development or production to match, unless the environment already sets it.
 - **e2e database.** `test:e2e` uses `TEST_DATABASE_URL`, or `DATABASE_URL` with `_test` appended. It creates that database (UTF8), migrates it, and truncates it on every run. It runs Jest through `node --experimental-vm-modules`, because the Prisma 7 client loads its query engine with dynamic `import()`. The e2e tests boot the API alone, through `configureApp`, without the pages.
@@ -95,7 +95,7 @@ mobile/  the Kingfisher app (Flutter)      .github/workflows/mobile.yml  its clo
 - `brand.ts`: app name, logo paths, `PA-` order prefix and the banner photos.
   - The logo source is the transparent `public/logo/logo.png`, a kingfisher with no wordmark, so the name shows as text beside it. `logo-mark`/`logo-256`/`logo-512`, the icons and `public/og-image.jpg` (the share banner) are made from it, so re-render them if the logo changes.
   - `DEVELOPER` / `DEVELOPED_BY` are the developer credit ("Developed by Aethrasoft", linking to aethrasoft.com). `DeveloperCredit` (`src/customer/components/developer-credit.tsx`, `.dev-credit` CSS; `src/admin/components/developer-credit.tsx`) shows it in the landing footer, the sign-in and welcome screens and both sidebars.
-  - `APP_DOWNLOADS` (`playStore`, `apk`) are the Android app's links on `/app-download`. `null` shows "শীঘ্রই আসছে" in place of the button; set a link (an APK goes in `public/downloads/`) and redeploy to switch it on.
+  - `APP_DOWNLOADS` (`playStore`, `apk`) are the Android app's links on `/app-download`. `null` shows "শীঘ্রই আসছে" in place of the button; set a link and redeploy to switch it on. `apk` is `/downloads/kingfisher.apk` (`public/downloads/`, the website build from `mobile/README.md`); `playStore` stays `null` until the app is published.
   - `PHOTOS` and `photo(name)` give the `src`/`srcSet` of the photos in `public/images` (`{name}-800.webp` and `-1600.webp`, Unsplash License, sources listed in the file).
 - `geo.ts`: `GeoPoint`, `DHAKA_CENTER`, `joinAddress` (details, then the map address, as one line) and `mapLink` (a Google Maps URL, no key, for staff and riders to open a pin). `schemas/locations.ts` has `customerLocationSchema` (the customer's one location, and the value of every address box) and `requiredPin` (the order pins `addressPin`, `loadingPin`/`unloadingPin`, `pickupPin`/`dropoffPin`, all required).
 - `schemas/offers.ts`: আজকের অফার (`offerSchema`, `updateOfferSchema`); `OfferDto` / `AdminOfferDto` are in `types.ts`.

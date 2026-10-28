@@ -11,6 +11,7 @@ import 'package:kingfisher/core/session.dart';
 import 'package:kingfisher/features/auth/auth_screens.dart';
 import 'package:kingfisher/features/orders/order_detail_screen.dart';
 import 'package:kingfisher/ui/forms.dart';
+import 'package:kingfisher/ui/page.dart';
 import 'package:kingfisher/ui/theme.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -127,6 +128,21 @@ void main() {
     await tester.pumpWidget(app(const AuthScreen(signup: false), overrides: [catalogProvider.overrideWith((ref) async => catalog(passwordOn: true))]));
     await tester.pumpAndSettle();
     expect(find.text('পাসওয়ার্ড'), findsOneWidget);
+  });
+
+  testWidgets('Chat and Call step aside while the keyboard is up', (tester) async {
+    addTearDown(tester.view.resetViewInsets);
+    await tester.pumpWidget(
+      app(const PageScaffold(title: 'Profile', body: SizedBox.expand()), overrides: [catalogProvider.overrideWith((ref) async => catalog())]),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Chat'), findsOneWidget);
+    tester.view.viewInsets = const FakeViewPadding(bottom: 800);
+    await tester.pumpAndSettle();
+    expect(find.text('Chat'), findsNothing);
+    tester.view.resetViewInsets();
+    await tester.pumpAndSettle();
+    expect(find.text('Call'), findsOneWidget);
   });
 
   testWidgets('Confirm sends the total and quote version on screen', (tester) async {
