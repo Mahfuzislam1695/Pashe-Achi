@@ -1,6 +1,6 @@
 import type { ServiceId } from '@/shared'
 
-import { ACCOUNT_DELETION_PATH, DOWNLOAD_PATH, PRIVACY_PATH } from './constants'
+import { ACCOUNT_DELETION_PATH, DOWNLOAD_PATH, HOME_PATH, PRIVACY_PATH } from './constants'
 
 /**
  * Every customer URL: /, /login, /bazar, /orders/… (the wide layout on a desktop, the phone layout
@@ -12,7 +12,8 @@ export const webPaths = {
   entry: '/',
   login: '/login',
   signup: '/signup',
-  home: '/bazar',
+  /** The signed-in home screen (location, search, categories, services, offers). */
+  home: HOME_PATH,
   service: (id: ServiceId) => `/${id}`,
   orders: '/orders',
   order: (id: string) => `/orders/${encodeURIComponent(id)}`,

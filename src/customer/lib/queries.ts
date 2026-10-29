@@ -1,7 +1,7 @@
 'use client'
 
 import { isApiError } from '@/api-client'
-import type { CatalogDto, CustomerDto, MessageCode, OrderDetail } from '@/shared'
+import type { CatalogDto, CustomerDto, CustomerLocationInput, MessageCode, OrderDetail } from '@/shared'
 import { pickIssueCode } from '@/shared'
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
@@ -39,6 +39,16 @@ export function useSession(): { user: CustomerDto; catalog: CatalogDto } {
   const { data: catalog } = useCatalog()
   if (!user || !catalog) throw new Error('useSession() used outside the signed-in layout')
   return { user, catalog }
+}
+
+/** Saves the customer's one location (আমার লোকেশন) and updates the signed-in customer. Profile and Home use it. */
+export function useSaveMyLocation() {
+  const queryClient = useQueryClient()
+  return async (value: CustomerLocationInput) => {
+    const updated = await api.me.setLocation(value)
+    queryClient.setQueryData(queryKeys.me, updated)
+    return updated
+  }
 }
 
 export const useOrders = () =>

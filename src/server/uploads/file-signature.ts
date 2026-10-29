@@ -23,3 +23,6 @@ export function detectFileType(buffer: Buffer): DetectedFile | null {
   }
   return null
 }
+
+/** An Android app: a ZIP archive (PK\x03\x04) with an AndroidManifest.xml entry (entry names are stored as plain text). */
+export const isApk = (buffer: Buffer) => buffer.length > 30 && startsWith(buffer, [0x50, 0x4b, 0x03, 0x04]) && buffer.includes('AndroidManifest.xml', 0, 'latin1')

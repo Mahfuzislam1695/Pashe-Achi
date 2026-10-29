@@ -12,7 +12,7 @@ export default function manifest(): MetadataRoute.Manifest {
     short_name: APP_NAME.bn,
     description: APP_TAGLINE.bn,
     lang: 'bn',
-    start_url: '/bazar',
+    start_url: '/home',
     scope: '/',
     display: 'standalone',
     background_color: '#ffffff',

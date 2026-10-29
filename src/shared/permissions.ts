@@ -14,6 +14,7 @@ export const PERMISSION_MODULES = {
   history: ['view'],
   staff: ['view', 'create', 'edit', 'reset_password'],
   roles: ['view', 'create', 'edit', 'delete'],
+  system: ['view', 'backup', 'apk'],
 } as const
 
 export type PermissionModule = keyof typeof PERMISSION_MODULES
@@ -61,8 +62,10 @@ export const SYSTEM_ROLE_KEYS = {
   staffAdmin: 'staff_admin',
 } as const
 
-/** The starting permissions of the built-in Manager role: what managers could do before roles were editable (never staff or roles). */
-export const MANAGER_PERMISSIONS: Permission[] = ALL_PERMISSIONS.filter(permission => !permission.startsWith('staff.') && !permission.startsWith('roles.') && permission !== 'catalog.customer_signin')
+/** The starting permissions of the built-in Manager role: what managers could do before roles were editable (never staff, roles or system). */
+export const MANAGER_PERMISSIONS: Permission[] = ALL_PERMISSIONS.filter(
+  permission => !permission.startsWith('staff.') && !permission.startsWith('roles.') && !permission.startsWith('system.') && permission !== 'catalog.customer_signin',
+)
 
 /** The starting permissions of the built-in Operator role: handling orders, and seeing the rest. */
 export const OPERATOR_PERMISSIONS: Permission[] = normalizePermissions(['dashboard.view', 'orders.view', 'orders.update_status', 'orders.send_price', 'customers.view', 'catalog.view', 'offers.view', 'notifications.view'])

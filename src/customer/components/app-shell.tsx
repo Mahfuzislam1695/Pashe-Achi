@@ -2,7 +2,7 @@
 
 import { SERVICE_IDS, SERVICE_LABELS } from '@/shared'
 import { useQueryClient } from '@tanstack/react-query'
-import { BadgePercent, Bell, ChevronRight, ClipboardList, Menu, RotateCw, UserRound, X } from 'lucide-react'
+import { BadgePercent, Bell, ChevronRight, ClipboardList, House, Menu, RotateCw, ShoppingBag, UserRound, X } from 'lucide-react'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 
@@ -18,8 +18,8 @@ import { DeveloperCredit } from './developer-credit'
 import { ContactDock, FormError, LangToggle, Logo } from './ui'
 
 /**
- * The signed-in frame: drawer, top bar (language, bell, avatar), page body and the bottom nav of
- * the four services. Renders nothing but a splash until the customer and the catalog are loaded,
+ * The signed-in frame: drawer, top bar (language, bell, avatar), page body and the bottom nav
+ * (Home, Orders, Offers, the bazar list, Profile; the services are on Home and in the drawer). Renders nothing but a splash until the customer and the catalog are loaded,
  * so every screen below can rely on useSession().
  *
  * The phone layout below 1024px and the desktop layout from 1024px (the `.mode-web` rules in globals.css).
@@ -76,8 +76,9 @@ function Frame({ children }: { children: React.ReactNode }) {
   const offerCount = useOffers().data?.length ?? 0
   const [menuOpen, setMenuOpen] = useState(false)
 
-  // Service tabs switch instantly: their routes are prefetched once.
+  // Home and the service tabs switch instantly: their routes are prefetched once.
   useEffect(() => {
+    router.prefetch(paths.home)
     for (const service of SERVICE_IDS) router.prefetch(paths.service(service))
   }, [router, paths])
 
@@ -86,13 +87,23 @@ function Frame({ children }: { children: React.ReactNode }) {
   const activeService = SERVICE_IDS.find(service => isActive(paths.service(service)))
   const title = activeService
     ? text(SERVICE_LABELS[activeService])
-    : isActive(paths.orders)
-      ? t('অর্ডার হিস্ট্রি', 'Order history')
-      : isActive(paths.notifications)
-        ? t('নোটিফিকেশন', 'Notifications')
-        : isActive(paths.offers)
-          ? t('আজকের অফার', "Today's offers")
-          : t('প্রোফাইল', 'Profile')
+    : isActive(paths.home)
+      ? t('হোম', 'Home')
+      : isActive(paths.orders)
+        ? t('অর্ডার হিস্ট্রি', 'Order history')
+        : isActive(paths.notifications)
+          ? t('নোটিফিকেশন', 'Notifications')
+          : isActive(paths.offers)
+            ? t('আজকের অফার', "Today's offers")
+            : t('প্রোফাইল', 'Profile')
+  // The phone's bottom nav, after the mockup's হোম · অর্ডার · … · প্রোফাইল; its cart is the bazar list.
+  const tabs = [
+    { path: paths.home, icon: House, label: t('হোম', 'Home'), count: 0 },
+    { path: paths.orders, icon: ClipboardList, label: t('অর্ডার', 'Orders'), count: 0 },
+    { path: paths.offers, icon: BadgePercent, label: t('অফার', 'Offers'), count: offerCount },
+    { path: paths.service('bazar'), icon: ShoppingBag, label: t('বাজার লিস্ট', 'Bazar list'), count: 0 },
+    { path: paths.profile, icon: UserRound, label: t('প্রোফাইল', 'Profile'), count: 0 },
+  ]
   const go = (path: string) => {
     setMenuOpen(false)
     router.push(path)
@@ -126,6 +137,10 @@ function Frame({ children }: { children: React.ReactNode }) {
           <ChevronRight size={16} />
         </button>
         <nav className="side-nav" aria-label={t('প্রধান মেনু', 'Main navigation')}>
+          <button className={`nav-item ${isActive(paths.home) ? 'active' : ''}`} onClick={() => go(paths.home)}>
+            <House size={19} />
+            <span>{t('হোম', 'Home')}</span>
+          </button>
           <p className="nav-label">{t('সেবাসমূহ', 'SERVICES')}</p>
           {SERVICE_IDS.map(service => {
             const Icon = SERVICE_ICONS[service]
@@ -188,14 +203,18 @@ function Frame({ children }: { children: React.ReactNode }) {
         </header>
         <div className="page-body">{children}</div>
         <ContactDock raised />
-        <nav className="bottom-nav" aria-label={t('সেবাসমূহ', 'Services')}>
-          {SERVICE_IDS.map(service => {
-            const Icon = SERVICE_ICONS[service]
-            const active = isActive(paths.service(service))
+        <nav className="bottom-nav" aria-label={t('প্রধান মেনু', 'Main navigation')}>
+          {tabs.map(tab => {
+            const active = isActive(tab.path)
             return (
-              <button key={service} className={active ? 'active' : ''} aria-current={active ? 'page' : undefined} onClick={() => go(paths.service(service))}>
-                <Icon size={20} />
-                <span>{text(SERVICE_LABELS[service])}</span>
+              <button key={tab.path} className={active ? 'active' : ''} aria-current={active ? 'page' : undefined} onClick={() => go(tab.path)}>
+                <tab.icon size={20} />
+                <span>{tab.label}</span>
+                {tab.count > 0 && (
+                  <span className="tab-count" aria-label={t(`${digits(tab.count)}টি চলমান`, `${tab.count} running`)}>
+                    {digits(tab.count)}
+                  </span>
+                )}
               </button>
             )
           })}

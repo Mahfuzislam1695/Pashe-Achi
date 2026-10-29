@@ -15,11 +15,12 @@ import '../../ui/banners.dart';
 import '../../ui/forms.dart';
 import '../../ui/theme.dart';
 import '../../ui/widgets.dart';
+import '../shell/main_shell.dart';
 import 'drafts.dart';
 import 'service_frame.dart';
 
-/// কাঁচা বাজার, the home screen (the website's features/bazar.tsx): the customer writes the list;
-/// staff price it and the customer confirms the bill.
+/// কাঁচা বাজার (the website's features/bazar.tsx): the customer writes the list (Home's categories
+/// and search add rows to it); staff price it and the customer confirms the bill.
 class BazarScreen extends ConsumerStatefulWidget {
   const BazarScreen({super.key});
 
@@ -92,7 +93,7 @@ class _BazarScreenState extends ConsumerState<BazarScreen> {
           pricing: catalog.pricing,
           current: ServiceId.bazar,
           onOpenOffers: () => context.push('/offers'),
-          onOpenService: (service) => StatefulNavigationShell.of(context).goBranch(service.index),
+          onOpenService: (service) => StatefulNavigationShell.of(context).goBranch(branchOf(service)),
         ),
         const SizedBox(height: 16),
         CustomerInfo(customer: customer),

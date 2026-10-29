@@ -2,7 +2,7 @@
 
 import { APP_LOGO, APP_NAME, can } from '@/shared'
 import { useQueryClient } from '@tanstack/react-query'
-import { BadgePercent, Bell, BellOff, BellRing, ClipboardList, History, LayoutDashboard, LogOut, Megaphone, Menu, RotateCw, Settings2, ShieldCheck, UserCog, UserRound, Users, Volume2, VolumeX, X } from 'lucide-react'
+import { BadgePercent, Bell, BellOff, BellRing, ClipboardList, History, LayoutDashboard, LogOut, Megaphone, Menu, RotateCw, Server, Settings2, ShieldCheck, UserCog, UserRound, Users, Volume2, VolumeX, X } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
@@ -89,6 +89,7 @@ function Frame({ children }: { children: React.ReactNode }) {
     can(admin, 'history.view') && { href: '/admin/history', label: t('ইতিহাস', 'History'), icon: History },
     can(admin, 'staff.view') && { href: '/admin/staff', label: t('স্টাফ', 'Staff'), icon: ShieldCheck },
     can(admin, 'roles.view') && { href: '/admin/roles', label: t('রোল ও অনুমতি', 'Roles & permissions'), icon: UserCog },
+    can(admin, 'system.view') && { href: '/admin/system', label: t('সিস্টেম', 'System'), icon: Server },
   ].filter(item => !!item)
   const isActive = (href: string) => (href === '/admin' ? pathname === '/admin' : pathname === href || pathname.startsWith(`${href}/`))
 

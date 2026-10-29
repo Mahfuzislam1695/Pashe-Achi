@@ -37,6 +37,7 @@ export const PERMISSION_MODULE_LABELS: Record<PermissionModule, Text> = {
   history: { bn: 'ইতিহাস', en: 'History' },
   staff: { bn: 'স্টাফ', en: 'Staff' },
   roles: { bn: 'রোল ও অনুমতি', en: 'Roles & permissions' },
+  system: { bn: 'সিস্টেম', en: 'System' },
 }
 
 /** Each permission's checkbox label and a line on what it allows. */
@@ -68,6 +69,12 @@ export const PERMISSION_LABELS: Record<Permission, { label: Text; hint: Text }> 
   'roles.create': { label: { bn: 'নতুন', en: 'Create' }, hint: { bn: 'নতুন রোল বানানো, শুধু নিজের অনুমতিগুলো দিয়ে', en: 'Make roles, with permissions you hold yourself' } },
   'roles.edit': { label: { bn: 'এডিট', en: 'Edit' }, hint: { bn: 'অন্য রোল বদলানো, শুধু নিজের অনুমতিগুলো', en: 'Change other roles, only permissions you hold yourself' } },
   'roles.delete': { label: { bn: 'মুছে ফেলা', en: 'Delete' }, hint: { bn: 'যে রোলে কোনো স্টাফ নেই তা মুছে ফেলা', en: 'Delete roles no staff member holds' } },
+  'system.view': { label: { bn: 'দেখা', en: 'View' }, hint: { bn: 'ডেটাবেসের আকার আর এখনকার অ্যাপ (APK)', en: 'The database size and the current app (APK)' } },
+  'system.backup': {
+    label: { bn: 'ব্যাকআপ', en: 'Backup' },
+    hint: { bn: 'পুরো ডেটাবেসের ব্যাকআপ ডাউনলোড; এতে সব গ্রাহকের তথ্য থাকে', en: "Download a full database backup; it holds every customer's data" },
+  },
+  'system.apk': { label: { bn: 'অ্যাপ (APK)', en: 'App (APK)' }, hint: { bn: 'ওয়েবসাইটের APK আপলোড বা সরানো', en: "Upload or remove the website's APK" } },
 }
 
 export const NOTIFICATION_TYPE_LABELS: Record<NotificationType, Text> = {
@@ -96,6 +103,7 @@ export const AUDIT_ENTITY_LABELS: Record<AuditEntity, Text> = {
   OFFER: { bn: 'অফার', en: 'Offers' },
   CUSTOMER_AUTH: { bn: 'গ্রাহকের লগইন', en: 'Customer sign-in' },
   ROLE: { bn: 'রোল', en: 'Roles' },
+  SYSTEM: { bn: 'সিস্টেম', en: 'System' },
 }
 
 export const AUDIT_ACTION_LABELS: Record<AuditAction, Text> = {
@@ -134,10 +142,14 @@ export const AUDIT_ACTION_LABELS: Record<AuditAction, Text> = {
   ROLE_UPDATED: { bn: 'রোল আপডেট', en: 'Role updated' },
   ROLE_DELETED: { bn: 'রোল মুছে ফেলা', en: 'Role deleted' },
   CUSTOMER_DELETED: { bn: 'অ্যাকাউন্ট মুছে ফেলা', en: 'Account deleted' },
+  SYSTEM_BACKUP_DOWNLOADED: { bn: 'ডেটাবেস ব্যাকআপ ডাউনলোড', en: 'Database backup downloaded' },
+  APK_UPLOADED: { bn: 'নতুন APK আপলোড', en: 'APK uploaded' },
+  APK_REMOVED: { bn: 'আপলোড করা APK সরানো', en: 'Uploaded APK removed' },
 }
 
 /** Names of the fields a history entry can show as "before → after". Pricing names match the Catalog page. */
 export const AUDIT_FIELD_LABELS: Record<string, Text> = {
+  version: { bn: 'ভার্সন', en: 'Version' },
   bazarShoppingFee: { bn: 'বাজার ক্রয় বাবদ মজুরী', en: 'Bazar shopping fee' },
   bazarDeliveryFee: { bn: 'বাজার ডেলিভারী খরচ', en: 'Bazar delivery charge' },
   medicineDeliveryFee: { bn: 'ঔষুধ ডেলিভারী চার্জ', en: 'Medicine delivery charge' },

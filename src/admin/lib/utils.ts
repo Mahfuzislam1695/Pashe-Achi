@@ -5,6 +5,13 @@ import { twMerge } from 'tailwind-merge'
 
 export const cn = (...inputs: ClassValue[]) => twMerge(clsx(inputs))
 
+/** A file size for people: 845 KB, 21.8 MB, 1.2 GB. */
+export function fileSize(bytes: number) {
+  if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`
+  if (bytes < 1024 ** 3) return `${(bytes / 1024 ** 2).toFixed(1)} MB`
+  return `${(bytes / 1024 ** 3).toFixed(2)} GB`
+}
+
 /** The message code to show for a failed request. */
 export function errorCode(error: unknown, priority: readonly MessageCode[] = []): MessageCode {
   if (typeof error === 'string') return error as MessageCode
@@ -28,6 +35,8 @@ const PAGES: [string, Permission][] = [
   ['/admin/notifications', 'notifications.view'],
   ['/admin/history', 'history.view'],
   ['/admin/staff', 'staff.view'],
+  ['/admin/roles', 'roles.view'],
+  ['/admin/system', 'system.view'],
 ]
 
 /** The first page this admin may open (the profile when their role allows none). */

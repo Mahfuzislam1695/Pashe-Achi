@@ -1,4 +1,4 @@
-import { detectFileType } from './file-signature'
+import { detectFileType, isApk } from './file-signature'
 
 const bytes = (hex: string, pad = 16) => Buffer.concat([Buffer.from(hex, 'hex'), Buffer.alloc(pad)])
 
@@ -21,5 +21,19 @@ describe('detectFileType', () => {
 
   it('rejects files too short to identify', () => {
     expect(detectFileType(Buffer.from([0xff, 0xd8]))).toBeNull()
+  })
+})
+
+describe('isApk', () => {
+  const zip = (...entries: string[]) => Buffer.concat([bytes('504b0304', 26), ...entries.map(name => Buffer.from(name)), Buffer.alloc(16)])
+
+  it('accepts a ZIP with an AndroidManifest.xml entry', () => {
+    expect(isApk(zip('AndroidManifest.xml', 'classes.dex'))).toBe(true)
+  })
+
+  it('rejects other ZIPs and anything that is not a ZIP', () => {
+    expect(isApk(zip('word/document.xml'))).toBe(false)
+    expect(isApk(Buffer.concat([Buffer.from('%PDF-1.7 AndroidManifest.xml'), Buffer.alloc(16)]))).toBe(false)
+    expect(isApk(bytes('504b0304', 0))).toBe(false)
   })
 })

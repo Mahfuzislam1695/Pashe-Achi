@@ -29,9 +29,10 @@ export const HEAD_OFFICE = {
 // The Kingfisher app's links on /app-download (the Flutter app in mobile/, id com.kingfisherbd24.app).
 // null shows "শীঘ্রই আসছে" (coming soon) in place of the button.
 // playStore: https://play.google.com/store/apps/details?id=com.kingfisherbd24.app once it is published.
-// apk: a file in public/downloads/ (mobile/README.md, "The APK on the website": build it, copy it there)
-// or a full https:// URL.
-export const APP_DOWNLOADS: { playStore: string | null; apk: string | null } = { playStore: null, apk: '/downloads/kingfisher.apk' }
+// apk: the API's GET /app/apk, which serves the APK uploaded on the admin panel's System page, or else
+// public/downloads/kingfisher.apk (mobile/README.md, "The APK on the website"). A full https:// URL works too.
+export const APK_DOWNLOAD_PATH = '/api/v1/app/apk'
+export const APP_DOWNLOADS: { playStore: string | null; apk: string | null } = { playStore: null, apk: APK_DOWNLOAD_PATH }
 
 // Photos for the banners, each in public/images as {base}-800.webp and {base}-1600.webp (800 and 1600 px wide).
 // All are from Unsplash under the Unsplash License (free for commercial use, no credit required):
@@ -63,6 +64,24 @@ export type PhotoName = keyof typeof PHOTOS
 export function photo(name: PhotoName) {
   const base = PHOTOS[name]
   return { src: `${base}-800.webp`, srcSet: `${base}-800.webp 800w, ${base}-1600.webp 1600w` }
+}
+
+// Home's bazar category tiles: public/images/cat-{name}-400.webp and -800.webp (4:3; the app bundles
+// the 400 px files in mobile/assets/images). Unsplash License, from images.unsplash.com:
+//   fish        fish on ice              photo-1563557908-b7787229f123
+//   meat        two cuts of beef         photo-1603048297172-c92544798d5a
+//   vegetables  a vegetable stall        photo-1550989460-0adf9ea622e2
+//   rice        bowls of grains, lentils photo-1766791620623-fab070962a90
+//   daily       shelves of jars, bottles photo-1545601445-4d6a0a0565f0
+//   more        a bag of groceries       photo-1543168256-418811576931
+export const CATEGORY_PHOTOS = ['fish', 'meat', 'vegetables', 'rice', 'daily', 'more'] as const
+
+export type CategoryPhotoName = (typeof CATEGORY_PHOTOS)[number]
+
+/** The `src` (the 400 px file) and `srcSet` of a category photo. */
+export function categoryPhoto(name: CategoryPhotoName) {
+  const base = `/images/cat-${name}`
+  return { src: `${base}-400.webp`, srcSet: `${base}-400.webp 400w, ${base}-800.webp 800w` }
 }
 
 // All dates (delivery schedule, "today" on the dashboard) are interpreted in Bangladesh time.

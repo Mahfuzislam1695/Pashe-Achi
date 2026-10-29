@@ -1,7 +1,7 @@
 'use client'
 
 import { calcBazar, createBazarOrderSchema, FORM_ERROR_PRIORITY, type ScheduleInput, validateForm } from '@/shared'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 import { AddressField, addressPin, addressText, type AddressValue, fromMyLocation } from '@/customer/components/address-field'
 import { PromoSlider } from '@/customer/components/banner'
@@ -9,7 +9,7 @@ import { DeliveryHoursNotice, DeliverySchedule, EMPTY_SCHEDULE } from '@/custome
 import { type Column, isRowStarted, LineTable, type Row } from '@/customer/components/line-table'
 import { BillSummary, ConfirmButton, CustomerInfo, Field, QuoteNotice, ServiceCard } from '@/customer/components/ui'
 import { api } from '@/customer/lib/api'
-import { useDraft } from '@/customer/lib/drafts'
+import { useDraft, useTakeBazarItems } from '@/customer/lib/drafts'
 import { useLang } from '@/customer/lib/i18n'
 import { errorCode, usePlaceOrder, useSession } from '@/customer/lib/queries'
 
@@ -22,6 +22,13 @@ export function BazarScreen() {
   const [draft, setDraft] = useDraft<BazarDraft>('bazar', () => ({ place: fromMyLocation(user.location), mobile: user.mobile, schedule: EMPTY_SCHEDULE, rows: [{}] }))
   const [showError, setShowError] = useState(false)
   const placeOrder = usePlaceOrder(api.orders.createBazar)
+  const takeItems = useTakeBazarItems()
+
+  // Items picked on Home (a category or a search) join the list as new rows, after the filled ones.
+  useEffect(() => {
+    const items = takeItems()
+    if (items.length) setDraft(current => ({ ...current, rows: [...current.rows.filter(isRowStarted), ...items.map(name => ({ name }))] }))
+  }, [])
 
   const update = (patch: Partial<BazarDraft>) => {
     setDraft(current => ({ ...current, ...patch }))

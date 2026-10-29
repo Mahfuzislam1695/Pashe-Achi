@@ -34,7 +34,7 @@ describe('built-in roles', () => {
   it('keep what each role could do, and nothing a Super admin alone could', () => {
     for (const permission of before.manager) expect(MANAGER_PERMISSIONS).toContain(permission)
     for (const permission of before.operator) expect(OPERATOR_PERMISSIONS).toContain(permission)
-    for (const permission of ['staff.view', 'staff.edit', 'catalog.customer_signin'] as Permission[]) expect(MANAGER_PERMISSIONS).not.toContain(permission)
+    for (const permission of ['staff.view', 'staff.edit', 'catalog.customer_signin', 'system.view', 'system.backup'] as Permission[]) expect(MANAGER_PERMISSIONS).not.toContain(permission)
     expect(OPERATOR_PERMISSIONS).not.toContain('history.view')
     expect(BUILT_IN_ROLES.filter(role => role.isSystem).map(role => role.key)).toEqual(['super_admin'])
   })

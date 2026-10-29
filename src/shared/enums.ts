@@ -78,7 +78,7 @@ export const ACTOR_TYPES = ['CUSTOMER', 'ADMIN', 'SYSTEM'] as const
 export type ActorType = (typeof ACTOR_TYPES)[number]
 
 /** The kinds of record the history log (AuditLog) is about. */
-export const AUDIT_ENTITIES = ['ORDER', 'CUSTOMER', 'STAFF', 'PRICING', 'VEHICLE', 'SUPPORT', 'ANNOUNCEMENT', 'DELIVERY_HOURS', 'OFFER', 'CUSTOMER_AUTH', 'ROLE'] as const
+export const AUDIT_ENTITIES = ['ORDER', 'CUSTOMER', 'STAFF', 'PRICING', 'VEHICLE', 'SUPPORT', 'ANNOUNCEMENT', 'DELIVERY_HOURS', 'OFFER', 'CUSTOMER_AUTH', 'ROLE', 'SYSTEM'] as const
 export type AuditEntity = (typeof AUDIT_ENTITIES)[number]
 
 /** Every action the history log records (same order as the AuditAction enum in schema.prisma). */
@@ -117,6 +117,9 @@ export const AUDIT_ACTIONS = [
   'ROLE_UPDATED',
   'ROLE_DELETED',
   'CUSTOMER_DELETED',
+  'SYSTEM_BACKUP_DOWNLOADED',
+  'APK_UPLOADED',
+  'APK_REMOVED',
 ] as const
 export type AuditAction = (typeof AUDIT_ACTIONS)[number]
 
@@ -144,6 +147,7 @@ export const AUDIT_ACTIONS_BY_ENTITY: Record<AuditEntity, readonly AuditAction[]
   OFFER: ['OFFER_CREATED', 'OFFER_UPDATED', 'OFFER_DELETED', 'OFFER_ANNOUNCED'],
   CUSTOMER_AUTH: ['CUSTOMER_AUTH_UPDATED'],
   ROLE: ['ROLE_CREATED', 'ROLE_UPDATED', 'ROLE_DELETED'],
+  SYSTEM: ['SYSTEM_BACKUP_DOWNLOADED', 'APK_UPLOADED', 'APK_REMOVED'],
 }
 
 /** Where the REST API lives on the one server: /api/v1. The pages call it on their own origin. */

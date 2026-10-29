@@ -2,6 +2,7 @@ import type {
   AdminCustomerDto,
   AdminDto,
   AdminOfferDto,
+  ApkInfoDto,
   AuditLogDto,
   AuditStatsDto,
   AuditStatsQuery,
@@ -48,6 +49,7 @@ import type {
   SupportSettings,
   StaffLoginInput,
   SupportSettingsInput,
+  SystemStatusDto,
   UnreadCountDto,
   UpdateAdminInput,
   UpdateCustomerInput,
@@ -149,6 +151,18 @@ export function createAdminApi(options: Omit<HttpClientOptions, 'audience'>) {
     },
     uploads: {
       url: (uploadId: string) => http.url(`/admin/uploads/${id(uploadId)}`),
+    },
+    system: {
+      status: () => http.get<SystemStatusDto>('/admin/system'),
+      /** A full database backup (pg_dump custom format); the server makes it first, so this can take a while. */
+      backup: () => http.download('/admin/system/backup'),
+      uploadApk: (file: File, version: string) => {
+        const form = new FormData()
+        form.append('version', version)
+        form.append('file', file)
+        return http.request<ApkInfoDto>('PUT', '/admin/system/apk', { body: form })
+      },
+      removeApk: () => http.request<ApkInfoDto | null>('DELETE', '/admin/system/apk'),
     },
   }
 }

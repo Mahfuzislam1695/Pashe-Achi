@@ -33,7 +33,7 @@ class OffersScreen extends ConsumerWidget {
             if (value != null && value.isEmpty)
               EmptyNote(l.t('আজ কোনো অফার নেই। নতুন অফার এলে নোটিফিকেশন পাবেন।', 'No offers today. You will be notified when a new one starts.'), icon: LucideIcons.badgePercent)
             else if (value != null)
-              for (final offer in value) Padding(padding: const EdgeInsets.only(bottom: 14), child: _OfferCard(offer: offer))
+              for (final offer in value) Padding(padding: const EdgeInsets.only(bottom: 14), child: OfferCard(offer: offer))
             else if (offers.hasError)
               ErrorRetry(code: errorCode(offers.error!), onRetry: () => ref.invalidate(offersProvider))
             else
@@ -45,8 +45,10 @@ class OffersScreen extends ConsumerWidget {
   }
 }
 
-class _OfferCard extends ConsumerWidget {
-  const _OfferCard({required this.offer});
+/// One offer: its picture (or the service's colour and icon), title, text, last day and "Order now".
+/// Home shows the same cards in a row.
+class OfferCard extends ConsumerWidget {
+  const OfferCard({super.key, required this.offer});
 
   final Offer offer;
 

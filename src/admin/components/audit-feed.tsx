@@ -32,6 +32,7 @@ import {
   CircleCheck,
   ClipboardList,
   Clock,
+  DatabaseBackup,
   KeyRound,
   LogIn,
   LogOut,
@@ -46,6 +47,7 @@ import {
   ShieldCheck,
   ShieldPlus,
   ShieldX,
+  Smartphone,
   Star,
   Truck,
   UserPen,
@@ -56,7 +58,7 @@ import Link from 'next/link'
 
 import { useLang } from '@/admin/lib/i18n'
 import { useCurrentAdmin, useRoles } from '@/admin/lib/queries'
-import { cn } from '@/admin/lib/utils'
+import { cn, fileSize } from '@/admin/lib/utils'
 import { Badge, StatusBadge } from './ui'
 
 type Tone = 'brand' | 'neutral' | 'success' | 'danger'
@@ -103,6 +105,9 @@ const ACTION_ICONS: Record<AuditAction, [LucideIcon, Tone]> = {
   ROLE_CREATED: [ShieldPlus, 'success'],
   ROLE_UPDATED: [ShieldCheck, 'brand'],
   ROLE_DELETED: [ShieldX, 'danger'],
+  SYSTEM_BACKUP_DOWNLOADED: [DatabaseBackup, 'brand'],
+  APK_UPLOADED: [Smartphone, 'success'],
+  APK_REMOVED: [Smartphone, 'danger'],
 }
 
 const MONEY_FIELDS = new Set([
@@ -271,7 +276,9 @@ function EntityRef({ entry }: { entry: AuditLogDto }) {
               ? '/admin/offers'
               : type === 'ROLE' && can(me, 'roles.view')
                 ? '/admin/roles'
-                : null
+                : type === 'SYSTEM' && can(me, 'system.view')
+                  ? '/admin/system'
+                  : null
   return (
     <>
       <span className="text-muted"> · </span>
@@ -411,6 +418,8 @@ function MetaLine({ entry }: { entry: AuditLogDto }) {
           : meta.reason === 'inactive'
             ? t('অ্যাকাউন্ট বন্ধ', 'Account disabled')
             : null
+  } else if (entry.entity.type === 'SYSTEM' && typeof meta.size === 'number') {
+    line = [typeof meta.version === 'string' ? t(`ভার্সন ${meta.version}`, `Version ${meta.version}`) : null, fileSize(meta.size)].filter(Boolean).join(' · ')
   }
   return line ? <p className="text-sm text-muted">{line}</p> : null
 }

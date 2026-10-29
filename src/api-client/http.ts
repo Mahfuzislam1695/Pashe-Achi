@@ -49,6 +49,8 @@ export interface HttpClient {
   post<T>(path: string, body?: unknown): Promise<T>
   put<T>(path: string, body?: unknown): Promise<T>
   patch<T>(path: string, body?: unknown): Promise<T>
+  /** GETs a file (with the same refresh and retry), with the name from its Content-Disposition. */
+  download(path: string, query?: Query): Promise<{ blob: Blob; filename: string | null }>
   /** Refreshes the session cookies. Concurrent calls share one request. */
   refresh(): Promise<boolean>
   url(path: string, query?: Query): string
@@ -105,7 +107,7 @@ export function createHttpClient({ baseUrl, audience, onUnauthorized }: HttpClie
     }
   }
 
-  async function request<T>(method: string, path: string, options: RequestOptions = {}): Promise<T> {
+  async function respond(method: string, path: string, options: RequestOptions) {
     let response = await send(method, path, options)
     const isAuthCall = path.startsWith(`${authPrefix}/`) && !path.endsWith('/me')
     if (response.status === 401 && !isAuthCall) {
@@ -113,9 +115,21 @@ export function createHttpClient({ baseUrl, audience, onUnauthorized }: HttpClie
       if (response.status === 401) onUnauthorized?.()
     }
     if (!response.ok) throw await toApiError(response)
+    return response
+  }
+
+  async function request<T>(method: string, path: string, options: RequestOptions = {}): Promise<T> {
+    const response = await respond(method, path, options)
     if (response.status === 204) return undefined as T
     const text = await response.text()
     return (text ? JSON.parse(text) : undefined) as T
+  }
+
+  async function download(path: string, query?: Query) {
+    const response = await respond('GET', path, { query })
+    const disposition = response.headers.get('content-disposition') ?? ''
+    const filename = /filename\*=UTF-8''([^;]+)/i.exec(disposition)?.[1] ?? /filename="?([^";]+)"?/i.exec(disposition)?.[1]
+    return { blob: await response.blob(), filename: filename ? decodeURIComponent(filename) : null }
   }
 
   return {
@@ -126,6 +140,7 @@ export function createHttpClient({ baseUrl, audience, onUnauthorized }: HttpClie
     post: (path, body) => request('POST', path, { body }),
     put: (path, body) => request('PUT', path, { body }),
     patch: (path, body) => request('PATCH', path, { body }),
+    download,
     refresh,
     url,
   }

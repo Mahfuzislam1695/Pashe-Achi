@@ -73,6 +73,14 @@ void main() {
     });
   });
 
+  group('short area', () {
+    test('keeps the last two parts of the address, like the website', () {
+      expect(shortArea('বাসা ১২, রোড ৫, মিরপুর ১০, ঢাকা-১২১৬'), 'মিরপুর ১০, ঢাকা-১২১৬');
+      expect(shortArea('Dhaka'), 'Dhaka');
+      expect(shortArea(' Gulshan , , Dhaka '), 'Gulshan, Dhaka');
+    });
+  });
+
   group('forms show one message, in the website order', () {
     final schedule = Schedule(date: isoDateInBd(), time: '09:30');
 

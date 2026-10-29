@@ -50,3 +50,10 @@ String isoDateInBd() => isoDate(nowInDhaka());
 
 /// HH:mm.
 String hhmm(int hour, int minute) => '${_two(hour)}:${_two(minute)}';
+
+/// The area of a map address for a one-line label (Home's location row): its last two parts
+/// (src/shared/geo.ts shortArea; "…, মিরপুর ১০, ঢাকা-১২১৬" → "মিরপুর ১০, ঢাকা-১২১৬").
+String shortArea(String address) {
+  final parts = address.split(',').map((part) => part.trim()).where((part) => part.isNotEmpty).toList();
+  return parts.sublist(parts.length > 2 ? parts.length - 2 : 0).join(', ');
+}

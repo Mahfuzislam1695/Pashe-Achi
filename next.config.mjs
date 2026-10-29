@@ -16,8 +16,10 @@ const nextConfig = {
   // /app-download is a different path and is not matched.
   async redirects() {
     return [
-      { source: '/app', destination: '/bazar', permanent: true },
+      { source: '/app', destination: '/home', permanent: true },
       { source: '/app/:path+', destination: '/:path+', permanent: true },
+      // The APK's old address: the API now serves the one uploaded on /admin/system, or this bundled file.
+      { source: '/downloads/kingfisher.apk', destination: '/api/v1/app/apk', permanent: false },
     ]
   },
   // The push notification worker (public/sw.js): always fetched fresh, and it may load nothing else.

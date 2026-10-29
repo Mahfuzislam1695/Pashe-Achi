@@ -14,9 +14,13 @@ import '../../core/session.dart';
 import '../../ui/theme.dart';
 import '../../ui/widgets.dart';
 
+/// The shell's branch for a service: Home is branch 0, the services follow in ServiceId order.
+int branchOf(ServiceId service) => service.index + 1;
+
 /// The signed-in frame (the website's components/app-shell.tsx in its phone layout): a top bar with
-/// the menu, the logo, the language, the bell and the avatar; the four services as a floating bottom
-/// nav; Chat and Call above it. Orders, notifications, offers and the profile open on top of it.
+/// the menu, the logo, the language, the bell and the avatar; a floating bottom nav (Home, Orders,
+/// Offers, the bazar list, Profile); Chat and Call above it. Home and the four services are the
+/// shell's branches; orders, notifications, offers and the profile open on top of it.
 class MainShell extends ConsumerStatefulWidget {
   const MainShell({super.key, required this.shell});
 
@@ -54,7 +58,9 @@ class _MainShellState extends ConsumerState<MainShell> {
     super.dispose();
   }
 
-  void _goService(ServiceId service) => widget.shell.goBranch(service.index, initialLocation: service.index == widget.shell.currentIndex);
+  void _goBranch(int branch) => widget.shell.goBranch(branch, initialLocation: branch == widget.shell.currentIndex);
+
+  void _goService(ServiceId service) => _goBranch(branchOf(service));
 
   @override
   Widget build(BuildContext context) {
@@ -89,13 +95,16 @@ class _MainShellState extends ConsumerState<MainShell> {
     }
 
     final bottomInset = MediaQuery.paddingOf(context).bottom;
+    final index = widget.shell.currentIndex;
+    final offerCount = ref.watch(offersProvider).value?.length ?? 0;
+    // Back from a service goes Home first; back on Home leaves the app.
     return PopScope(
-      canPop: widget.shell.currentIndex == 0,
+      canPop: index == 0,
       onPopInvokedWithResult: (didPop, _) {
         if (!didPop) widget.shell.goBranch(0);
       },
       child: Scaffold(
-        drawer: _AppDrawer(current: ServiceId.values[widget.shell.currentIndex], onService: _goService),
+        drawer: _AppDrawer(current: index == 0 ? null : ServiceId.values[index - 1], onHome: () => _goBranch(0), onService: _goService),
         appBar: AppBar(
           toolbarHeight: 64,
           automaticallyImplyLeading: false,
@@ -131,7 +140,16 @@ class _MainShellState extends ConsumerState<MainShell> {
                 left: 10,
                 right: 10,
                 bottom: 10 + bottomInset,
-                child: _BottomNav(current: widget.shell.currentIndex, onSelect: (i) => _goService(ServiceId.values[i])),
+                // After the mockup's হোম · অর্ডার · … · প্রোফাইল; its cart is the bazar list.
+                child: _BottomNav(
+                  tabs: [
+                    _Tab(LucideIcons.house, l.t('হোম', 'Home'), selected: index == 0, onTap: () => _goBranch(0)),
+                    _Tab(LucideIcons.clipboardList, l.t('অর্ডার', 'Orders'), onTap: () => context.push('/orders')),
+                    _Tab(LucideIcons.badgePercent, l.t('অফার', 'Offers'), count: offerCount, onTap: () => context.push('/offers')),
+                    _Tab(LucideIcons.shoppingBag, l.t('বাজার লিস্ট', 'Bazar list'), selected: index == branchOf(ServiceId.bazar), onTap: () => _goService(ServiceId.bazar)),
+                    _Tab(LucideIcons.userRound, l.t('প্রোফাইল', 'Profile'), onTap: () => context.push('/profile')),
+                  ],
+                ),
               ),
             ],
           ],
@@ -161,11 +179,23 @@ class _BellButton extends ConsumerWidget {
   }
 }
 
-class _BottomNav extends ConsumerWidget {
-  const _BottomNav({required this.current, required this.onSelect});
+/// One bottom nav item: a branch of the shell (selected while open) or a screen pushed on top.
+class _Tab {
+  const _Tab(this.icon, this.label, {required this.onTap, this.selected = false, this.count = 0});
 
-  final int current;
-  final ValueChanged<int> onSelect;
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  final bool selected;
+
+  /// A badge on the icon (running offers); 0 shows none.
+  final int count;
+}
+
+class _BottomNav extends ConsumerWidget {
+  const _BottomNav({required this.tabs});
+
+  final List<_Tab> tabs;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -180,40 +210,40 @@ class _BottomNav extends ConsumerWidget {
       ),
       child: Row(
         children: [
-          for (final service in ServiceId.values)
+          for (final tab in tabs)
             Expanded(
               child: Semantics(
-                selected: service.index == current,
+                selected: tab.selected,
                 button: true,
-                label: l.text(service.label),
+                label: tab.count > 0 ? '${tab.label}, ${l.digits(tab.count)}' : tab.label,
                 excludeSemantics: true,
                 child: InkWell(
                   borderRadius: BorderRadius.circular(16),
-                  onTap: () => onSelect(service.index),
+                  onTap: tab.onTap,
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       AnimatedContainer(
                         duration: const Duration(milliseconds: 180),
                         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 3),
-                        decoration: BoxDecoration(color: service.index == current ? Kf.blueSoft : Colors.transparent, borderRadius: BorderRadius.circular(999)),
-                        child: Icon(ServiceTone.of(service).icon, size: 20, color: service.index == current ? Kf.blue : Kf.muted2),
+                        decoration: BoxDecoration(color: tab.selected ? Kf.blueSoft : Colors.transparent, borderRadius: BorderRadius.circular(999)),
+                        child: Badge(
+                          isLabelVisible: tab.count > 0,
+                          backgroundColor: Kf.orange,
+                          label: Text(l.digits(tab.count), style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700)),
+                          child: Icon(tab.icon, size: 20, color: tab.selected ? Kf.blue : Kf.muted2),
+                        ),
                       ),
                       const SizedBox(height: 4),
-                      // The whole name, as on the website; a long one ("Emergency medicine")
-                      // shrinks to fit rather than being cut.
+                      // A long label shrinks to fit rather than being cut.
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 3),
                         child: FittedBox(
                           fit: BoxFit.scaleDown,
                           child: Text(
-                            l.text(service.label),
+                            tab.label,
                             maxLines: 1,
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: service.index == current ? FontWeight.w700 : FontWeight.w500,
-                              color: service.index == current ? Kf.blue : Kf.muted,
-                            ),
+                            style: TextStyle(fontSize: 11, fontWeight: tab.selected ? FontWeight.w700 : FontWeight.w500, color: tab.selected ? Kf.blue : Kf.muted),
                           ),
                         ),
                       ),
@@ -229,9 +259,11 @@ class _BottomNav extends ConsumerWidget {
 }
 
 class _AppDrawer extends ConsumerWidget {
-  const _AppDrawer({required this.current, required this.onService});
+  const _AppDrawer({required this.current, required this.onHome, required this.onService});
 
-  final ServiceId current;
+  /// The open service, or null on Home.
+  final ServiceId? current;
+  final VoidCallback onHome;
   final ValueChanged<ServiceId> onService;
 
   @override
@@ -321,6 +353,16 @@ class _AppDrawer extends ConsumerWidget {
                         ),
                       ),
                     ),
+                  ),
+                  const SizedBox(height: 10),
+                  item(
+                    icon: LucideIcons.house,
+                    text: l.t('হোম', 'Home'),
+                    active: current == null,
+                    onTap: () {
+                      Scaffold.of(context).closeDrawer();
+                      onHome();
+                    },
                   ),
                   label(l.t('সেবাসমূহ', 'Services')),
                   for (final service in ServiceId.values)

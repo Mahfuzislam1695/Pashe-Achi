@@ -33,12 +33,13 @@ Release builds always use `https://kingfisherbd24.com`.
 
 ### The APK on the website
 
-`/app-download` links to `public/downloads/kingfisher.apk` (`APP_DOWNLOADS` in `../src/shared/brand.ts`). After a new build:
+`/app-download` links to `/api/v1/app/apk` (`APP_DOWNLOADS` in `../src/shared/brand.ts`). That serves the APK uploaded on the admin panel's System page, or else the bundled `public/downloads/kingfisher.apk`. After a new build:
 
 1. Raise the build number in `pubspec.yaml`.
 2. Build it with the website command: `flutter build apk --release --target-platform android-arm,android-arm64 -P websiteApk=true`.
-3. Copy `build/app/outputs/flutter-apk/app-release.apk` to `../public/downloads/kingfisher.apk`.
-4. Deploy the website.
+3. On the live site, open **/admin/system** (as the Super admin, or a role with System › App (APK)), choose `build/app/outputs/flutter-apk/app-release.apk`, type the version from `pubspec.yaml` and press **Upload**. It goes live at once, with no redeploy. The reverse proxy must allow the upload's size (Nginx: `client_max_body_size 200m;`).
+
+You can still copy the APK to `../public/downloads/kingfisher.apk` and deploy instead, but an uploaded APK takes priority over it until you press **Remove upload** on the System page.
 
 Phones that installed the APK from the website update by installing the new one over it.
 

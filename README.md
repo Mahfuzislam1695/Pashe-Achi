@@ -84,6 +84,9 @@ npm run db:studio      # browse the database
 
 Run `npm run build`, then `npm start` on any Node.js server, behind a reverse proxy (for example Nginx) that serves HTTPS and passes WebSocket upgrades through. Set `PORT` in `.env` if 3000 is taken.
 
+- **Backups.** The admin panel's System page (`/admin/system`) downloads a full database backup made with `pg_dump`. Install the PostgreSQL client tools on the server (Debian/Ubuntu: `apt install postgresql-client-17`; the version must be the database's or newer), or set `PG_DUMP_PATH` in `.env`. Restore a backup with `pg_restore --clean --if-exists --no-owner -d <database> <file>.dump`.
+- **APK uploads.** The System page also uploads a new app APK (up to 150 MB), so let the proxy accept large bodies on that route (Nginx: `client_max_body_size 200m;`).
+
 The site has its own server (NestJS serves the pages too), so it can't be hosted on Vercel.
 
 ## Mobile app (Flutter)
@@ -97,5 +100,5 @@ The Kingfisher app for Android and iPhone is in `mobile/`. It uses the same API 
 - **Login.** Log in with `POST /api/v1/auth/login`. Send `Authorization: Bearer <tokens.accessToken>` on every request, and renew with `POST /api/v1/auth/refresh` and `{ "refreshToken": "…" }` in the body.
 - **Realtime.** Connect Socket.IO to the `/ws` namespace with `auth: { token: <accessToken> }`, and listen for `notification:new` and `order:updated`.
 - **Push.** The app registers its Firebase token with `PUT /api/v1/notifications/device`. The server sends through Firebase Cloud Messaging once `FCM_SERVICE_ACCOUNT` is set in `.env` (see `.env.example`).
-- **Download.** The website's `/app-download` page offers the APK from `public/downloads/kingfisher.apk`.
+- **Download.** The website's `/app-download` page offers the APK uploaded on the admin panel's System page (`/admin/system`), or else `public/downloads/kingfisher.apk`.
 - **Policies.** The privacy policy is at `/privacy`, and account deletion is explained at `/account-deletion` (the app's Profile has the same Delete account button as the website's).

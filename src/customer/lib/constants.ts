@@ -7,7 +7,7 @@ export const LANG_COOKIE = 'pa_lang'
 export const SESSION_COOKIE = 'pa_rt'
 
 /** Where a signed-in customer lands. */
-export const HOME_PATH = '/bazar'
+export const HOME_PATH = '/home'
 
 /** The public page with the Kingfisher app's links (Google Play and the APK). */
 export const DOWNLOAD_PATH = '/app-download'

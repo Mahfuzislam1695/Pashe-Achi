@@ -5,6 +5,7 @@ import 'package:material_ui/material_ui.dart';
 import 'core/notifications.dart';
 import 'core/session.dart';
 import 'features/auth/auth_screens.dart';
+import 'features/home/home_screen.dart';
 import 'features/notifications/notifications_screen.dart';
 import 'features/offers/offers_screen.dart';
 import 'features/orders/order_detail_screen.dart';
@@ -25,8 +26,8 @@ class _CloseKeyboardOnPush extends NavigatorObserver {
   void didPush(Route<dynamic> route, Route<dynamic>? previousRoute) => FocusManager.instance.primaryFocus?.unfocus();
 }
 
-/// The screens. Signed out: welcome, login, sign up. Signed in: the four services as tabs (each
-/// keeps its place), with orders, notifications, offers and the profile opened on top.
+/// The screens. Signed out: welcome, login, sign up. Signed in: Home and the four services as tabs
+/// (each keeps its place), with orders, notifications, offers and the profile opened on top.
 final routerProvider = Provider<GoRouter>((ref) {
   final changes = ValueNotifier<int>(0);
   ref.listen(sessionProvider, (_, _) => changes.value++);
@@ -34,14 +35,14 @@ final routerProvider = Provider<GoRouter>((ref) {
   final router = GoRouter(
     navigatorKey: rootNavigatorKey,
     observers: [_CloseKeyboardOnPush()],
-    initialLocation: '/bazar',
+    initialLocation: '/home',
     refreshListenable: changes,
     redirect: (context, state) {
       final location = state.matchedLocation;
       return switch (ref.read(sessionProvider)) {
         SessionStarting() || SessionOffline() => location == '/starting' ? null : '/starting',
         SignedOut() => _signedOutPaths.contains(location) ? null : '/welcome',
-        SignedIn() => _signedOutPaths.contains(location) || location == '/starting' ? '/bazar' : null,
+        SignedIn() => _signedOutPaths.contains(location) || location == '/starting' ? '/home' : null,
       };
     },
     routes: [
@@ -51,7 +52,9 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/signup', builder: (_, _) => const AuthScreen(signup: true)),
       StatefulShellRoute.indexedStack(
         builder: (_, _, shell) => MainShell(shell: shell),
+        // Home is branch 0, then the services in ServiceId order (branchOf in main_shell.dart).
         branches: [
+          StatefulShellBranch(routes: [GoRoute(path: '/home', builder: (_, _) => const HomeScreen())]),
           StatefulShellBranch(routes: [GoRoute(path: '/bazar', builder: (_, _) => const BazarScreen())]),
           StatefulShellBranch(routes: [GoRoute(path: '/shifting', builder: (_, _) => const ShiftingScreen())]),
           StatefulShellBranch(routes: [GoRoute(path: '/medicine', builder: (_, _) => const MedicineScreen())]),

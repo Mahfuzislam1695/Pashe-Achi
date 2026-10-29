@@ -48,6 +48,8 @@ export const envSchema = z
     VAPID_SUBJECT: z.string().trim().regex(/^(mailto:\S+@\S+|https:\/\/\S+)$/, 'must be mailto:you@yourdomain or an https:// URL').optional().or(z.literal('')),
     // Push to the Kingfisher app's phones (Firebase Cloud Messaging). Empty: off.
     FCM_SERVICE_ACCOUNT: z.string().trim().optional().or(z.literal('')),
+    // The PostgreSQL client's pg_dump, for the System page's database backup. A full path when it isn't on PATH.
+    PG_DUMP_PATH: z.string().trim().min(1).default('pg_dump'),
   })
   .superRefine((env, ctx) => {
     if (env.JWT_ACCESS_SECRET === env.ADMIN_JWT_ACCESS_SECRET) {

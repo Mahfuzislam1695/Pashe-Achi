@@ -20,6 +20,7 @@ import { OffersModule } from './offers/offers.module'
 import { OrdersModule } from './orders/orders.module'
 import { PrismaModule } from './prisma/prisma.module'
 import { RolesModule } from './roles/roles.module'
+import { SystemModule } from './system/system.module'
 import { UploadsModule } from './uploads/uploads.module'
 import { UsersModule } from './users/users.module'
 
@@ -55,6 +56,7 @@ import { UsersModule } from './users/users.module'
     OffersModule,
     DashboardModule,
     GeoModule,
+    SystemModule,
     HealthModule,
   ],
   providers: [

@@ -43,6 +43,7 @@ export const queryKeys = {
   offerStats: (filters: Partial<OfferStatsQuery>) => ['offers', 'stats', filters] as const,
   staff: ['staff'] as const,
   roles: ['roles'] as const,
+  system: ['system'] as const,
   staffList: (filters: Partial<ListStaffQuery>) => ['staff', 'list', filters] as const,
   notifications: ['notifications'] as const,
   notificationList: ['notifications', 'list'] as const,
@@ -106,6 +107,8 @@ export const useStaff = (filters: Partial<ListStaffQuery>) => useQuery({ queryKe
 
 /** Every role (any admin may read them: names, pickers). */
 export const useRoles = () => useQuery({ queryKey: queryKeys.roles, queryFn: api.roles.list, staleTime: 60_000 })
+
+export const useSystemStatus = () => useQuery({ queryKey: queryKeys.system, queryFn: api.system.status, staleTime: 0 })
 
 export const useStaffStats = () => useQuery({ queryKey: [...queryKeys.staff, 'stats'], queryFn: api.staff.stats })
 

@@ -24,3 +24,15 @@ export const mapLink = ({ lat, lng }: GeoPoint) => `https://www.google.com/maps/
 /** Google Maps directions between two pins (no key needed): staff read the road distance from it. */
 export const directionsLink = (from: GeoPoint, to: GeoPoint) =>
   `https://www.google.com/maps/dir/?api=1&origin=${from.lat},${from.lng}&destination=${to.lat},${to.lng}`
+
+/**
+ * The area of a map address for a one-line label (Home's location row): its last two parts, which
+ * formatAddress writes finest to coarsest ("…, মিরপুর ১০, ঢাকা-১২১৬" → "মিরপুর ১০, ঢাকা-১২১৬").
+ */
+export const shortArea = (address: string) =>
+  address
+    .split(',')
+    .map(part => part.trim())
+    .filter(Boolean)
+    .slice(-2)
+    .join(', ')

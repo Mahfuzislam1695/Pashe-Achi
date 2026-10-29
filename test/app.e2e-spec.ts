@@ -438,8 +438,77 @@ describe('Pashe Achi API (e2e)', () => {
     })
   })
 
+  describe('system page', () => {
+    /** Reads a download as raw bytes. */
+    const binary = (res: NodeJS.ReadableStream & { setEncoding?: unknown }, done: (error: Error | null, body: Buffer) => void) => {
+      const chunks: Buffer[] = []
+      res.on('data', (chunk: Buffer) => chunks.push(chunk))
+      res.on('end', () => done(null, Buffer.concat(chunks)))
+    }
+    const apk = Buffer.concat([Buffer.from('504b0304', 'hex'), Buffer.alloc(26), Buffer.from('AndroidManifest.xml classes.dex'), Buffer.alloc(64)])
+
+    it('is only for roles with the system module (at first the Super admin)', async () => {
+      const admin = await adminAgent()
+      await admin.post(api('/admin/staff')).send({ name: 'Mgr', mobile: '01912000070', password: 'staffpass1', roleId: ROLE_ID.MANAGER }).expect(201)
+      const manager = request.agent(app.getHttpServer())
+      await manager.post(api('/admin/auth/login')).send({ mobile: '01912000070', password: 'staffpass1' }).expect(200)
+      await manager.get(api('/admin/system')).expect(403)
+      await manager.get(api('/admin/system/backup')).expect(403)
+      await manager.put(api('/admin/system/apk')).attach('file', apk, { filename: 'kingfisher.apk' }).expect(403)
+      await manager.delete(api('/admin/system/apk')).expect(403)
+
+      const status = await admin.get(api('/admin/system')).expect(200)
+      expect(status.body.database).toMatchObject({ name: expect.stringMatching(/_test$/), size: expect.any(Number), serverVersion: expect.any(String) })
+    })
+
+    it('uploads an APK that the public link serves at once, and removes it again', async () => {
+      const admin = await adminAgent()
+      await admin.put(api('/admin/system/apk')).field('version', '1.0.3').expect(400).expect(res => expect(res.body.code).toBe('apk.required'))
+      await admin
+        .put(api('/admin/system/apk'))
+        .attach('file', Buffer.from('%PDF-1.4 AndroidManifest.xml padding padding'), { filename: 'kingfisher.apk' })
+        .expect(400)
+        .expect(res => expect(res.body.code).toBe('apk.invalid'))
+      await admin.put(api('/admin/system/apk')).field('version', 'v 1 <b>').attach('file', apk, { filename: 'kingfisher.apk' }).expect(400).expect(res => expect(res.body.code).toBe('apk.version'))
+
+      const uploaded = await admin.put(api('/admin/system/apk')).field('version', '1.0.3').attach('file', apk, { filename: 'kingfisher.apk' }).expect(200)
+      expect(uploaded.body).toMatchObject({ source: 'uploaded', version: '1.0.3', size: apk.length, uploadedBy: 'Admin', url: `/${API_PREFIX}/app/apk` })
+      const download = await request(app.getHttpServer()).get(api('/app/apk')).buffer(true).parse(binary).expect(200)
+      expect(download.headers['content-type']).toBe('application/vnd.android.package-archive')
+      expect(download.headers['content-disposition']).toContain('kingfisher.apk')
+      expect(Buffer.compare(download.body as Buffer, apk)).toBe(0)
+
+      // A second upload replaces the first, and its file is deleted.
+      const first = await prisma.setting.findUniqueOrThrow({ where: { key: 'app.apk' } })
+      await admin.put(api('/admin/system/apk')).field('version', '1.0.4').attach('file', apk, { filename: 'kingfisher.apk' }).expect(200)
+      const history = await prisma.auditLog.findMany({ where: { entityType: 'SYSTEM', action: 'APK_UPLOADED' }, orderBy: { createdAt: 'asc' } })
+      expect(history.at(-1)).toMatchObject({ actorName: 'Admin', changes: [{ field: 'version', from: '1.0.3', to: '1.0.4' }] })
+      expect(first.value).not.toBe((await prisma.setting.findUniqueOrThrow({ where: { key: 'app.apk' } })).value)
+
+      const removed = await admin.delete(api('/admin/system/apk')).expect(200)
+      expect(removed.body?.source ?? 'none').not.toBe('uploaded')
+      expect(await prisma.setting.findUnique({ where: { key: 'app.apk' } })).toBeNull()
+      expect(await prisma.auditLog.count({ where: { action: 'APK_REMOVED' } })).toBe(1)
+      // Back to the bundled public/downloads/kingfisher.apk, or nothing when there is none.
+      const after = await request(app.getHttpServer()).get(api('/app/apk')).buffer(true).parse(binary)
+      expect(after.status === 404 || Buffer.compare(after.body as Buffer, apk) !== 0).toBe(true)
+    })
+
+    it('downloads a full pg_dump backup and records who took it', async () => {
+      const admin = await adminAgent()
+      const status = await admin.get(api('/admin/system')).expect(200)
+      if (!status.body.database.pgDumpVersion) return console.warn('pg_dump is not available (PG_DUMP_PATH): skipping the backup test')
+      const backup = await admin.get(api('/admin/system/backup')).buffer(true).parse(binary).expect(200)
+      expect(backup.headers['content-disposition']).toMatch(/attachment; filename="kingfisher-backup-\d{4}-\d{2}-\d{2}-\d{4}\.dump"/)
+      expect(backup.headers['cache-control']).toBe('no-store')
+      expect((backup.body as Buffer).subarray(0, 5).toString('latin1')).toBe('PGDMP')
+      const entry = await prisma.auditLog.findFirstOrThrow({ where: { action: 'SYSTEM_BACKUP_DOWNLOADED' } })
+      expect(entry).toMatchObject({ actorName: 'Admin', entityType: 'SYSTEM', meta: { size: (backup.body as Buffer).length } })
+    })
+  })
+
   describe('push notifications', () => {
-    const keys = { p256dh: 'BNcRdreALRFXTkOOUHK1EtK2wtaz5Ry4YfYCA_0QTpQtUbVlUls0VJXg7A8u-Ts1XbjhazAkj7I99e8QcYP7DkM', auth: 'tBHItJI5svbpez7KI4CCXg' }
+    const keys ={ p256dh: 'BNcRdreALRFXTkOOUHK1EtK2wtaz5Ry4YfYCA_0QTpQtUbVlUls0VJXg7A8u-Ts1XbjhazAkj7I99e8QcYP7DkM', auth: 'tBHItJI5svbpez7KI4CCXg' }
     const pushedTo = (endpoint: string) => pushes.filter(push => push.endpoint === endpoint)
 
     it("sends a customer's price to their browser, in their language, opening the order", async () => {

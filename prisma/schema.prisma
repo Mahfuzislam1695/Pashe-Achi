@@ -85,6 +85,9 @@ enum AuditAction {
   ROLE_UPDATED
   ROLE_DELETED
   CUSTOMER_DELETED
+  SYSTEM_BACKUP_DOWNLOADED
+  APK_UPLOADED
+  APK_REMOVED
 }
 
 enum AuditEntity {
@@ -99,6 +102,7 @@ enum AuditEntity {
   OFFER
   CUSTOMER_AUTH
   ROLE
+  SYSTEM
 }
 
 /// A customer of the web/mobile app.

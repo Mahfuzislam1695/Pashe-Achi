@@ -415,3 +415,32 @@ export interface RoleDto extends RoleRef {
   createdAt: string
   updatedAt: string
 }
+
+/** The APK /app-download serves: uploaded on the System page, or the one in public/downloads/. */
+export interface ApkInfoDto {
+  source: 'uploaded' | 'bundled'
+  /** As typed at upload (1.0.3); null for the bundled file or when left blank. */
+  version: string | null
+  size: number
+  /** When it was uploaded, or the bundled file's modified time. */
+  updatedAt: string
+  /** The staff member who uploaded it. */
+  uploadedBy: string | null
+  /** The public download link. */
+  url: string
+}
+
+/** GET /admin/system: what the System page shows. */
+export interface SystemStatusDto {
+  database: {
+    name: string
+    /** Bytes, from pg_database_size. */
+    size: number
+    /** The PostgreSQL server's version (17.2). */
+    serverVersion: string
+    /** pg_dump's version, or null when the server can't run it. */
+    pgDumpVersion: string | null
+  }
+  /** Null when there is no APK at all. */
+  apk: ApkInfoDto | null
+}

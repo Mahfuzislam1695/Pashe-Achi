@@ -13,7 +13,7 @@ import { api } from '@/customer/lib/api'
 import { useLang } from '@/customer/lib/i18n'
 import { usePaths } from '@/customer/lib/paths'
 import { forgetCustomerPush } from '@/customer/lib/push'
-import { errorCode, queryKeys, useSession } from '@/customer/lib/queries'
+import { errorCode, queryKeys, useSaveMyLocation, useSession } from '@/customer/lib/queries'
 
 const PRIORITY = FORM_ERROR_PRIORITY.profile
 
@@ -86,7 +86,7 @@ export function ProfileScreen() {
 function MyLocation() {
   const { t } = useLang()
   const { user } = useSession()
-  const queryClient = useQueryClient()
+  const saveLocation = useSaveMyLocation()
   const [sheet, setSheet] = useState<{ locate: boolean } | null>(null)
   const [saved, setSaved] = useState(false)
   const location = user.location
@@ -134,8 +134,7 @@ function MyLocation() {
           submitLabel={t('সেভ করুন', 'Save')}
           onSubmit={async value => {
             setSaved(false)
-            const updated = await api.me.setLocation(value)
-            queryClient.setQueryData(queryKeys.me, updated)
+            await saveLocation(value)
             setSaved(true)
           }}
           onClose={() => setSheet(null)}

@@ -101,6 +101,13 @@ final bazarDraftProvider = NotifierProvider<DraftController<BazarDraft>, BazarDr
   () => DraftController((c) => BazarDraft(place: c?.location, mobile: c?.mobile ?? '')),
 );
 
+/// Puts an item (a Home category or search) on the bazar list as a new row, after the filled ones
+/// (the website's useAddToBazar).
+void addBazarItem(WidgetRef ref, String name) {
+  final draft = ref.read(bazarDraftProvider);
+  ref.read(bazarDraftProvider.notifier).set(draft.copyWith(rows: [...draft.rows.where(isRowStarted), {'name': name}]));
+}
+
 final shiftingDraftProvider = NotifierProvider<DraftController<ShiftingDraft>, ShiftingDraft>(
   () => DraftController((c) => ShiftingDraft(loading: c?.location)),
 );
