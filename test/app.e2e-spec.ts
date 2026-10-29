@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto'
 import type { AddressInfo } from 'node:net'
+import type { Stream } from 'node:stream'
 
 import { Test } from '@nestjs/testing'
 import type { NestExpressApplication } from '@nestjs/platform-express'
@@ -440,7 +441,7 @@ describe('Pashe Achi API (e2e)', () => {
 
   describe('system page', () => {
     /** Reads a download as raw bytes. */
-    const binary = (res: NodeJS.ReadableStream & { setEncoding?: unknown }, done: (error: Error | null, body: Buffer) => void) => {
+    const binary = (res: Stream, done: (error: Error | null, body: Buffer) => void) => {
       const chunks: Buffer[] = []
       res.on('data', (chunk: Buffer) => chunks.push(chunk))
       res.on('end', () => done(null, Buffer.concat(chunks)))
