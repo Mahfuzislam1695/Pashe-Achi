@@ -58,6 +58,9 @@ void main() {
     expect(catalog.pricing.bazarDeliveryFee, greaterThanOrEqualTo(0));
     expect(catalog.deliveryHours.keys, containsAll(ServiceId.values));
     await api.offers();
+    final home = await api.home();
+    expect(home.serviceImages.keys, containsAll(ServiceId.values.map((service) => service.name)));
+    expect(home.sections.keys, containsAll(['categories', 'services', 'offers']));
   });
 
   test('sign up, profile and location', () async {

@@ -12,12 +12,9 @@ import type { Offer, Prisma } from '../generated/prisma/client'
 import { offerContent } from '../notifications/notification.content'
 import { NotificationsService } from '../notifications/notifications.service'
 import { PrismaService } from '../prisma/prisma.service'
-import { detectFileType } from '../uploads/file-signature'
+import { checkImage } from '../uploads/image-file'
 import { StorageService } from '../uploads/storage.service'
-import { MAX_UPLOAD_BYTES } from '../uploads/uploads.service'
 
-/** Pictures every browser shows (no PDF or HEIC). */
-const IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp'])
 const FIELDS = ['titleBn', 'titleEn', 'bodyBn', 'bodyEn', 'service', 'startsOn', 'endsOn', 'isActive'] as const
 
 /** @db.Date columns come back as UTC midnight. */
@@ -196,10 +193,8 @@ export class OffersService {
   }
 
   /** Adds or replaces the picture: a JPG, PNG or WebP of at most 5 MB, checked by its first bytes. */
-  async setImage(id: string, file: Express.Multer.File | undefined, actor: AuditActor): Promise<AdminOfferDto> {
-    if (!file?.buffer?.length || file.size > MAX_UPLOAD_BYTES) throw AppException.badRequest('offer.image')
-    const type = detectFileType(file.buffer)
-    if (!type || !IMAGE_TYPES.has(type.mime)) throw AppException.badRequest('offer.image')
+  async setImage(id: string, upload: Express.Multer.File | undefined, actor: AuditActor): Promise<AdminOfferDto> {
+    const { file, type } = checkImage(upload, 'offer.image')
     const before = await this.prisma.offer.findUnique({ where: { id } })
     if (!before) throw AppException.notFound()
 

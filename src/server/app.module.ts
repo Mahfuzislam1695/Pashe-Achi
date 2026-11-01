@@ -16,6 +16,7 @@ import { DashboardModule } from './dashboard/dashboard.module'
 import { GeoModule } from './geo/geo.module'
 import { HealthModule } from './health/health.module'
 import { NotificationsModule } from './notifications/notifications.module'
+import { HomeModule } from './home/home.module'
 import { OffersModule } from './offers/offers.module'
 import { OrdersModule } from './orders/orders.module'
 import { PrismaModule } from './prisma/prisma.module'
@@ -54,6 +55,7 @@ import { UsersModule } from './users/users.module'
     OrdersModule,
     NotificationsModule,
     OffersModule,
+    HomeModule,
     DashboardModule,
     GeoModule,
     SystemModule,

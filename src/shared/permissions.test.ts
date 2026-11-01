@@ -25,6 +25,13 @@ describe('can', () => {
 })
 
 describe('built-in roles', () => {
+  it('let Manager and Marketing arrange the home page, and not Operator', () => {
+    expect(MANAGER_PERMISSIONS).toContain('home.edit')
+    expect(BUILT_IN_ROLES.find(role => role.nameEn === 'Marketing')?.permissions).toEqual(expect.arrayContaining(['home.view', 'home.edit']))
+    expect(OPERATOR_PERMISSIONS).not.toContain('home.view')
+  })
+
+
   // What Manager and Operator could do before roles became editable (the routes' old @Roles checks).
   const before: Record<'manager' | 'operator', Permission[]> = {
     manager: ['catalog.edit', 'offers.create', 'offers.notify', 'notifications.broadcast', 'customers.block', 'customers.edit_points', 'history.view', 'dashboard.staff_activity'],

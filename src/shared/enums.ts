@@ -58,6 +58,18 @@ export const isRevenue = (status: OrderStatus) => (REVENUE_STATUSES as readonly 
 export const ORDER_SORTS = ['newest', 'oldest', 'total_desc', 'total_asc', 'scheduled_asc'] as const
 export type OrderSort = (typeof ORDER_SORTS)[number]
 
+/** What a home page banner's button can open. */
+export const HOME_BANNER_TARGETS = [...SERVICE_IDS, 'offers'] as const
+export type HomeBannerTarget = (typeof HOME_BANNER_TARGETS)[number]
+
+/** The colours a home page category tile can have. */
+export const HOME_TONES = ['blue', 'coral', 'green', 'orange', 'violet', 'neutral'] as const
+export type HomeTone = (typeof HOME_TONES)[number]
+
+/** The home page sections with an editable heading and a show/hide switch. */
+export const HOME_SECTIONS = ['categories', 'services', 'offers'] as const
+export type HomeSectionId = (typeof HOME_SECTIONS)[number]
+
 /** How the admin customer list can be sorted. */
 export const CUSTOMER_SORTS = ['newest', 'oldest', 'name', 'orders_desc', 'points_desc'] as const
 export type CustomerSort = (typeof CUSTOMER_SORTS)[number]
@@ -78,7 +90,7 @@ export const ACTOR_TYPES = ['CUSTOMER', 'ADMIN', 'SYSTEM'] as const
 export type ActorType = (typeof ACTOR_TYPES)[number]
 
 /** The kinds of record the history log (AuditLog) is about. */
-export const AUDIT_ENTITIES = ['ORDER', 'CUSTOMER', 'STAFF', 'PRICING', 'VEHICLE', 'SUPPORT', 'ANNOUNCEMENT', 'DELIVERY_HOURS', 'OFFER', 'CUSTOMER_AUTH', 'ROLE', 'SYSTEM'] as const
+export const AUDIT_ENTITIES = ['ORDER', 'CUSTOMER', 'STAFF', 'PRICING', 'VEHICLE', 'SUPPORT', 'ANNOUNCEMENT', 'DELIVERY_HOURS', 'OFFER', 'CUSTOMER_AUTH', 'ROLE', 'SYSTEM', 'HOME'] as const
 export type AuditEntity = (typeof AUDIT_ENTITIES)[number]
 
 /** Every action the history log records (same order as the AuditAction enum in schema.prisma). */
@@ -120,6 +132,9 @@ export const AUDIT_ACTIONS = [
   'SYSTEM_BACKUP_DOWNLOADED',
   'APK_UPLOADED',
   'APK_REMOVED',
+  'HOME_CREATED',
+  'HOME_UPDATED',
+  'HOME_DELETED',
 ] as const
 export type AuditAction = (typeof AUDIT_ACTIONS)[number]
 
@@ -148,6 +163,7 @@ export const AUDIT_ACTIONS_BY_ENTITY: Record<AuditEntity, readonly AuditAction[]
   CUSTOMER_AUTH: ['CUSTOMER_AUTH_UPDATED'],
   ROLE: ['ROLE_CREATED', 'ROLE_UPDATED', 'ROLE_DELETED'],
   SYSTEM: ['SYSTEM_BACKUP_DOWNLOADED', 'APK_UPLOADED', 'APK_REMOVED'],
+  HOME: ['HOME_CREATED', 'HOME_UPDATED', 'HOME_DELETED'],
 }
 
 /** Where the REST API lives on the one server: /api/v1. The pages call it on their own origin. */

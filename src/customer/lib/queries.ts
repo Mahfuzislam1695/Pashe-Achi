@@ -12,6 +12,7 @@ import { usePaths } from './paths'
 export const queryKeys = {
   me: ['me'] as const,
   catalog: ['catalog'] as const,
+  home: ['home'] as const,
   offers: ['offers'] as const,
   orders: ['orders'] as const,
   orderList: ['orders', 'list'] as const,
@@ -29,6 +30,9 @@ export const useCatalog = () => useQuery({ queryKey: queryKeys.catalog, queryFn:
 
 /** আজকের অফার running today. Public, so the landing page uses it signed out too. */
 export const useOffers = () => useQuery({ queryKey: queryKeys.offers, queryFn: api.offers.list, staleTime: FIVE_MINUTES })
+
+/** What the home page shows, as staff set it on /admin/home. */
+export const useHomeContent = () => useQuery({ queryKey: queryKeys.home, queryFn: api.home.content, staleTime: FIVE_MINUTES })
 
 /**
  * The signed-in customer and the catalog. Only call this below the (main) layout, which renders

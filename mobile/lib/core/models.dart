@@ -461,6 +461,86 @@ class Offer {
   final String endsOn;
 }
 
+/// A banner on the home page, as staff set it on /admin/home.
+class HomeBanner {
+  const HomeBanner({required this.id, required this.title, this.body, this.cta, this.target, this.imageUrl});
+
+  factory HomeBanner.fromJson(Json json) => HomeBanner(
+    id: _str(json['id']),
+    title: Bilingual.fromJson(json['title']),
+    body: json['body'] is Map ? Bilingual.fromJson(json['body']) : null,
+    cta: json['cta'] is Map ? Bilingual.fromJson(json['cta']) : null,
+    target: _strOrNull(json['target']),
+    imageUrl: _strOrNull(json['imageUrl']),
+  );
+
+  final String id;
+  final Bilingual title;
+  final Bilingual? body;
+
+  /// The button's words; null uses the default "Order now".
+  final Bilingual? cta;
+
+  /// What the button opens: a service's name or "offers"; null shows no button.
+  final String? target;
+
+  /// A path on the site; null shows the tint alone.
+  final String? imageUrl;
+}
+
+/// A category tile on the home page.
+class HomeCategory {
+  const HomeCategory({required this.id, required this.name, required this.tone, required this.addsItem, this.imageUrl});
+
+  factory HomeCategory.fromJson(Json json) => HomeCategory(
+    id: _str(json['id']),
+    name: Bilingual.fromJson(json['name']),
+    tone: _str(json['tone']),
+    addsItem: json['addsItem'] != false,
+    imageUrl: _strOrNull(json['imageUrl']),
+  );
+
+  final String id;
+  final Bilingual name;
+
+  /// blue, coral, green, orange, violet or neutral.
+  final String tone;
+
+  /// A tap adds a bazar list row with this name; otherwise it only opens the form.
+  final bool addsItem;
+  final String? imageUrl;
+}
+
+class HomeSection {
+  const HomeSection({required this.heading, required this.visible});
+
+  factory HomeSection.fromJson(Json json) => HomeSection(heading: Bilingual.fromJson(json['heading']), visible: json['visible'] != false);
+
+  final Bilingual heading;
+  final bool visible;
+}
+
+/// What the home page shows: GET /home.
+class HomeContent {
+  const HomeContent({required this.banners, required this.categories, required this.serviceImages, required this.sections});
+
+  factory HomeContent.fromJson(Json json) => HomeContent(
+    banners: [for (final banner in _list(json['banners'])) HomeBanner.fromJson(banner)],
+    categories: [for (final category in _list(json['categories'])) HomeCategory.fromJson(category)],
+    serviceImages: {for (final entry in ((json['serviceImages'] as Map?) ?? const {}).entries) '${entry.key}': '${entry.value}'},
+    sections: {for (final entry in ((json['sections'] as Map?) ?? const {}).entries) '${entry.key}': HomeSection.fromJson(entry.value as Json)},
+  );
+
+  final List<HomeBanner> banners;
+  final List<HomeCategory> categories;
+
+  /// Each service tile's picture, by the service's name: a path on the site.
+  final Map<String, String> serviceImages;
+
+  /// categories, services and offers.
+  final Map<String, HomeSection> sections;
+}
+
 /// One page of a list the API pages with a cursor.
 class CursorPage<T> {
   const CursorPage(this.items, this.nextCursor);

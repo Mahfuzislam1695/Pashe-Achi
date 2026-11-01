@@ -6,6 +6,9 @@ import 'session.dart';
 /// Prices, vehicles, the support line, delivery hours and the password switch (public).
 final catalogProvider = FutureProvider<Catalog>((ref) => ref.watch(apiProvider).catalog());
 
+/// What the home page shows, as staff set it on /admin/home (public).
+final homeProvider = FutureProvider<HomeContent>((ref) => ref.watch(apiProvider).home());
+
 /// Today's running offers (public).
 final offersProvider = FutureProvider<List<Offer>>((ref) => ref.watch(apiProvider).offers());
 

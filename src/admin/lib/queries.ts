@@ -38,6 +38,7 @@ export const queryKeys = {
   customerStats: (filters: Partial<CustomerStatsQuery>) => ['customers', 'stats', filters] as const,
   customer: (id: string) => ['customers', 'detail', id] as const,
   catalog: ['catalog'] as const,
+  home: ['home'] as const,
   offers: ['offers'] as const,
   offerList: (filters: Partial<ListOffersQuery>) => ['offers', 'list', filters] as const,
   offerStats: (filters: Partial<OfferStatsQuery>) => ['offers', 'stats', filters] as const,
@@ -97,6 +98,9 @@ export const useCustomerStats = (filters: Partial<CustomerStatsQuery>) =>
 export const useCustomer = (id: string) => useQuery({ queryKey: queryKeys.customer(id), queryFn: () => api.customers.get(id) })
 
 export const useCatalog = () => useQuery({ queryKey: queryKeys.catalog, queryFn: api.catalog.get })
+
+/** The customer home page as staff manage it. */
+export const useAdminHome = () => useQuery({ queryKey: queryKeys.home, queryFn: api.home.get })
 
 /** Offers, latest end date first. */
 export const useOffers = (filters: Partial<ListOffersQuery>) => useQuery({ queryKey: queryKeys.offerList(filters), queryFn: () => api.offers.list(filters), ...paged })

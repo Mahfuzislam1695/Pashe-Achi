@@ -227,6 +227,8 @@ class Api {
 
   Future<Catalog> catalog() => _send('GET', '/catalog', parse: (d) => Catalog.fromJson(d as Json));
 
+  Future<HomeContent> home() => _send('GET', '/home', parse: (d) => HomeContent.fromJson(d as Json));
+
   Future<List<Offer>> offers() => _send('GET', '/offers', parse: (d) => [for (final o in d as List) Offer.fromJson(o as Json)]);
 
   /// The address for a map pin, or null when the map has none (the customer then types the area).

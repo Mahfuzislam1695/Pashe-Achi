@@ -440,6 +440,105 @@ describe('Pashe Achi API (e2e)', () => {
     })
   })
 
+  describe('home page', () => {
+    const png = Buffer.from('89504e470d0a1a0a0000000d49484452000000010000000108060000', 'hex')
+    const pdf = Buffer.from('%PDF-1.4 not a picture', 'latin1')
+    const staff = async (mobile: string, role: 'MANAGER' | 'OPERATOR') => {
+      const admin = await adminAgent()
+      await admin.post(api('/admin/staff')).send({ name: role, mobile, password: 'staffpass1', roleId: ROLE_ID[role] }).expect(201)
+      const agent = request.agent(app.getHttpServer())
+      await agent.post(api('/admin/auth/login')).send({ mobile, password: 'staffpass1' }).expect(200)
+      return agent
+    }
+    const publicHome = async () => (await request(app.getHttpServer()).get(api('/home')).expect(200)).body
+
+    it('shows what staff set, in their order, to anyone', async () => {
+      const manager = await staff('01912000160', 'MANAGER')
+      const first = (await manager.post(api('/admin/home/banners')).send({ titleBn: 'প্রথম', target: 'bazar' }).expect(201)).body
+      const second = (await manager.post(api('/admin/home/banners')).send({ titleBn: 'দ্বিতীয়', titleEn: 'Second', target: 'offers', ctaBn: 'দেখুন' }).expect(201)).body
+      const hidden = (await manager.post(api('/admin/home/banners')).send({ titleBn: 'লুকানো', isActive: false }).expect(201)).body
+      const fish = (await manager.post(api('/admin/home/categories')).send({ nameBn: 'মাছ', nameEn: 'Fish', tone: 'blue' }).expect(201)).body
+      const more = (await manager.post(api('/admin/home/categories')).send({ nameBn: 'আরও', tone: 'neutral', addsItem: false }).expect(201)).body
+
+      let home = await publicHome()
+      expect(home.banners.map((banner: { id: string }) => banner.id)).toEqual([first.id, second.id])
+      expect(home.banners[0]).toMatchObject({ title: { bn: 'প্রথম', en: 'প্রথম' }, cta: null, target: 'bazar', imageUrl: null })
+      expect(home.banners[1]).toMatchObject({ title: { en: 'Second' }, cta: { bn: 'দেখুন', en: 'দেখুন' }, target: 'offers' })
+      expect(home.categories).toMatchObject([{ id: fish.id, tone: 'blue', addsItem: true }, { id: more.id, name: { en: 'আরও' }, addsItem: false }])
+      expect(home.serviceImages.bazar).toBe('/images/bazar-800.webp')
+      expect(home.sections.categories).toEqual({ heading: { bn: 'কাঁচা বাজার', en: 'Fresh market' }, visible: true })
+
+      // Staff see the hidden one too, and can rearrange; a list that doesn't match is refused.
+      const admin = (await manager.get(api('/admin/home')).expect(200)).body
+      expect(admin.banners.map((banner: { id: string }) => banner.id)).toEqual([first.id, second.id, hidden.id])
+      await manager.put(api('/admin/home/banners/order')).send({ ids: [second.id, first.id] }).expect(400).expect(res => expect(res.body.code).toBe('home.order'))
+      await manager.put(api('/admin/home/banners/order')).send({ ids: [second.id, first.id, hidden.id] }).expect(200)
+      home = await publicHome()
+      expect(home.banners.map((banner: { id: string }) => banner.id)).toEqual([second.id, first.id])
+
+      await manager.patch(api(`/admin/home/banners/${second.id}`)).send({ titleEn: '', isActive: false }).expect(200)
+      await manager.delete(api(`/admin/home/categories/${more.id}`)).expect(204)
+      home = await publicHome()
+      expect(home.banners.map((banner: { id: string }) => banner.id)).toEqual([first.id])
+      expect(home.categories.map((category: { id: string }) => category.id)).toEqual([fish.id])
+    })
+
+    it('takes pictures, falls back to the built-in one, and checks the file', async () => {
+      const manager = await staff('01912000161', 'MANAGER')
+      const category = (await manager.post(api('/admin/home/categories')).send({ nameBn: 'মাছ' }).expect(201)).body
+      await prisma.homeCategory.update({ where: { id: category.id }, data: { defaultImage: '/images/cat-fish-800.webp' } })
+      const shownImage = async () => (await publicHome()).categories.find((row: { id: string }) => row.id === category.id).imageUrl as string
+
+      await manager.put(api(`/admin/home/categories/${category.id}/image`)).attach('file', pdf, { filename: 'a.pdf', contentType: 'application/pdf' }).expect(400).expect(res => expect(res.body.code).toBe('image.invalid'))
+      await manager.put(api(`/admin/home/categories/${category.id}/image`)).attach('file', png, { filename: 'a.png', contentType: 'image/png' }).expect(200)
+      const url = await shownImage()
+      expect(url).toMatch(new RegExp(`^/${API_PREFIX}/home/categories/${category.id}/image\\?v=\\d+$`))
+      const picture = await request(app.getHttpServer()).get(url).expect(200)
+      expect(picture.headers['content-type']).toBe('image/png')
+      expect(picture.headers['cache-control']).toContain('public')
+
+      await manager.delete(api(`/admin/home/categories/${category.id}/image`)).expect(200)
+      expect(await shownImage()).toBe('/images/cat-fish-800.webp')
+
+      // The service tiles: an upload, then back to the usual photo.
+      await manager.put(api('/admin/home/services/parcel/image')).attach('file', png, { filename: 'p.png', contentType: 'image/png' }).expect(200)
+      const parcel = (await publicHome()).serviceImages.parcel as string
+      expect(parcel).toMatch(new RegExp(`^/${API_PREFIX}/home/services/parcel/image\\?v=\\d+$`))
+      await request(app.getHttpServer()).get(parcel).expect(200)
+      await manager.delete(api('/admin/home/services/parcel/image')).expect(200)
+      expect((await publicHome()).serviceImages.parcel).toBe('/images/parcel-800.webp')
+      await request(app.getHttpServer()).get(api('/home/services/parcel/image')).expect(404)
+    })
+
+    it('saves section headings and needs the home permissions, and writes history', async () => {
+      const operator = await staff('01912000162', 'OPERATOR')
+      const manager = await staff('01912000163', 'MANAGER')
+      await operator.get(api('/admin/home')).expect(403)
+      await operator.post(api('/admin/home/banners')).send({ titleBn: 'না' }).expect(403)
+      await request(app.getHttpServer()).get(api('/admin/home')).expect(401)
+      await manager.post(api('/admin/home/banners')).send({ titleBn: ' ' }).expect(400).expect(res => expect(res.body.code).toBe('home.title'))
+      await manager.post(api('/admin/home/categories')).send({ nameBn: 'মাছ', tone: 'pink' }).expect(400)
+
+      const sections = {
+        categories: { headingBn: 'বাজার', headingEn: 'Market', visible: true },
+        services: { headingBn: 'সেবা', headingEn: '', visible: true },
+        offers: { headingBn: 'অফার', visible: false },
+      }
+      await manager.put(api('/admin/home/sections')).send({ ...sections, offers: { ...sections.offers, headingBn: '' } }).expect(400).expect(res => expect(res.body.code).toBe('home.heading'))
+      await manager.put(api('/admin/home/sections')).send(sections).expect(200)
+      const home = await publicHome()
+      expect(home.sections.categories.heading).toEqual({ bn: 'বাজার', en: 'Market' })
+      expect(home.sections.services.heading).toEqual({ bn: 'সেবা', en: 'সেবা' })
+      expect(home.sections.offers.visible).toBe(false)
+
+      const audit = await prisma.auditLog.findMany({ where: { entityType: 'HOME' } })
+      expect(audit.some(entry => entry.action === 'HOME_UPDATED' && entry.entityId === 'home.sections')).toBe(true)
+      // Saving the same again writes nothing.
+      await manager.put(api('/admin/home/sections')).send(sections).expect(200)
+      expect(await prisma.auditLog.count({ where: { entityType: 'HOME' } })).toBe(audit.length)
+    })
+  })
+
   describe('system page', () => {
     /** Reads a download as raw bytes. */
     const binary = (res: Stream, done: (error: Error | null, body: Buffer) => void) => {

@@ -74,12 +74,13 @@ export function ServiceBanner({ id }: { id: ServiceId }) {
   )
 }
 
-type Slide = {
+export type Slide = {
   key: string
   offer: boolean
   tone: string
-  image: { src: string; srcSet?: string }
-  eyebrow: string
+  /** Null shows the slide's colour alone. */
+  image: { src: string; srcSet?: string } | null
+  eyebrow?: string
   title: string
   subtitle: string
   href?: string
@@ -88,20 +89,13 @@ type Slide = {
 
 const SLIDE_INTERVAL_MS = 5000
 
-/**
- * The home screen's banner: running offers first, then the four services. Swipe or use the arrows and
- * dots; it moves on by itself every few seconds, except while the pointer or focus is on it, the tab
- * is hidden, or the visitor asked for reduced motion.
- */
+/** The banner on the bazar form: running offers first, then the four services. */
 export function PromoSlider({ current }: { current: ServiceId }) {
-  const { t, text, digits } = useLang()
+  const { t, text } = useLang()
   const paths = usePaths()
   const blurbs = useServiceBlurbs()
   const charges = useServiceCharges(useCatalog().data?.pricing)
   const offers = useOffers().data ?? []
-  const track = useRef<HTMLDivElement>(null)
-  const [active, setActive] = useState(0)
-  const [paused, setPaused] = useState(false)
 
   const slides: Slide[] = [
     ...offers.map(offer => ({
@@ -128,6 +122,19 @@ export function PromoSlider({ current }: { current: ServiceId }) {
       cta: service === current ? undefined : t('অর্ডার করুন', 'Order now'),
     })),
   ]
+  return <Carousel slides={slides} label={t('অফার ও সেবা', 'Offers and services')} />
+}
+
+/**
+ * Slides with a photo, words and an optional button. Swipe or use the arrows and dots; it moves on by
+ * itself every few seconds, except while the pointer or focus is on it, the tab is hidden, or the
+ * visitor asked for reduced motion. One slide shows no controls.
+ */
+export function Carousel({ slides, label, className = '' }: { slides: Slide[]; label: string; className?: string }) {
+  const { t, digits } = useLang()
+  const track = useRef<HTMLDivElement>(null)
+  const [active, setActive] = useState(0)
+  const [paused, setPaused] = useState(false)
   const count = slides.length
 
   const goTo = (index: number) => {
@@ -155,9 +162,9 @@ export function PromoSlider({ current }: { current: ServiceId }) {
 
   return (
     <section
-      className="promo-slider"
+      className={`promo-slider ${className}`}
       aria-roledescription="carousel"
-      aria-label={t('অফার ও সেবা', 'Offers and services')}
+      aria-label={label}
       onPointerEnter={() => setPaused(true)}
       onPointerLeave={() => setPaused(false)}
       onFocus={() => setPaused(true)}
@@ -181,12 +188,14 @@ export function PromoSlider({ current }: { current: ServiceId }) {
             aria-roledescription="slide"
             aria-label={`${digits(index + 1)} / ${digits(count)}`}
           >
-            <img src={slide.image.src} srcSet={slide.image.srcSet} sizes="(min-width: 1024px) 1100px, 100vw" alt="" loading={index ? 'lazy' : 'eager'} decoding="async" />
+            {slide.image && <img src={slide.image.src} srcSet={slide.image.srcSet} sizes="(min-width: 1024px) 1100px, 100vw" alt="" loading={index ? 'lazy' : 'eager'} decoding="async" />}
             <div className="promo-copy">
-              <span className="promo-eyebrow">
-                {slide.offer && <BadgePercent size={13} />}
-                {slide.eyebrow}
-              </span>
+              {slide.eyebrow && (
+                <span className="promo-eyebrow">
+                  {slide.offer && <BadgePercent size={13} />}
+                  {slide.eyebrow}
+                </span>
+              )}
               <strong>{slide.title}</strong>
               {slide.subtitle && <span className="promo-sub">{slide.subtitle}</span>}
               {slide.href && slide.cta && (

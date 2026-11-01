@@ -47,6 +47,7 @@ import {
   ShieldCheck,
   ShieldPlus,
   ShieldX,
+  House,
   Smartphone,
   Star,
   Truck,
@@ -108,6 +109,9 @@ const ACTION_ICONS: Record<AuditAction, [LucideIcon, Tone]> = {
   SYSTEM_BACKUP_DOWNLOADED: [DatabaseBackup, 'brand'],
   APK_UPLOADED: [Smartphone, 'success'],
   APK_REMOVED: [Smartphone, 'danger'],
+  HOME_CREATED: [House, 'success'],
+  HOME_UPDATED: [House, 'brand'],
+  HOME_DELETED: [House, 'danger'],
 }
 
 const MONEY_FIELDS = new Set([
@@ -278,7 +282,9 @@ function EntityRef({ entry }: { entry: AuditLogDto }) {
                 ? '/admin/roles'
                 : type === 'SYSTEM' && can(me, 'system.view')
                   ? '/admin/system'
-                  : null
+                  : type === 'HOME' && can(me, 'home.view')
+                    ? '/admin/home'
+                    : null
   return (
     <>
       <span className="text-muted"> · </span>

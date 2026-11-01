@@ -66,23 +66,15 @@ export function photo(name: PhotoName) {
   return { src: `${base}-800.webp`, srcSet: `${base}-800.webp 800w, ${base}-1600.webp 1600w` }
 }
 
-// Home's bazar category tiles: public/images/cat-{name}-400.webp and -800.webp (4:3; the app bundles
-// the 400 px files in mobile/assets/images). Unsplash License, from images.unsplash.com:
+// The starting pictures of Home's category tiles (the home_page migration's rows name them; staff replace
+// them on /admin/home): public/images/cat-{name}-400.webp and -800.webp, 4:3. Unsplash License, from
+// images.unsplash.com:
 //   fish        fish on ice              photo-1563557908-b7787229f123
 //   meat        two cuts of beef         photo-1603048297172-c92544798d5a
 //   vegetables  a vegetable stall        photo-1550989460-0adf9ea622e2
 //   rice        bowls of grains, lentils photo-1766791620623-fab070962a90
 //   daily       shelves of jars, bottles photo-1545601445-4d6a0a0565f0
 //   more        a bag of groceries       photo-1543168256-418811576931
-export const CATEGORY_PHOTOS = ['fish', 'meat', 'vegetables', 'rice', 'daily', 'more'] as const
-
-export type CategoryPhotoName = (typeof CATEGORY_PHOTOS)[number]
-
-/** The `src` (the 400 px file) and `srcSet` of a category photo. */
-export function categoryPhoto(name: CategoryPhotoName) {
-  const base = `/images/cat-${name}`
-  return { src: `${base}-400.webp`, srcSet: `${base}-400.webp 400w, ${base}-800.webp 800w` }
-}
 
 // All dates (delivery schedule, "today" on the dashboard) are interpreted in Bangladesh time.
 export const APP_TIME_ZONE = 'Asia/Dhaka'

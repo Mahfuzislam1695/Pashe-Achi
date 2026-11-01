@@ -1,50 +1,36 @@
 'use client'
 
-import { type CategoryPhotoName, categoryPhoto, SERVICE_IDS, SERVICE_LABELS, type ServiceId, shortArea, type Text } from '@/shared'
-import { ArrowRight, ChevronDown, ChevronRight, MapPin, Plus, Search } from 'lucide-react'
+import { type HomeBannerDto, type HomeBannerTarget, type HomeCategoryDto, SERVICE_IDS, SERVICE_LABELS, shortArea, type Text } from '@/shared'
+import { ChevronDown, ChevronRight, MapPin, Plus, Search } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useId, useState } from 'react'
 
 import { fromMyLocation } from '@/customer/components/address-field'
-import { Photo, useServiceBlurbs, useServiceCharges } from '@/customer/components/banner'
+import { Carousel, type Slide, useServiceCharges } from '@/customer/components/banner'
 import { LocationSheet } from '@/customer/components/location-sheet'
 import { useAddToBazar } from '@/customer/lib/drafts'
 import { useLang } from '@/customer/lib/i18n'
 import { usePaths } from '@/customer/lib/paths'
-import { useOffers, useSaveMyLocation, useSession } from '@/customer/lib/queries'
+import { useHomeContent, useOffers, useSaveMyLocation, useSession } from '@/customer/lib/queries'
 import { OfferCard } from './offers'
 import { SERVICE_ICONS } from './orders'
 
-/** The bazar's categories on Home, each with its photo. A tap starts a bazar list row with the category's name. */
-const CATEGORIES: { key: CategoryPhotoName; name: Text; tone: string }[] = [
-  { key: 'fish', name: { bn: 'মাছ', en: 'Fish' }, tone: 'tone-blue' },
-  { key: 'meat', name: { bn: 'মাংস', en: 'Meat' }, tone: 'tone-coral' },
-  { key: 'vegetables', name: { bn: 'সবজি', en: 'Vegetables' }, tone: 'tone-green' },
-  { key: 'rice', name: { bn: 'চাল-ডাল', en: 'Rice & lentils' }, tone: 'tone-orange' },
-  { key: 'daily', name: { bn: 'দৈনন্দিন পণ্য', en: 'Daily needs' }, tone: 'tone-violet' },
-]
-
-/** A category's photo; the label beside it already names it, so the alt text stays empty. */
-function CategoryImage({ name, sizes }: { name: CategoryPhotoName; sizes: string }) {
-  const { src, srcSet } = categoryPhoto(name)
-  return <img src={src} srcSet={srcSet} sizes={sizes} alt="" loading="lazy" decoding="async" />
-}
-
-const TILE_SIZES = '(min-width: 1024px) 16vw, (min-width: 801px) 120px, 33vw'
-
 /**
- * Home, where a signed-in customer lands: their location, a search that writes the bazar list, the
- * fresh market banner, the bazar's categories, the four services and আজকের অফার. There is no product
- * catalog: categories and searches become bazar list rows, which staff price as usual.
+ * Home, where a signed-in customer lands: their location, a search that writes the bazar list, then
+ * what staff set on /admin/home: the banners, the bazar's categories, the service pictures and each
+ * section's heading and visibility. আজকের অফার comes from the Offers page. There is no product catalog:
+ * categories and searches become bazar list rows, which staff price as usual. If the content can't
+ * load, the location, the search and the services still work.
  */
 export function HomeScreen() {
-  const { t, text } = useLang()
+  const { text } = useLang()
   const paths = usePaths()
   const router = useRouter()
-  const blurbs = useServiceBlurbs()
   const addToBazar = useAddToBazar()
+  const home = useHomeContent().data
   const offers = useOffers().data ?? []
+  const categories = home?.categories ?? []
 
   const openBazar = (item?: string) => {
     if (item) addToBazar(item)
@@ -54,58 +40,54 @@ export function HomeScreen() {
   return (
     <div className="home-screen">
       <LocationRow />
-      <HomeSearch onAdd={openBazar} />
+      <HomeSearch categories={categories} onAdd={openBazar} />
 
-      <section className="home-hero svc-bazar">
-        <Photo name="bazar" sizes="(min-width: 1024px) 1100px, 100vw" priority />
-        <div className="home-hero-copy">
-          <h2>{t('তাজা বাজার সরাসরি আপনার বাসায়', 'Fresh groceries, straight to your door')}</h2>
-          <p>{blurbs.bazar}</p>
-          <Link className="promo-cta" href={paths.service('bazar')}>
-            {t('এখনই অর্ডার করুন', 'Order now')}
-            <ArrowRight size={15} />
-          </Link>
-        </div>
-      </section>
+      {!!home?.banners.length && <HomeBanners banners={home.banners} />}
 
-      <section className="home-section" aria-labelledby="home-categories">
-        <div className="home-section-head">
-          <h2 id="home-categories">{t('কাঁচা বাজার', 'Fresh market')}</h2>
-        </div>
-        <div className="home-categories">
-          {CATEGORIES.map(category => (
-            <button key={category.key} type="button" className={`home-category ${category.tone}`} onClick={() => openBazar(text(category.name))}>
-              <CategoryImage name={category.key} sizes={TILE_SIZES} />
-              <span>{text(category.name)}</span>
-            </button>
-          ))}
-          <button type="button" className="home-category tone-neutral" onClick={() => openBazar()}>
-            <CategoryImage name="more" sizes={TILE_SIZES} />
-            <span>{t('আরও', 'More')}</span>
-          </button>
-        </div>
-      </section>
-
-      <HomeServices />
-
-      {offers.length > 0 && (
-        <section className="home-section" aria-labelledby="home-offers">
+      {!!categories.length && home?.sections.categories.visible && (
+        <section className="home-section" aria-labelledby="home-categories">
           <div className="home-section-head">
-            <h2 id="home-offers">{t('আজকের বিশেষ অফার', "Today's special offers")}</h2>
-            <Link className="home-see-all" href={paths.offers}>
-              {t('সব দেখুন', 'See all')}
-              <ChevronRight size={15} />
-            </Link>
+            <h2 id="home-categories">{text(home.sections.categories.heading)}</h2>
           </div>
-          <div className="home-offers">
-            {offers.map(offer => (
-              <OfferCard key={offer.id} offer={offer} paths={paths} />
+          <div className="home-categories">
+            {categories.map(category => (
+              <button key={category.id} type="button" className={`home-category tone-${category.tone}`} onClick={() => openBazar(category.addsItem ? text(category.name) : undefined)}>
+                <CategoryImage category={category} />
+                <span>{text(category.name)}</span>
+              </button>
             ))}
           </div>
         </section>
       )}
+
+      {home?.sections.services.visible !== false && <HomeServices heading={home?.sections.services.heading} images={home?.serviceImages} />}
+
+      {offers.length > 0 && home?.sections.offers.visible && <HomeOffers heading={home.sections.offers.heading} />}
     </div>
   )
+}
+
+/** A category's picture; the label below it already names it, so the alt text stays empty. */
+function CategoryImage({ category }: { category: HomeCategoryDto }) {
+  return category.imageUrl ? <img src={category.imageUrl} alt="" loading="lazy" decoding="async" /> : <span className="home-category-blank" aria-hidden="true" />
+}
+
+/** Staff's banners: one stays still, two or more slide. */
+function HomeBanners({ banners }: { banners: HomeBannerDto[] }) {
+  const { t, text } = useLang()
+  const paths = usePaths()
+  const link = (target: HomeBannerTarget) => (target === 'offers' ? paths.offers : paths.service(target))
+  const slides: Slide[] = banners.map(banner => ({
+    key: banner.id,
+    offer: false,
+    tone: banner.target && banner.target !== 'offers' ? `svc-${banner.target}` : banner.target === 'offers' ? 'tone-orange' : 'svc-bazar',
+    image: banner.imageUrl ? { src: banner.imageUrl } : null,
+    title: text(banner.title),
+    subtitle: banner.body ? text(banner.body) : '',
+    href: banner.target ? link(banner.target) : undefined,
+    cta: banner.target ? (banner.cta ? text(banner.cta) : t('এখনই অর্ডার করুন', 'Order now')) : undefined,
+  }))
+  return <Carousel slides={slides} label={t('ব্যানার', 'Banners')} className="home-banners" />
 }
 
 /** The delivery location (আমার লোকেশন) at the top; a tap changes it on the map, as in Profile. */
@@ -142,7 +124,7 @@ function LocationRow() {
  * "কী খুঁজছেন?": suggests the services and categories that match, and always offers to put the
  * words on the bazar list (Enter does that too).
  */
-function HomeSearch({ onAdd }: { onAdd: (item: string) => void }) {
+function HomeSearch({ categories, onAdd }: { categories: HomeCategoryDto[]; onAdd: (item?: string) => void }) {
   const { t, text } = useLang()
   const paths = usePaths()
   const listId = useId()
@@ -151,7 +133,7 @@ function HomeSearch({ onAdd }: { onAdd: (item: string) => void }) {
   const needle = words.toLocaleLowerCase()
   const matches = (label: Text) => !!needle && (label.bn.includes(words) || label.en.toLocaleLowerCase().includes(needle))
   const services = SERVICE_IDS.filter(service => matches(SERVICE_LABELS[service]))
-  const categories = CATEGORIES.filter(category => matches(category.name))
+  const found = categories.filter(category => matches(category.name))
 
   return (
     <form
@@ -187,10 +169,10 @@ function HomeSearch({ onAdd }: { onAdd: (item: string) => void }) {
               </li>
             )
           })}
-          {categories.map(category => (
-            <li key={category.key}>
-              <button type="button" className={category.tone} onClick={() => onAdd(text(category.name))}>
-                <CategoryImage name={category.key} sizes="28px" />
+          {found.map(category => (
+            <li key={category.id}>
+              <button type="button" className={`tone-${category.tone}`} onClick={() => onAdd(category.addsItem ? text(category.name) : undefined)}>
+                <CategoryImage category={category} />
                 {text(category.name)}
               </button>
             </li>
@@ -207,8 +189,8 @@ function HomeSearch({ onAdd }: { onAdd: (item: string) => void }) {
   )
 }
 
-/** আমাদের সেবা: the four services with their live charges (the bottom nav no longer lists them). */
-function HomeServices() {
+/** The four services with their live charges (the bottom nav no longer lists them), so it shows before the content has loaded too. */
+function HomeServices({ heading, images }: { heading?: Text | undefined; images?: Record<(typeof SERVICE_IDS)[number], string> | undefined }) {
   const { t, text } = useLang()
   const paths = usePaths()
   const { catalog } = useSession()
@@ -216,15 +198,46 @@ function HomeServices() {
   return (
     <section className="home-section" aria-labelledby="home-services">
       <div className="home-section-head">
-        <h2 id="home-services">{t('আমাদের সেবা', 'Our services')}</h2>
+        <h2 id="home-services">{heading ? text(heading) : t('আমাদের সেবা', 'Our services')}</h2>
       </div>
       <div className="home-services">
-        {SERVICE_IDS.map((service: ServiceId) => (
-          <Link key={service} className={`home-service svc-${service}`} href={paths.service(service)}>
-            <Photo name={service} sizes="64px" className="home-service-photo" />
-            <strong>{text(SERVICE_LABELS[service])}</strong>
-            {charges && <small>{charges[service]}</small>}
-          </Link>
+        {SERVICE_IDS.map(service => {
+          const Icon = SERVICE_ICONS[service]
+          return (
+            <Link key={service} className={`home-service svc-${service}`} href={paths.service(service)}>
+              {images ? (
+                <img className="home-service-photo" src={images[service]} alt="" loading="lazy" decoding="async" />
+              ) : (
+                <span className="home-service-photo home-service-icon" aria-hidden="true">
+                  <Icon size={20} />
+                </span>
+              )}
+              <strong>{text(SERVICE_LABELS[service])}</strong>
+              {charges && <small>{charges[service]}</small>}
+            </Link>
+          )
+        })}
+      </div>
+    </section>
+  )
+}
+
+function HomeOffers({ heading }: { heading: Text }) {
+  const { t, text } = useLang()
+  const paths = usePaths()
+  const offers = useOffers().data ?? []
+  return (
+    <section className="home-section" aria-labelledby="home-offers">
+      <div className="home-section-head">
+        <h2 id="home-offers">{text(heading)}</h2>
+        <Link className="home-see-all" href={paths.offers}>
+          {t('সব দেখুন', 'See all')}
+          <ChevronRight size={15} />
+        </Link>
+      </div>
+      <div className="home-offers">
+        {offers.map(offer => (
+          <OfferCard key={offer.id} offer={offer} paths={paths} />
         ))}
       </div>
     </section>

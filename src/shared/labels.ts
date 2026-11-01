@@ -1,4 +1,4 @@
-import type { ActorType, AuditAction, AuditEntity, NotificationType, OrderStatus, ServiceId, Text } from './enums'
+import type { ActorType, AuditAction, AuditEntity, HomeSectionId, HomeTone, NotificationType, OrderStatus, ServiceId, Text } from './enums'
 import type { Permission, PermissionModule } from './permissions'
 
 export const SERVICE_LABELS: Record<ServiceId, Text> = {
@@ -33,6 +33,7 @@ export const PERMISSION_MODULE_LABELS: Record<PermissionModule, Text> = {
   customers: { bn: 'গ্রাহক', en: 'Customers' },
   catalog: { bn: 'ক্যাটালগ', en: 'Catalog' },
   offers: { bn: 'আজকের অফার', en: "Today's offers" },
+  home: { bn: 'হোম পেজ', en: 'Home page' },
   notifications: { bn: 'নোটিফিকেশন', en: 'Notifications' },
   history: { bn: 'ইতিহাস', en: 'History' },
   staff: { bn: 'স্টাফ', en: 'Staff' },
@@ -58,6 +59,8 @@ export const PERMISSION_LABELS: Record<Permission, { label: Text; hint: Text }> 
   'offers.edit': { label: { bn: 'এডিট', en: 'Edit' }, hint: { bn: 'অফার ও ছবি বদলানো', en: 'Change an offer and its picture' } },
   'offers.delete': { label: { bn: 'মুছে ফেলা', en: 'Delete' }, hint: { bn: 'অফার মুছে ফেলা', en: 'Delete an offer' } },
   'offers.notify': { label: { bn: 'গ্রাহকদের জানানো', en: 'Notify customers' }, hint: { bn: 'সব গ্রাহককে অফারের নোটিফিকেশন পাঠানো', en: 'Send an offer to every customer' } },
+  'home.view': { label: { bn: 'দেখা', en: 'View' }, hint: { bn: 'হোম পেজের ব্যানার, ক্যাটাগরি ও ছবি', en: 'The home page banners, categories and photos' } },
+  'home.edit': { label: { bn: 'এডিট', en: 'Edit' }, hint: { bn: 'গ্রাহকের হোম পেজ বদলানো', en: "Change the customer's home page" } },
   'notifications.view': { label: { bn: 'দেখা', en: 'View' }, hint: { bn: 'নিজের ইনবক্স ও নতুন অর্ডারের খবর', en: 'Own inbox and new order alerts' } },
   'notifications.broadcast': { label: { bn: 'ঘোষণা পাঠানো', en: 'Broadcast' }, hint: { bn: 'সব গ্রাহকের কাছে ঘোষণা', en: 'Announcements to every customer' } },
   'history.view': { label: { bn: 'দেখা', en: 'View' }, hint: { bn: 'কে, কখন, কী বদলেছেন: পুরো ইতিহাস', en: 'The full log of who changed what' } },
@@ -104,6 +107,7 @@ export const AUDIT_ENTITY_LABELS: Record<AuditEntity, Text> = {
   CUSTOMER_AUTH: { bn: 'গ্রাহকের লগইন', en: 'Customer sign-in' },
   ROLE: { bn: 'রোল', en: 'Roles' },
   SYSTEM: { bn: 'সিস্টেম', en: 'System' },
+  HOME: { bn: 'হোম পেজ', en: 'Home page' },
 }
 
 export const AUDIT_ACTION_LABELS: Record<AuditAction, Text> = {
@@ -145,6 +149,9 @@ export const AUDIT_ACTION_LABELS: Record<AuditAction, Text> = {
   SYSTEM_BACKUP_DOWNLOADED: { bn: 'ডেটাবেস ব্যাকআপ ডাউনলোড', en: 'Database backup downloaded' },
   APK_UPLOADED: { bn: 'নতুন APK আপলোড', en: 'APK uploaded' },
   APK_REMOVED: { bn: 'আপলোড করা APK সরানো', en: 'Uploaded APK removed' },
+  HOME_CREATED: { bn: 'হোম পেজে নতুন যোগ', en: 'Added to the home page' },
+  HOME_UPDATED: { bn: 'হোম পেজ আপডেট', en: 'Home page updated' },
+  HOME_DELETED: { bn: 'হোম পেজ থেকে মুছে ফেলা', en: 'Removed from the home page' },
 }
 
 /** Names of the fields a history entry can show as "before → after". Pricing names match the Catalog page. */
@@ -204,5 +211,31 @@ export const AUDIT_FIELD_LABELS: Record<string, Text> = {
   startsOn: { bn: 'শুরু', en: 'Starts' },
   endsOn: { bn: 'শেষ', en: 'Ends' },
   image: { bn: 'ছবি', en: 'Picture' },
+  ctaBn: { bn: 'বাটনের লেখা (বাংলা)', en: 'Button text (Bangla)' },
+  ctaEn: { bn: 'বাটনের লেখা (ইংরেজি)', en: 'Button text (English)' },
+  target: { bn: 'বাটন যেখানে নেবে', en: 'Button opens' },
+  tone: { bn: 'রং', en: 'Colour' },
+  addsItem: { bn: 'বাজারের লিস্টে যোগ হয়', en: 'Adds to the bazar list' },
+  order: { bn: 'ক্রম', en: 'Order' },
+  categories: { bn: 'ক্যাটাগরি অংশ', en: 'Categories section' },
+  services: { bn: 'সেবা অংশ', en: 'Services section' },
+  offers: { bn: 'অফার অংশ', en: 'Offers section' },
   total: { bn: 'মোট বিল', en: 'Total' },
+}
+
+/** Each category tile colour's name, for the admin panel. */
+export const HOME_TONE_LABELS: Record<HomeTone, Text> = {
+  blue: { bn: 'নীল', en: 'Blue' },
+  coral: { bn: 'লাল', en: 'Coral' },
+  green: { bn: 'সবুজ', en: 'Green' },
+  orange: { bn: 'কমলা', en: 'Orange' },
+  violet: { bn: 'বেগুনি', en: 'Violet' },
+  neutral: { bn: 'ধূসর', en: 'Grey' },
+}
+
+/** The headings the home page shows until staff change them. */
+export const DEFAULT_HOME_SECTIONS: Record<HomeSectionId, Text> = {
+  categories: { bn: 'কাঁচা বাজার', en: 'Fresh market' },
+  services: { bn: 'আমাদের সেবা', en: 'Our services' },
+  offers: { bn: 'আজকের বিশেষ অফার', en: "Today's special offers" },
 }

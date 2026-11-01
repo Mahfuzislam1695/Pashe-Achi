@@ -2,7 +2,7 @@
 
 import { APP_LOGO, APP_NAME, can } from '@/shared'
 import { useQueryClient } from '@tanstack/react-query'
-import { BadgePercent, Bell, BellOff, BellRing, ClipboardList, History, LayoutDashboard, LogOut, Megaphone, Menu, RotateCw, Server, Settings2, ShieldCheck, UserCog, UserRound, Users, Volume2, VolumeX, X } from 'lucide-react'
+import { BadgePercent, Bell, BellOff, BellRing, ClipboardList, History, House, LayoutDashboard, LogOut, Megaphone, Menu, RotateCw, Server, Settings2, ShieldCheck, UserCog, UserRound, Users, Volume2, VolumeX, X } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
@@ -85,6 +85,7 @@ function Frame({ children }: { children: React.ReactNode }) {
     can(admin, 'customers.view') && { href: '/admin/customers', label: t('গ্রাহক', 'Customers'), icon: Users },
     can(admin, 'catalog.view') && { href: '/admin/catalog', label: t('দাম ও গাড়ী', 'Pricing & vehicles'), icon: Settings2 },
     can(admin, 'offers.view') && { href: '/admin/offers', label: t('আজকের অফার', "Today's offers"), icon: BadgePercent },
+    can(admin, 'home.view') && { href: '/admin/home', label: t('হোম পেজ', 'Home page'), icon: House },
     inbox && { href: '/admin/notifications', label: t('নোটিফিকেশন', 'Notifications'), icon: Megaphone },
     can(admin, 'history.view') && { href: '/admin/history', label: t('ইতিহাস', 'History'), icon: History },
     can(admin, 'staff.view') && { href: '/admin/staff', label: t('স্টাফ', 'Staff'), icon: ShieldCheck },

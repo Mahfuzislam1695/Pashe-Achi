@@ -88,6 +88,9 @@ enum AuditAction {
   SYSTEM_BACKUP_DOWNLOADED
   APK_UPLOADED
   APK_REMOVED
+  HOME_CREATED
+  HOME_UPDATED
+  HOME_DELETED
 }
 
 enum AuditEntity {
@@ -103,6 +106,7 @@ enum AuditEntity {
   CUSTOMER_AUTH
   ROLE
   SYSTEM
+  HOME
 }
 
 /// A customer of the web/mobile app.
@@ -409,6 +413,54 @@ model Offer {
   updatedAt      DateTime   @updatedAt
 
   @@index([isActive, startsOn, endsOn])
+}
+
+/// A banner at the top of the customer home page. Staff manage them on /admin/home; two or more slide.
+/// English falls back to Bangla. A picture goes through StorageService (home/…); imageUpdatedAt versions
+/// its URL. defaultImage (a path in public/images) shows when no picture is uploaded.
+model HomeBanner {
+  id             String    @id @default(cuid())
+  titleBn        String
+  titleEn        String?
+  bodyBn         String?
+  bodyEn         String?
+  ctaBn          String?
+  ctaEn          String?
+  /// What its button opens: a service id or "offers" (HOME_BANNER_TARGETS). Null shows no button.
+  target         String?
+  sortOrder      Int       @default(0)
+  isActive       Boolean   @default(true)
+  imageKey       String?
+  imageMime      String?
+  imageSize      Int?
+  imageUpdatedAt DateTime?
+  defaultImage   String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([isActive, sortOrder])
+}
+
+/// A category tile on the customer home page. A tap opens the bazar form; with addsItem it also adds a
+/// list row named after the category. There is no product catalog: staff still price the list.
+model HomeCategory {
+  id             String    @id @default(cuid())
+  nameBn         String
+  nameEn         String?
+  /// The tile's colour (HOME_TONES).
+  tone           String    @default("blue")
+  addsItem       Boolean   @default(true)
+  sortOrder      Int       @default(0)
+  isActive       Boolean   @default(true)
+  imageKey       String?
+  imageMime      String?
+  imageSize      Int?
+  imageUpdatedAt DateTime?
+  defaultImage   String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([isActive, sortOrder])
 }
 
 /// An in-app notification for exactly one customer (userId) or one admin (adminId).

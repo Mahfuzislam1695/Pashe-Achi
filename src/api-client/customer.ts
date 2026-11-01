@@ -10,6 +10,7 @@ import type {
   CustomerDto,
   CustomerLocationInput,
   GeoPoint,
+  HomeContentDto,
   Lang,
   ListMyOrdersQuery,
   ListNotificationsQuery,
@@ -74,6 +75,10 @@ export function createCustomerApi(options: Omit<HttpClientOptions, 'audience'>) 
         return http.request<UploadDto>('POST', '/uploads/prescription', { body: form })
       },
       url: (id: string) => http.url(`/uploads/${encodeURIComponent(id)}`),
+    },
+    home: {
+      /** What the home page shows, as staff set it on /admin/home. Public. */
+      content: () => http.get<HomeContentDto>('/home'),
     },
     offers: {
       /** আজকের অফার running today. Public: works signed out too (the landing page). */

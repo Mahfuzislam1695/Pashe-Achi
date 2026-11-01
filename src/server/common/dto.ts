@@ -23,6 +23,11 @@ import {
   listCustomersQuerySchema,
   listMyOrdersQuerySchema,
   listNotificationsQuerySchema,
+  homeBannerSchema,
+  homeCategorySchema,
+  homeOrderSchema,
+  homeSectionsSchema,
+  homeServiceParamSchema,
   listOffersQuerySchema,
   listOrdersQuerySchema,
   listStaffQuerySchema,
@@ -44,6 +49,8 @@ import {
   supportSettingsSchema,
   updateAdminSchema,
   updateCustomerSchema,
+  updateHomeBannerSchema,
+  updateHomeCategorySchema,
   updateOfferSchema,
   updateOrderStatusSchema,
   updateRoleSchema,
@@ -100,6 +107,13 @@ export class UpdateRoleDto extends createZodDto(updateRoleSchema) {}
 export class ListStaffQueryDto extends createZodDto(listStaffQuerySchema) {}
 
 export class BroadcastDto extends createZodDto(broadcastSchema) {}
+export class CreateHomeBannerDto extends createZodDto(homeBannerSchema) {}
+export class UpdateHomeBannerDto extends createZodDto(updateHomeBannerSchema) {}
+export class CreateHomeCategoryDto extends createZodDto(homeCategorySchema) {}
+export class UpdateHomeCategoryDto extends createZodDto(updateHomeCategorySchema) {}
+export class HomeOrderDto extends createZodDto(homeOrderSchema) {}
+export class HomeSectionsDto extends createZodDto(homeSectionsSchema) {}
+export class HomeServiceParamDto extends createZodDto(homeServiceParamSchema) {}
 export class CreateOfferDto extends createZodDto(offerSchema) {}
 export class UpdateOfferDto extends createZodDto(updateOfferSchema) {}
 export class ListOffersQueryDto extends createZodDto(listOffersQuerySchema) {}

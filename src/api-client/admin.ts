@@ -22,6 +22,14 @@ import type {
   ListAdminNotificationsQuery,
   ListAuditQuery,
   ListCustomersQuery,
+  AdminHomeBannerDto,
+  AdminHomeCategoryDto,
+  AdminHomeDto,
+  HomeBannerInput,
+  HomeCategoryInput,
+  HomeSectionsInput,
+  UpdateHomeBannerInput,
+  UpdateHomeCategoryInput,
   ListOffersQuery,
   ListOrdersQuery,
   ListStaffQuery,
@@ -148,6 +156,23 @@ export function createAdminApi(options: Omit<HttpClientOptions, 'audience'>) {
     audit: {
       list: (query: Partial<ListAuditQuery> = {}) => http.get<PagedList<AuditLogDto>>('/admin/audit', query),
       stats: (query: Partial<AuditStatsQuery> = {}) => http.get<AuditStatsDto>('/admin/audit/stats', query),
+    },
+    home: {
+      get: () => http.get<AdminHomeDto>('/admin/home'),
+      saveSections: (body: HomeSectionsInput) => http.put<AdminHomeDto>('/admin/home/sections', body),
+      createBanner: (body: HomeBannerInput) => http.post<AdminHomeBannerDto>('/admin/home/banners', body),
+      updateBanner: (rowId: string, body: UpdateHomeBannerInput) => http.patch<AdminHomeBannerDto>(`/admin/home/banners/${id(rowId)}`, body),
+      createCategory: (body: HomeCategoryInput) => http.post<AdminHomeCategoryDto>('/admin/home/categories', body),
+      updateCategory: (rowId: string, body: UpdateHomeCategoryInput) => http.patch<AdminHomeCategoryDto>(`/admin/home/categories/${id(rowId)}`, body),
+      remove: (kind: 'banners' | 'categories', rowId: string) => http.request<void>('DELETE', `/admin/home/${kind}/${id(rowId)}`),
+      reorder: (kind: 'banners' | 'categories', ids: string[]) => http.put<AdminHomeDto>(`/admin/home/${kind}/order`, { ids }),
+      /** A banner's, category's or service tile's picture (rowId is the service id for 'services'). */
+      setImage: (kind: 'banners' | 'categories' | 'services', rowId: string, file: File) => {
+        const form = new FormData()
+        form.append('file', file)
+        return http.request<AdminHomeDto>('PUT', `/admin/home/${kind}/${id(rowId)}/image`, { body: form })
+      },
+      removeImage: (kind: 'banners' | 'categories' | 'services', rowId: string) => http.request<AdminHomeDto>('DELETE', `/admin/home/${kind}/${id(rowId)}/image`),
     },
     uploads: {
       url: (uploadId: string) => http.url(`/admin/uploads/${id(uploadId)}`),

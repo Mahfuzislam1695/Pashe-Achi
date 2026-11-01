@@ -1,4 +1,4 @@
-import type { ActorType, AuditAction, AuditEntity, Lang, NotificationType, OfferStatus, OrderStatus, ServiceId, Text } from './enums'
+import type { ActorType, AuditAction, AuditEntity, HomeBannerTarget, HomeSectionId, HomeTone, Lang, NotificationType, OfferStatus, OrderStatus, ServiceId, Text } from './enums'
 import type { DeliveryHours } from './delivery-hours'
 import type { GeoPoint } from './geo'
 import type { Permission } from './permissions'
@@ -248,6 +248,77 @@ export interface AdminOfferDto extends OfferDto {
   status: OfferStatus
   createdAt: string
   updatedAt: string
+}
+
+/** A banner on the customer home page: GET /home. */
+export interface HomeBannerDto {
+  id: string
+  /** English falls back to the Bangla when staff left it blank. */
+  title: Text
+  body: Text | null
+  /** The button's words; null uses the default "Order now". */
+  cta: Text | null
+  /** What the button opens; null shows no button. */
+  target: HomeBannerTarget | null
+  /** Same-origin path to the picture; null shows the tint alone. */
+  imageUrl: string | null
+}
+
+/** A category tile on the customer home page: GET /home. */
+export interface HomeCategoryDto {
+  id: string
+  name: Text
+  tone: HomeTone
+  /** A tap adds a bazar list row with this name; otherwise it only opens the form. */
+  addsItem: boolean
+  imageUrl: string | null
+}
+
+export interface HomeSectionDto {
+  heading: Text
+  visible: boolean
+}
+
+/** What the customer home page shows (public, like the catalog). */
+export interface HomeContentDto {
+  banners: HomeBannerDto[]
+  categories: HomeCategoryDto[]
+  /** Each service tile's picture: an uploaded one, or else the service's usual photo. */
+  serviceImages: Record<ServiceId, string>
+  sections: Record<HomeSectionId, HomeSectionDto>
+}
+
+export interface AdminHomeBannerDto extends HomeBannerDto {
+  titleBn: string
+  titleEn: string | null
+  bodyBn: string | null
+  bodyEn: string | null
+  ctaBn: string | null
+  ctaEn: string | null
+  isActive: boolean
+  /** Whether the picture is an upload (removing it goes back to the built-in one, if any). */
+  uploaded: boolean
+}
+
+export interface AdminHomeCategoryDto extends HomeCategoryDto {
+  nameBn: string
+  nameEn: string | null
+  isActive: boolean
+  uploaded: boolean
+}
+
+export interface AdminHomeSectionDto {
+  headingBn: string
+  headingEn: string | null
+  visible: boolean
+}
+
+/** The whole home page for staff, hidden rows included: GET /admin/home. */
+export interface AdminHomeDto {
+  banners: AdminHomeBannerDto[]
+  categories: AdminHomeCategoryDto[]
+  serviceImages: Record<ServiceId, { url: string; uploaded: boolean }>
+  sections: Record<HomeSectionId, AdminHomeSectionDto>
 }
 
 export interface NotificationDto {

@@ -1,12 +1,15 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../../config.dart';
 import '../../core/api.dart';
 import '../../core/data.dart';
 import '../../core/domain.dart';
 import '../../core/format.dart';
 import '../../core/i18n.dart';
+import '../../core/models.dart';
 import '../../core/session.dart';
 import '../../ui/banners.dart';
 import '../../ui/location_sheet.dart';
@@ -17,39 +20,29 @@ import '../services/drafts.dart';
 import '../services/service_frame.dart';
 import '../shell/main_shell.dart';
 
-/// One of the bazar's categories on Home. A tap starts a bazar list row with its name.
-class _Category {
-  const _Category(this.photo, this.name, this.tone);
-
-  /// assets/images/cat-{photo}-400.webp (src/shared/brand.ts CATEGORY_PHOTOS lists the sources).
-  final String photo;
-  final Bilingual name;
-  final ServiceTone tone;
-}
-
-String _categoryPhoto(String photo) => 'assets/images/cat-$photo-400.webp';
-
 final _coral = ServiceTone(
   Kf.coral,
   Color.alphaBlend(Kf.coral.withValues(alpha: 0.11), Kf.surface),
   Color.lerp(Kf.coral, Kf.navy, 0.38)!,
   Color.alphaBlend(Kf.coral.withValues(alpha: 0.28), Kf.surface),
-  LucideIcons.beef,
+  LucideIcons.shoppingBag,
 );
 
-final _categories = [
-  const _Category('fish', Bilingual('মাছ', 'Fish'), ServiceTone(Kf.blue, Kf.blueSoft, Kf.blueInk, Kf.blueLine, LucideIcons.fish)),
-  _Category('meat', const Bilingual('মাংস', 'Meat'), _coral),
-  const _Category('vegetables', Bilingual('সবজি', 'Vegetables'), ServiceTone(Kf.green, Kf.greenSoft, Kf.greenInk, Kf.greenLine, LucideIcons.carrot)),
-  const _Category('rice', Bilingual('চাল-ডাল', 'Rice & lentils'), ServiceTone(Kf.orangeIcon, Kf.orangeSoft, Kf.orangeInk, Kf.orangeLine, LucideIcons.wheat)),
-  const _Category('daily', Bilingual('দৈনন্দিন পণ্য', 'Daily needs'), ServiceTone(Kf.violet, Kf.violetTint, Kf.violetInk, Kf.violetLine, LucideIcons.shoppingBasket)),
-];
+/// A category tile's colours, by the name staff picked.
+ServiceTone _tone(String name) => switch (name) {
+  'coral' => _coral,
+  'green' => const ServiceTone(Kf.green, Kf.greenSoft, Kf.greenInk, Kf.greenLine, LucideIcons.shoppingBag),
+  'orange' => const ServiceTone(Kf.orangeIcon, Kf.orangeSoft, Kf.orangeInk, Kf.orangeLine, LucideIcons.shoppingBag),
+  'violet' => const ServiceTone(Kf.violet, Kf.violetTint, Kf.violetInk, Kf.violetLine, LucideIcons.shoppingBag),
+  'neutral' => const ServiceTone(Kf.muted, Kf.surface2, Kf.ink2, Kf.line, LucideIcons.shoppingBag),
+  _ => const ServiceTone(Kf.blue, Kf.blueSoft, Kf.blueInk, Kf.blueLine, LucideIcons.shoppingBag),
+};
 
-const _more = ServiceTone(Kf.muted, Kf.surface2, Kf.ink2, Kf.line, LucideIcons.layoutGrid);
-
-/// Home, where the app opens (the website's features/home.tsx): the customer's location, a search
-/// that writes the bazar list, the fresh market banner, the bazar's categories, the four services and
-/// আজকের অফার. There is no product catalog: categories and searches become bazar list rows.
+/// Home, where the app opens (the website's features/home.tsx): the customer's location and a search
+/// that writes the bazar list, then what staff set on /admin/home: the banners, the bazar's categories,
+/// the service pictures and each section's heading and visibility. আজকের অফার comes from the Offers page.
+/// There is no product catalog: categories and searches become bazar list rows. If the content can't
+/// load, the location, the search and the services still work.
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
 
@@ -58,8 +51,14 @@ class HomeScreen extends ConsumerWidget {
     final l = ref.watch(l10nProvider);
     final catalog = ref.watch(catalogProvider).value;
     if (catalog == null) return const SizedBox.shrink();
+    final home = ref.watch(homeProvider).value;
     final offers = ref.watch(offersProvider).value ?? const [];
+    final categories = home?.categories ?? const <HomeCategory>[];
+    final categorySection = home?.sections['categories'];
+    final serviceSection = home?.sections['services'];
+    final offerSection = home?.sections['offers'];
     final gutter = Kf.gutter(context);
+    final wide = MediaQuery.sizeOf(context).width >= 600;
 
     void openService(ServiceId service) => StatefulNavigationShell.of(context).goBranch(branchOf(service));
     void openBazar([String? item]) {
@@ -71,8 +70,9 @@ class HomeScreen extends ConsumerWidget {
       onRefresh: () async {
         ref.invalidate(catalogProvider);
         ref.invalidate(offersProvider);
+        ref.invalidate(homeProvider);
         try {
-          await ref.read(offersProvider.future);
+          await ref.read(homeProvider.future);
         } catch (_) {
           // The sections show what loaded.
         }
@@ -88,44 +88,49 @@ class HomeScreen extends ConsumerWidget {
                 children: [
                   const _LocationRow(),
                   const SizedBox(height: 8),
-                  _HomeSearch(onAdd: openBazar, onService: openService),
-                  const SizedBox(height: 16),
-                  _Hero(onOrder: () => openBazar()),
-                  const SizedBox(height: 22),
-                  _Heading(l.t('কাঁচা বাজার', 'Fresh market')),
-                  const SizedBox(height: 10),
-                  GridView.count(
-                    crossAxisCount: MediaQuery.sizeOf(context).width >= 600 ? 6 : 3,
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    mainAxisSpacing: 10,
-                    crossAxisSpacing: 10,
-                    childAspectRatio: 0.92,
-                    children: [
-                      for (final category in _categories)
-                        _CategoryTile(photo: category.photo, label: l.text(category.name), tone: category.tone, onTap: () => openBazar(l.text(category.name))),
-                      _CategoryTile(photo: 'more', label: l.t('আরও', 'More'), tone: _more, onTap: () => openBazar()),
-                    ],
-                  ),
-                  const SizedBox(height: 22),
-                  _Heading(l.t('আমাদের সেবা', 'Our services')),
-                  const SizedBox(height: 10),
-                  GridView.count(
-                    crossAxisCount: MediaQuery.sizeOf(context).width >= 600 ? 4 : 2,
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    mainAxisSpacing: 10,
-                    crossAxisSpacing: 10,
-                    childAspectRatio: 1.9,
-                    children: [
-                      for (final service in ServiceId.values)
-                        _ServiceTile(service: service, charge: serviceCharge(l, catalog.pricing, service), onTap: () => openService(service)),
-                    ],
-                  ),
-                  if (offers.isNotEmpty) ...[
+                  _HomeSearch(categories: categories, onAdd: openBazar, onService: openService),
+                  if (home != null && home.banners.isNotEmpty) ...[
+                    const SizedBox(height: 16),
+                    HomeBanners(banners: home.banners, onOpenOffers: () => context.push('/offers'), onOpenService: openService),
+                  ],
+                  if (categories.isNotEmpty && categorySection != null && categorySection.visible) ...[
+                    const SizedBox(height: 22),
+                    _Heading(l.text(categorySection.heading)),
+                    const SizedBox(height: 10),
+                    GridView.count(
+                      crossAxisCount: wide ? 6 : 3,
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      mainAxisSpacing: 10,
+                      crossAxisSpacing: 10,
+                      childAspectRatio: 0.92,
+                      children: [
+                        for (final category in categories)
+                          _CategoryTile(category: category, onTap: () => category.addsItem ? openBazar(l.text(category.name)) : openBazar()),
+                      ],
+                    ),
+                  ],
+                  if (serviceSection == null || serviceSection.visible) ...[
+                    const SizedBox(height: 22),
+                    _Heading(serviceSection == null ? l.t('আমাদের সেবা', 'Our services') : l.text(serviceSection.heading)),
+                    const SizedBox(height: 10),
+                    GridView.count(
+                      crossAxisCount: wide ? 4 : 2,
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      mainAxisSpacing: 10,
+                      crossAxisSpacing: 10,
+                      childAspectRatio: 1.9,
+                      children: [
+                        for (final service in ServiceId.values)
+                          _ServiceTile(service: service, imageUrl: home?.serviceImages[service.name], charge: serviceCharge(l, catalog.pricing, service), onTap: () => openService(service)),
+                      ],
+                    ),
+                  ],
+                  if (offers.isNotEmpty && offerSection != null && offerSection.visible) ...[
                     const SizedBox(height: 22),
                     _Heading(
-                      l.t('আজকের বিশেষ অফার', "Today's special offers"),
+                      l.text(offerSection.heading),
                       action: TextButton(
                         onPressed: () => context.push('/offers'),
                         child: Row(mainAxisSize: MainAxisSize.min, children: [Text(l.t('সব দেখুন', 'See all')), const Icon(LucideIcons.chevronRight, size: 15)]),
@@ -225,9 +230,10 @@ class _LocationRow extends ConsumerWidget {
 /// "কী খুঁজছেন?": suggests the services and categories that match, and always offers to put the
 /// words on the bazar list (the keyboard's Go does that too).
 class _HomeSearch extends ConsumerStatefulWidget {
-  const _HomeSearch({required this.onAdd, required this.onService});
+  const _HomeSearch({required this.categories, required this.onAdd, required this.onService});
 
-  final ValueChanged<String> onAdd;
+  final List<HomeCategory> categories;
+  final void Function([String? item]) onAdd;
   final ValueChanged<ServiceId> onService;
 
   @override
@@ -243,7 +249,7 @@ class _HomeSearchState extends ConsumerState<_HomeSearch> {
     super.dispose();
   }
 
-  void _add(String item) {
+  void _add([String? item]) {
     FocusScope.of(context).unfocus();
     _controller.clear();
     setState(() {});
@@ -257,19 +263,16 @@ class _HomeSearchState extends ConsumerState<_HomeSearch> {
     final needle = words.toLowerCase();
     bool matches(Bilingual label) => needle.isNotEmpty && (label.bn.contains(words) || label.en.toLowerCase().contains(needle));
     final services = ServiceId.values.where((service) => matches(service.label));
-    final categories = _categories.where((category) => matches(category.name));
+    final categories = widget.categories.where((category) => matches(category.name));
 
-    Widget suggestion({IconData? icon, String? photo, Color? color, required String label, required VoidCallback onTap}) => InkWell(
+    Widget suggestion({required IconData icon, required Color color, required String label, required VoidCallback onTap}) => InkWell(
       borderRadius: BorderRadius.circular(10),
       onTap: onTap,
       child: Padding(
-        padding: EdgeInsets.symmetric(horizontal: 10, vertical: photo == null ? 12 : 8),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
         child: Row(
           children: [
-            if (photo != null)
-              ClipRRect(borderRadius: BorderRadius.circular(8), child: Image.asset(_categoryPhoto(photo), width: 28, height: 28, fit: BoxFit.cover, excludeFromSemantics: true))
-            else
-              Icon(icon, size: 17, color: color),
+            Icon(icon, size: 17, color: color),
             const SizedBox(width: 10),
             Expanded(child: Text(label, style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600, color: Kf.ink))),
           ],
@@ -301,12 +304,22 @@ class _HomeSearchState extends ConsumerState<_HomeSearch> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 for (final service in services)
-                  suggestion(icon: ServiceTone.of(service).icon, color: ServiceTone.of(service).color, label: l.text(service.label), onTap: () {
-                    FocusScope.of(context).unfocus();
-                    widget.onService(service);
-                  }),
+                  suggestion(
+                    icon: ServiceTone.of(service).icon,
+                    color: ServiceTone.of(service).color,
+                    label: l.text(service.label),
+                    onTap: () {
+                      FocusScope.of(context).unfocus();
+                      widget.onService(service);
+                    },
+                  ),
                 for (final category in categories)
-                  suggestion(photo: category.photo, label: l.text(category.name), onTap: () => _add(l.text(category.name))),
+                  suggestion(
+                    icon: LucideIcons.shoppingBag,
+                    color: _tone(category.tone).color,
+                    label: l.text(category.name),
+                    onTap: () => category.addsItem ? _add(l.text(category.name)) : _add(),
+                  ),
                 suggestion(
                   icon: LucideIcons.plus,
                   color: Kf.green,
@@ -321,87 +334,20 @@ class _HomeSearchState extends ConsumerState<_HomeSearch> {
   }
 }
 
-/// The fresh market banner: the bazar photo, a headline and "Order now".
-class _Hero extends ConsumerWidget {
-  const _Hero({required this.onOrder});
+/// A category: its picture, with the name on the category's tint below it. Without a picture, or
+/// without a connection, the tint alone.
+class _CategoryTile extends ConsumerWidget {
+  const _CategoryTile({required this.category, required this.onTap});
 
-  final VoidCallback onOrder;
+  final HomeCategory category;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l = ref.watch(l10nProvider);
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(16),
-      child: Container(
-        constraints: const BoxConstraints(minHeight: 172),
-        color: Kf.greenInk,
-        child: Stack(
-          alignment: AlignmentDirectional.centerStart,
-          children: [
-            Positioned.fill(child: Image.asset(servicePhoto(ServiceId.bazar), fit: BoxFit.cover, alignment: const Alignment(0.4, -0.4), excludeFromSemantics: true)),
-            Positioned.fill(
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(colors: [Color.lerp(Kf.greenInk, Kf.navy, 0.06)!, Kf.greenInk.withValues(alpha: 0.7), Kf.greenInk.withValues(alpha: 0)], stops: const [0, 0.55, 1]),
-                ),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(18),
-              child: FractionallySizedBox(
-                widthFactor: 0.7,
-                alignment: Alignment.centerLeft,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Semantics(
-                      header: true,
-                      child: Text(l.t('তাজা বাজার সরাসরি আপনার বাসায়', 'Fresh groceries, straight to your door'), style: const TextStyle(fontSize: 21, fontWeight: FontWeight.w700, color: Colors.white, height: 1.3)),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(l.text(serviceBlurb(ServiceId.bazar)), maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12.5, color: Colors.white.withValues(alpha: 0.88), height: 1.45)),
-                    const SizedBox(height: 12),
-                    Material(
-                      color: Kf.surface,
-                      borderRadius: BorderRadius.circular(999),
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(999),
-                        onTap: onOrder,
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(l.t('এখনই অর্ডার করুন', 'Order now'), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Kf.greenInk)),
-                              const SizedBox(width: 6),
-                              const Icon(LucideIcons.arrowRight, size: 15, color: Kf.greenInk),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// A category: its photo, with the name on the category's tint below it.
-class _CategoryTile extends StatelessWidget {
-  const _CategoryTile({required this.photo, required this.label, required this.tone, required this.onTap});
-
-  final String photo;
-  final String label;
-  final ServiceTone tone;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
+    final tone = _tone(category.tone);
+    final imageUrl = category.imageUrl;
+    final blank = ColoredBox(color: tone.line);
     return Material(
       color: tone.soft,
       clipBehavior: Clip.antiAlias,
@@ -411,10 +357,14 @@ class _CategoryTile extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Expanded(child: Image.asset(_categoryPhoto(photo), fit: BoxFit.cover, cacheWidth: 400, excludeFromSemantics: true)),
+            Expanded(
+              child: imageUrl == null
+                  ? blank
+                  : CachedNetworkImage(imageUrl: '${AppConfig.origin}$imageUrl', fit: BoxFit.cover, placeholder: (_, _) => blank, errorWidget: (_, _, _) => blank),
+            ),
             Padding(
               padding: const EdgeInsets.fromLTRB(6, 7, 6, 8),
-              child: Text(label, textAlign: TextAlign.center, maxLines: 2, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: tone.ink, height: 1.2)),
+              child: Text(l.text(category.name), textAlign: TextAlign.center, maxLines: 2, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: tone.ink, height: 1.2)),
             ),
           ],
         ),
@@ -424,9 +374,12 @@ class _CategoryTile extends StatelessWidget {
 }
 
 class _ServiceTile extends ConsumerWidget {
-  const _ServiceTile({required this.service, required this.charge, required this.onTap});
+  const _ServiceTile({required this.service, required this.imageUrl, required this.charge, required this.onTap});
 
   final ServiceId service;
+
+  /// The picture staff set; until it loads, or without a connection, the bundled photo.
+  final String? imageUrl;
   final String charge;
   final VoidCallback onTap;
 
@@ -434,6 +387,8 @@ class _ServiceTile extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l = ref.watch(l10nProvider);
     final tone = ServiceTone.of(service);
+    final bundled = Image.asset(servicePhoto(service), width: 48, height: 48, fit: BoxFit.cover, cacheWidth: 144, excludeFromSemantics: true);
+    final url = imageUrl;
     return Material(
       color: Kf.surface,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14), side: const BorderSide(color: Kf.line)),
@@ -446,7 +401,9 @@ class _ServiceTile extends ConsumerWidget {
             children: [
               ClipRRect(
                 borderRadius: BorderRadius.circular(12),
-                child: Image.asset(servicePhoto(service), width: 48, height: 48, fit: BoxFit.cover, cacheWidth: 144, excludeFromSemantics: true),
+                child: url == null
+                    ? bundled
+                    : CachedNetworkImage(imageUrl: '${AppConfig.origin}$url', width: 48, height: 48, fit: BoxFit.cover, memCacheWidth: 144, placeholder: (_, _) => bundled, errorWidget: (_, _, _) => bundled),
               ),
               const SizedBox(width: 10),
               Expanded(
