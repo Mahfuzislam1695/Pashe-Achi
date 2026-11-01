@@ -84,7 +84,9 @@ npm run db:studio      # browse the database
 
 Run `npm run build`, then `npm start` on any Node.js server, behind a reverse proxy (for example Nginx) that serves HTTPS and passes WebSocket upgrades through. Set `PORT` in `.env` if 3000 is taken.
 
-- **Backups.** The admin panel's System page (`/admin/system`) downloads a full database backup made with `pg_dump`. Install the PostgreSQL client tools on the server (Debian/Ubuntu: `apt install postgresql-client-17`; the version must be the database's or newer), or set `PG_DUMP_PATH` in `.env`. Restore a backup with `pg_restore --clean --if-exists --no-owner -d <database> <file>.dump`.
+- **Backups.** The admin panel's System page (`/admin/system`) downloads a full database backup, with nothing extra to install.
+  - If the server has the PostgreSQL client tools (`pg_dump` of the database's version or newer, on PATH, in the usual install folder or at `PG_DUMP_PATH` in `.env`), the file is a `.dump`. Restore it with `pg_restore --clean --if-exists --no-owner -d <database> <file>.dump`.
+  - Otherwise the app writes the backup itself as a `.sql` file. Restore it into a new, empty database: `createdb -E UTF8 -T template0 <database>`, then `psql -v ON_ERROR_STOP=1 -d <database> -f <file>.sql` (or run it in pgAdmin's Query Tool), and point `DATABASE_URL` at that database.
 - **APK uploads.** The System page also uploads a new app APK (up to 150 MB), so let the proxy accept large bodies on that route (Nginx: `client_max_body_size 200m;`).
 
 The site has its own server (NestJS serves the pages too), so it can't be hosted on Vercel.

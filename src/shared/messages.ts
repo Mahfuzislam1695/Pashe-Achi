@@ -60,8 +60,8 @@ export const MESSAGES = {
   'apk.too_large': { bn: 'APK ১৫০ MB-এর বেশি হতে পারবে না।', en: 'The APK must be 150 MB or smaller.' },
   'apk.version': { bn: 'ভার্সন যেমন 1.0.3 এভাবে দিন (৩২ অক্ষর পর্যন্ত)।', en: 'Write the version like 1.0.3 (up to 32 characters).' },
   'system.pg_dump_missing': {
-    bn: 'সার্ভারে pg_dump পাওয়া যায়নি। PostgreSQL client tools ইনস্টল করুন, বা .env-এ PG_DUMP_PATH দিন।',
-    en: "pg_dump wasn't found on the server. Install the PostgreSQL client tools, or set PG_DUMP_PATH in .env.",
+    bn: 'সার্ভারে ডেটাবেসের সমান বা নতুন ভার্সনের pg_dump নেই, তাই .dump ফাইল হবে না। .sql ব্যাকআপ নিন।',
+    en: "The server has no pg_dump as new as the database, so it can't make a .dump file. Take the .sql backup instead.",
   },
   'system.backup_failed': { bn: 'ব্যাকআপ তৈরি করা যায়নি। সার্ভারের লগ দেখুন।', en: "The backup couldn't be made. Check the server log." },
   'system.backup_busy': { bn: 'আরেকটি ব্যাকআপ তৈরি হচ্ছে, একটু পরে আবার চেষ্টা করুন।', en: 'Another backup is being made. Try again shortly.' },

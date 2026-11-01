@@ -13,10 +13,9 @@ import { useLang } from '@/admin/lib/i18n'
 import { queryKeys, useCurrentAdmin, useSystemStatus } from '@/admin/lib/queries'
 import { errorCode, fileSize } from '@/admin/lib/utils'
 
-const majorVersion = (version: string | null) => (version ? Number.parseInt(version, 10) : Number.NaN)
-
 /**
- * The System page: a full database backup (pg_dump) and the app's APK on /app-download. Only the Super
+ * The System page: a full database backup (pg_dump's .dump, or the app's own .sql on a server without
+ * pg_dump) and the app's APK on /app-download. Only the Super
  * admin has the system module at first; the API checks system.backup and system.apk itself.
  */
 export default function SystemPage() {
@@ -85,7 +84,7 @@ function BackupCard({ database }: { database: SystemStatusDto['database'] }) {
     mutationFn: api.system.backup,
     onMutate: () => setError(null),
     onSuccess: ({ blob, filename }) => {
-      const name = filename ?? 'kingfisher-backup.dump'
+      const name = filename ?? `kingfisher-backup.${database.backupFormat}`
       saveFile(blob, name)
       toast.success(t(`ব্যাকআপ ডাউনলোড হয়েছে: ${name}`, `Backup downloaded: ${name}`))
     },
@@ -94,7 +93,7 @@ function BackupCard({ database }: { database: SystemStatusDto['database'] }) {
       toast.error(t('ব্যাকআপ হয়নি', 'Backup failed'))
     },
   })
-  const tooOld = database.pgDumpVersion !== null && majorVersion(database.pgDumpVersion) < majorVersion(database.serverVersion)
+  const sql = database.backupFormat === 'sql'
 
   return (
     <Card title={<span className="inline-flex items-center gap-2"><DatabaseBackup className="size-4 text-brand-600" />{t('ডেটাবেস ব্যাকআপ', 'Database backup')}</span>}>
@@ -103,25 +102,21 @@ function BackupCard({ database }: { database: SystemStatusDto['database'] }) {
           <Row label={t('ডেটাবেস', 'Database')}>{database.name}</Row>
           <Row label={t('আকার', 'Size')}>{fileSize(database.size)}</Row>
           <Row label="PostgreSQL">{database.serverVersion}</Row>
-          <Row label="pg_dump">{database.pgDumpVersion ?? <Badge tone="danger">{t('পাওয়া যায়নি', 'Not found')}</Badge>}</Row>
+          <Row label="pg_dump">{database.pgDumpVersion ?? <span className="font-normal text-muted">{t('ইনস্টল করা নেই', 'Not installed')}</span>}</Row>
+          <Row label={t('ব্যাকআপ ফাইল', 'Backup file')}>
+            {sql ? (
+              <span className="inline-flex flex-wrap items-center gap-2">
+                <Badge tone="brand">.sql</Badge>
+                <span className="font-normal text-muted">{t('অ্যাপ নিজে তৈরি করে', 'made by the app')}</span>
+              </span>
+            ) : (
+              <span className="inline-flex flex-wrap items-center gap-2">
+                <Badge tone="brand">.dump</Badge>
+                <span className="font-normal text-muted">pg_dump</span>
+              </span>
+            )}
+          </Row>
         </dl>
-
-        {database.pgDumpVersion === null && (
-          <Warning>
-            {t(
-              'সার্ভারে pg_dump নেই। PostgreSQL client tools ইনস্টল করুন (লিনাক্সে apt install postgresql-client-17), বা .env-এ PG_DUMP_PATH-এ pg_dump-এর পুরো ঠিকানা দিন।',
-              "pg_dump isn't available on the server. Install the PostgreSQL client tools (on Linux: apt install postgresql-client-17), or set PG_DUMP_PATH in .env to pg_dump's full path.",
-            )}
-          </Warning>
-        )}
-        {tooOld && (
-          <Warning>
-            {t(
-              `pg_dump ${database.pgDumpVersion} ডেটাবেসের ভার্সন ${database.serverVersion}-এর চেয়ে পুরোনো, তাই ব্যাকআপ হবে না। একই বা নতুন ভার্সনের client tools ইনস্টল করুন।`,
-              `pg_dump ${database.pgDumpVersion} is older than the database (${database.serverVersion}), so it can't back it up. Install client tools of the same version or newer.`,
-            )}
-          </Warning>
-        )}
 
         <p className="text-sm text-muted">
           {t(
@@ -132,7 +127,7 @@ function BackupCard({ database }: { database: SystemStatusDto['database'] }) {
 
         {can(me, 'system.backup') && (
           <div>
-            <Button loading={backup.isPending} disabled={database.pgDumpVersion === null} onClick={() => backup.mutate()}>
+            <Button loading={backup.isPending} onClick={() => backup.mutate()}>
               {!backup.isPending && <Download className="size-4" />}
               {backup.isPending ? t('ব্যাকআপ তৈরি হচ্ছে…', 'Making the backup…') : t('ব্যাকআপ ডাউনলোড', 'Download backup')}
             </Button>
@@ -142,13 +137,29 @@ function BackupCard({ database }: { database: SystemStatusDto['database'] }) {
 
         <details className="text-sm">
           <summary className="cursor-pointer font-medium text-brand-700">{t('ব্যাকআপ থেকে ফিরিয়ে আনা', 'Restoring a backup')}</summary>
-          <p className="mt-2 text-muted">
-            {t(
-              'সার্ভার বন্ধ রেখে PostgreSQL-এর pg_restore দিয়ে চালান। এটি ডেটাবেসের এখনকার সব তথ্য ব্যাকআপের তথ্য দিয়ে বদলে দেয়।',
-              "Stop the server, then run PostgreSQL's pg_restore. It replaces everything in the database with the backup's data.",
-            )}
-          </p>
-          <pre className="mt-2 overflow-x-auto rounded-xl bg-canvas px-3 py-2 text-xs text-ink">{`pg_restore --clean --if-exists --no-owner -d ${database.name} kingfisher-backup-….dump`}</pre>
+          {sql ? (
+            <>
+              <p className="mt-2 text-muted">
+                {t(
+                  'নতুন একটি খালি UTF8 ডেটাবেস তৈরি করে .sql ফাইলটি তাতে চালান (pgAdmin-এর Query Tool দিয়েও খুলে চালানো যায়)। তারপর .env-এর DATABASE_URL নতুন ডেটাবেসে দিন আর সার্ভার আবার চালু করুন।',
+                  "Create a new, empty UTF8 database and run the .sql file in it (pgAdmin's Query Tool can open and run it too). Then point DATABASE_URL in .env at the new database and restart the server.",
+                )}
+              </p>
+              <pre className="mt-2 overflow-x-auto rounded-xl bg-canvas px-3 py-2 text-xs text-ink">
+                {`createdb -E UTF8 -T template0 ${database.name}_restored\npsql -v ON_ERROR_STOP=1 -d ${database.name}_restored -f kingfisher-backup-….sql`}
+              </pre>
+            </>
+          ) : (
+            <>
+              <p className="mt-2 text-muted">
+                {t(
+                  'সার্ভার বন্ধ রেখে PostgreSQL-এর pg_restore দিয়ে চালান। এটি ডেটাবেসের এখনকার সব তথ্য ব্যাকআপের তথ্য দিয়ে বদলে দেয়।',
+                  "Stop the server, then run PostgreSQL's pg_restore. It replaces everything in the database with the backup's data.",
+                )}
+              </p>
+              <pre className="mt-2 overflow-x-auto rounded-xl bg-canvas px-3 py-2 text-xs text-ink">{`pg_restore --clean --if-exists --no-owner -d ${database.name} kingfisher-backup-….dump`}</pre>
+            </>
+          )}
         </details>
       </div>
     </Card>

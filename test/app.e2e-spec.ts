@@ -6,6 +6,7 @@ import { Test } from '@nestjs/testing'
 import type { NestExpressApplication } from '@nestjs/platform-express'
 import { API_PREFIX, BUILT_IN_ROLES, DEFAULT_DELIVERY_HOURS, DEFAULT_PRICING, DEFAULT_VEHICLES, isoDateInBd, type OrderDetail, SOCKET_EVENTS, SOCKET_NAMESPACE } from '@/shared'
 import bcrypt from 'bcryptjs'
+import { Client } from 'pg'
 import { io, type Socket } from 'socket.io-client'
 import request from 'supertest'
 
@@ -498,13 +499,72 @@ describe('Pashe Achi API (e2e)', () => {
     it('downloads a full pg_dump backup and records who took it', async () => {
       const admin = await adminAgent()
       const status = await admin.get(api('/admin/system')).expect(200)
-      if (!status.body.database.pgDumpVersion) return console.warn('pg_dump is not available (PG_DUMP_PATH): skipping the backup test')
-      const backup = await admin.get(api('/admin/system/backup')).buffer(true).parse(binary).expect(200)
+      if (status.body.database.backupFormat !== 'dump') {
+        await admin.get(api('/admin/system/backup?format=dump')).expect(503).expect(res => expect(res.body.code).toBe('system.pg_dump_missing'))
+        return console.warn('No pg_dump as new as the server (PG_DUMP_PATH): skipping the pg_dump backup test')
+      }
+      const backup = await admin.get(api('/admin/system/backup?format=dump')).buffer(true).parse(binary).expect(200)
       expect(backup.headers['content-disposition']).toMatch(/attachment; filename="kingfisher-backup-\d{4}-\d{2}-\d{2}-\d{4}\.dump"/)
       expect(backup.headers['cache-control']).toBe('no-store')
       expect((backup.body as Buffer).subarray(0, 5).toString('latin1')).toBe('PGDMP')
-      const entry = await prisma.auditLog.findFirstOrThrow({ where: { action: 'SYSTEM_BACKUP_DOWNLOADED' } })
-      expect(entry).toMatchObject({ actorName: 'Admin', entityType: 'SYSTEM', meta: { size: (backup.body as Buffer).length } })
+      const entry = await prisma.auditLog.findFirstOrThrow({ where: { action: 'SYSTEM_BACKUP_DOWNLOADED' }, orderBy: { createdAt: 'desc' } })
+      expect(entry).toMatchObject({ actorName: 'Admin', entityType: 'SYSTEM', meta: { size: (backup.body as Buffer).length, format: 'dump' } })
+    })
+
+    it("makes its own .sql backup without pg_dump, which restores into an empty database", async () => {
+      const admin = await adminAgent()
+      // Rows in many tables, with quotes, Bangla, JSON, arrays and the order number sequence in use.
+      const { agent } = await signup('01712000099')
+      await agent
+        .post(api('/orders/bazar'))
+        .send({ address: 'বাসা ১', addressPin: PIN, contactMobile: '01712000099', schedule, items: [{ name: 'চাল', quantity: '5 কেজি' }], note: "Rahim's \\ \"দোকান\"\nline two" })
+        .expect(201)
+
+      const backup = await admin.get(api('/admin/system/backup?format=sql')).buffer(true).parse(binary).expect(200)
+      expect(backup.headers['content-disposition']).toMatch(/attachment; filename="kingfisher-backup-\d{4}-\d{2}-\d{2}-\d{4}\.sql"/)
+      expect(backup.headers['content-type']).toMatch(/^application\/sql/)
+      const sql = (backup.body as Buffer).toString('utf8')
+      const entry = await prisma.auditLog.findFirstOrThrow({ where: { action: 'SYSTEM_BACKUP_DOWNLOADED' }, orderBy: { createdAt: 'desc' } })
+      expect(entry.meta).toMatchObject({ format: 'sql', size: (backup.body as Buffer).length })
+
+      const source = new URL(process.env.DATABASE_URL!)
+      const name = `${decodeURIComponent(source.pathname.slice(1))}_restore`
+      const server = new URL(source)
+      server.pathname = '/postgres'
+      server.search = ''
+      const target = new URL(server)
+      target.pathname = `/${name}`
+      const control = new Client({ connectionString: server.toString() })
+      await control.connect()
+      try {
+        await control.query(`DROP DATABASE IF EXISTS "${name}"`)
+        await control.query(`CREATE DATABASE "${name}" ENCODING 'UTF8' TEMPLATE template0`)
+        const restored = new Client({ connectionString: target.toString() })
+        await restored.connect()
+        try {
+          await restored.query(sql)
+          // Everything the backup holds, counted the same way on both sides (after the backup's own history row).
+          const shape = `
+            SELECT (SELECT json_object_agg(relname, n) FROM (SELECT relname, (xpath('/row/n/text()', query_to_xml(format('SELECT count(*) AS n FROM public.%I', relname), false, true, '')))[1]::text::int AS n
+                      FROM pg_class c JOIN pg_namespace ns ON ns.oid = c.relnamespace WHERE ns.nspname = 'public' AND c.relkind = 'r') t) AS rows,
+                   (SELECT count(*)::int FROM pg_indexes WHERE schemaname = 'public') AS indexes,
+                   (SELECT count(*)::int FROM pg_constraint con JOIN pg_namespace ns ON ns.oid = con.connamespace WHERE ns.nspname = 'public') AS constraints,
+                   (SELECT string_agg(enumlabel, ',' ORDER BY enumtypid::regtype::text, enumsortorder) FROM pg_enum) AS enums,
+                   (SELECT last_value::int FROM pg_sequences WHERE sequencename = 'Order_number_seq') AS "orderNumber"`
+          const [before] = await prisma.$queryRawUnsafe<Record<string, unknown>[]>(shape)
+          const { rows: [after] } = await restored.query(shape)
+          const history = before.rows as Record<string, number>
+          expect(after).toEqual({ ...before, rows: { ...history, AuditLog: history.AuditLog - 1 } })
+          // The text came back exactly.
+          const { rows: notes } = await restored.query(`SELECT note FROM public."Order" WHERE note LIKE 'Rahim%'`)
+          expect(notes).toEqual([{ note: "Rahim's \\ \"দোকান\"\nline two" }])
+        } finally {
+          await restored.end()
+        }
+      } finally {
+        await control.query(`DROP DATABASE IF EXISTS "${name}"`)
+        await control.end()
+      }
     })
   })
 

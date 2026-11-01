@@ -30,5 +30,6 @@ describe('majorVersion', () => {
 describe('backupFileName', () => {
   it('uses the Bangladesh date and time', () => {
     expect(backupFileName(new Date('2026-10-28T19:30:00Z'))).toBe('kingfisher-backup-2026-10-29-0130.dump')
+    expect(backupFileName(new Date('2026-10-28T19:30:00Z'), 'sql')).toBe('kingfisher-backup-2026-10-29-0130.sql')
   })
 })

@@ -154,7 +154,7 @@ export function createAdminApi(options: Omit<HttpClientOptions, 'audience'>) {
     },
     system: {
       status: () => http.get<SystemStatusDto>('/admin/system'),
-      /** A full database backup (pg_dump custom format); the server makes it first, so this can take a while. */
+      /** A full database backup (.dump or .sql, see SystemStatusDto); the server makes it first, so this can take a while. */
       backup: () => http.download('/admin/system/backup'),
       uploadApk: (file: File, version: string) => {
         const form = new FormData()

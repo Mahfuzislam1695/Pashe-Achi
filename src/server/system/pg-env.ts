@@ -1,4 +1,4 @@
-import { APP_TIME_ZONE, isoDateInBd } from '@/shared'
+import { APP_TIME_ZONE, type BackupFormat, isoDateInBd } from '@/shared'
 
 /**
  * DATABASE_URL as the libpq environment variables pg_dump reads. The password travels in the child's
@@ -28,8 +28,8 @@ export const majorVersion = (version: string | null) => {
   return match ? Number(match[1]) : null
 }
 
-/** kingfisher-backup-2026-10-29-0130.dump, in Bangladesh time. */
-export function backupFileName(now = new Date()) {
+/** kingfisher-backup-2026-10-29-0130.dump (or .sql), in Bangladesh time. */
+export function backupFileName(now = new Date(), format: BackupFormat = 'dump') {
   const time = now.toLocaleTimeString('en-GB', { timeZone: APP_TIME_ZONE, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).replace(':', '')
-  return `kingfisher-backup-${isoDateInBd(now)}-${time}.dump`
+  return `kingfisher-backup-${isoDateInBd(now)}-${time}.${format}`
 }

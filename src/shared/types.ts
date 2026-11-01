@@ -3,6 +3,7 @@ import type { DeliveryHours } from './delivery-hours'
 import type { GeoPoint } from './geo'
 import type { Permission } from './permissions'
 import type { Pricing } from './pricing'
+import type { BackupFormat } from './schemas/system'
 
 // Response bodies of the API. Dates are ISO 8601 strings; amounts are whole taka.
 
@@ -438,8 +439,10 @@ export interface SystemStatusDto {
     size: number
     /** The PostgreSQL server's version (17.2). */
     serverVersion: string
-    /** pg_dump's version, or null when the server can't run it. */
+    /** The newest pg_dump the server can run, or null. */
     pgDumpVersion: string | null
+    /** What Download backup makes: a .dump when pg_dump is as new as the server, else the app's own .sql. */
+    backupFormat: BackupFormat
   }
   /** Null when there is no APK at all. */
   apk: ApkInfoDto | null

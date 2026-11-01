@@ -1,5 +1,6 @@
 import {
   apkUploadSchema,
+  backupQuerySchema,
   broadcastSchema,
   changePasswordSchema,
   confirmOrderSchema,
@@ -57,6 +58,7 @@ import { createZodDto } from 'nestjs-zod'
 
 export class IdParamDto extends createZodDto(idParamSchema) {}
 export class ApkUploadDto extends createZodDto(apkUploadSchema) {}
+export class BackupQueryDto extends createZodDto(backupQuerySchema) {}
 
 export class SignupDto extends createZodDto(signupSchema) {}
 export class LoginDto extends createZodDto(loginSchema) {}

@@ -10,6 +10,7 @@ import {
   type NestInterceptor,
   PayloadTooLargeException,
   Put,
+  Query,
   StreamableFile,
   UploadedFile,
   UseGuards,
@@ -24,7 +25,7 @@ import { catchError, type Observable, throwError } from 'rxjs'
 import { Actor, type AuditActor } from '../audit/actor'
 import { AdminGuard, Can } from '../auth/guards'
 import { AppException } from '../common/app.exception'
-import { ApkUploadDto } from '../common/dto'
+import { ApkUploadDto, BackupQueryDto } from '../common/dto'
 import { ApkService } from './apk.service'
 import { BackupService } from './backup.service'
 
@@ -70,9 +71,13 @@ export class AdminSystemController {
   @Get('backup')
   @Can('system.backup')
   @Header('Cache-Control', 'no-store')
-  @ApiOperation({ summary: 'Download a full database backup (pg_dump custom format; restore with pg_restore)' })
-  backup(@Actor() actor: AuditActor): Promise<StreamableFile> {
-    return this.backups.backup(actor)
+  @ApiOperation({
+    summary: 'Download a full database backup',
+    description:
+      "pg_dump's custom format (.dump, for pg_restore) when the server has a pg_dump as new as the database, else plain SQL written by the app (.sql, for psql). `format` asks for one.",
+  })
+  backup(@Actor() actor: AuditActor, @Query() query: BackupQueryDto): Promise<StreamableFile> {
+    return this.backups.backup(actor, query.format)
   }
 
   @Put('apk')
