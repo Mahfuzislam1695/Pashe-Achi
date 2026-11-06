@@ -5,7 +5,7 @@ description: "Kingfisher: fresh market, house shifting, emergency medicine and p
 publish_to: 'none'
 
 # versionName+versionCode. Raise the number after + for every APK or Play upload.
-version: 1.0.0+1
+version: 1.0.1+2
 
 environment:
   sdk: ^3.13.7

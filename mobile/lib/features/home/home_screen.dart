@@ -4,7 +4,6 @@ import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../../config.dart';
-import '../../core/api.dart';
 import '../../core/data.dart';
 import '../../core/domain.dart';
 import '../../core/format.dart';

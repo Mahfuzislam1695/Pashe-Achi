@@ -12,7 +12,7 @@ The toolchain lives in one folder, `E:\kingfisher-dev`, outside the system PATH:
 
 ```powershell
 . E:\kingfisher-dev\env.ps1
-cd E:\pashe-achi\Pashe-Achi\mobile
+cd E:\Pashe-Achi\mobile
 flutter pub get
 flutter analyze
 flutter test
@@ -47,9 +47,9 @@ Phones that installed the APK from the website update by installing the new one 
 
 ## The signing key (keep it safe)
 
-Release builds are signed with the upload key `E:\kingfisher-dev\keys\kingfisher-upload.jks`. Its password is in `E:\kingfisher-dev\keys\KEEP-SAFE-kingfisher-upload.txt`, and `android/key.properties` (never committed) points to both.
+Release builds are signed with the upload key `E:\kingfisher-dev\keys\kingfisher-upload.jks`. Its password is in `E:\kingfisher-dev\keys\KEEP-SAFE-kingfisher-upload.md`, and `android/key.properties` (never committed) points to both. A backup copy of the folder is in `C:\Kingfisher-Signing-Key-BACKUP\`. [SIGNING-KEY.md](SIGNING-KEY.md) gives the key's fingerprints, so you can check a build, and lists where every copy is kept.
 
-- **Back up the `.jks` file and its password** to a password manager and a second drive. Every update, on the website and on Google Play, must be signed with this same key. Without it, existing installs can't be updated.
+- **Back up the `.jks` file and its password** to a password manager and a second drive. The first key was lost this way: it was deleted with the old project folder and had no backup. Every update, on the website and on Google Play, must be signed with this same key. Without it, existing installs can't be updated.
 - **Google Play.** When the Play Console asks how to sign the app, choose to upload your own key ("Use my own key" / "Export and upload a key from Java keystore") and give it this key. Then the APK on the website and the app from Google Play are signed the same way and can update each other. If Google generates its own key instead, a phone that installed the website APK must uninstall it before installing from Play.
 - Without `key.properties`, a release build is signed with a debug key: fine for trying on a phone, refused by Google Play.
 
@@ -81,8 +81,8 @@ Add these repository secrets (GitHub → Settings → Secrets and variables → 
 
 | Secret | Value |
 |---|---|
-| `ANDROID_KEYSTORE_BASE64` | the `.jks` file in base64: `node -e "console.log(require('fs').readFileSync('E:/kingfisher-dev/keys/kingfisher-upload.jks').toString('base64'))"` |
-| `ANDROID_KEYSTORE_PASSWORD` | the password from `KEEP-SAFE-kingfisher-upload.txt` |
+| `ANDROID_KEYSTORE_BASE64` | the `.jks` file in base64, ready in `C:\Kingfisher-Signing-Key-BACKUP\github-secret-ANDROID_KEYSTORE_BASE64.txt` (or `node -e "console.log(require('fs').readFileSync('E:/kingfisher-dev/keys/kingfisher-upload.jks').toString('base64'))"`) |
+| `ANDROID_KEYSTORE_PASSWORD` | the password from `KEEP-SAFE-kingfisher-upload.md` |
 | `ANDROID_KEY_ALIAS` | `upload` |
 | `GOOGLE_SERVICES_JSON` | the contents of `google-services.json` (optional, for push) |
 
