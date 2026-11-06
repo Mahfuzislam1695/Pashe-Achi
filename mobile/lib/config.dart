@@ -15,8 +15,9 @@ abstract final class AppConfig {
   static final String privacyUrl = '$origin/privacy';
   static final String accountDeletionUrl = '$origin/account-deletion';
 
-  /// Must match the Android applicationId and iOS bundle id; OpenStreetMap identifies the app by it.
-  static const applicationId = 'com.kingfisherbd24.app';
+  /// The Android applicationId (Google Play's package name); OpenStreetMap identifies the app by it.
+  /// The iPhone bundle id is com.kingfisherbd24.app.
+  static const applicationId = 'kingfisherbd24.com';
 
   /// OpenStreetMap's own tiles, as on the website (allowed with the app's id, attribution and
   /// flutter_map's built-in cache). One line to change for a paid tile host if traffic grows.

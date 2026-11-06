@@ -1,6 +1,6 @@
 # The app's signing key
 
-The Kingfisher app (`com.kingfisherbd24.app`) is signed with one upload key, on Google Play and on the website. Every update must be signed with this same key; with any other key, Android refuses to install it over the existing app.
+The Kingfisher Android app (package `kingfisherbd24.com`) is signed with one upload key, on Google Play and on the website. Every update must be signed with this same key; with any other key, Android refuses to install it over the existing app.
 
 **The key and its password are never in this repository.** The repository is public, and anyone holding both could sign an app that phones accept as an update of Kingfisher. This file only says which key is the right one and where its copies are kept.
 

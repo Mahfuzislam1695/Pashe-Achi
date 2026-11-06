@@ -17,7 +17,7 @@ It is **one project that runs as one server on one port** (3000 by default):
 | `/socket.io/` (namespace `/ws`) | Socket.IO realtime notifications |
 
 - **Wording.** The customer site started as a v0.app prototype drawn from the owner's hand-drawn Bangla sketches. Labels in Bangla mode match the sketch wording exactly, including the English words the sketches use (Loading Area, Total Bill, Total cost, Chat, Call, point).
-- **Mobile app.** The Kingfisher app (Flutter, Android and iPhone, id `com.kingfisherbd24.app`) is in `mobile/` and uses the same API, `https://kingfisherbd24.com/api/v1`, with `Authorization: Bearer`. So the API stays REST, versioned and documented, and it accepts Bearer tokens as well as cookies. `mobile/README.md` covers building, the signing key, push, and the Play Store and App Store checklists.
+- **Mobile app.** The Kingfisher app (Flutter, Android and iPhone; Android package `kingfisherbd24.com`, the Play Console's, and iPhone bundle id `com.kingfisherbd24.app`) is in `mobile/` and uses the same API, `https://kingfisherbd24.com/api/v1`, with `Authorization: Bearer`. So the API stays REST, versioned and documented, and it accepts Bearer tokens as well as cookies. `mobile/README.md` covers building, the signing key, push, and the Play Store and App Store checklists.
 
 ## One of everything (owner's explicit requirement)
 

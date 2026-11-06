@@ -26,9 +26,9 @@ export const HEAD_OFFICE = {
   map: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent('Sundarban Courier Service, Dhour Main Road, Turag, Uttara, Dhaka')}`,
 } as const
 
-// The Kingfisher app's links on /app-download (the Flutter app in mobile/, id com.kingfisherbd24.app).
+// The Kingfisher app's links on /app-download (the Flutter app in mobile/, Android package kingfisherbd24.com).
 // null shows "শীঘ্রই আসছে" (coming soon) in place of the button.
-// playStore: https://play.google.com/store/apps/details?id=com.kingfisherbd24.app once it is published.
+// playStore: https://play.google.com/store/apps/details?id=kingfisherbd24.com once it is published.
 // apk: the API's GET /app/apk, which serves the APK uploaded on the admin panel's System page, or else
 // public/downloads/kingfisher.apk (mobile/README.md, "The APK on the website"). A full https:// URL works too.
 export const APK_DOWNLOAD_PATH = '/api/v1/app/apk'

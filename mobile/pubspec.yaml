@@ -1,6 +1,7 @@
 name: kingfisher
 description: "Kingfisher: fresh market, house shifting, emergency medicine and parcel delivery."
-# The customer app for Android and iPhone (application id com.kingfisherbd24.app). It talks to the
+# The customer app for Android and iPhone (Android package kingfisherbd24.com, iPhone bundle id
+# com.kingfisherbd24.app). It talks to the
 # same API as the website (https://kingfisherbd24.com/api/v1). See README.md.
 publish_to: 'none'
 

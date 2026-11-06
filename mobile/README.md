@@ -2,7 +2,7 @@
 
 The customer app for Android and iPhone, built with Flutter. It does everything the website does for a customer: the four services (কাঁচা বাজার, বাসা বদল, জরুরী ঔষুধ, পণ্য আদান প্রদান), order history with the price to confirm, notifications, today's offers and the profile. It talks to the same API as the website, `https://kingfisherbd24.com/api/v1`.
 
-- **App id:** `com.kingfisherbd24.app` (Android application id and iOS bundle id). It can never change once the app is on Google Play or the App Store.
+- **App id:** on Android `kingfisherbd24.com` (the application id, which is Google Play's package name; the Play Console app was created with it). On iPhone `com.kingfisherbd24.app` (the bundle id). Neither can change once the app is on Google Play or the App Store. The Kotlin namespace stays `com.kingfisherbd24.app`. APKs built before 6 November 2026 used `com.kingfisherbd24.app` on Android too, so they install as a separate app.
 - **Version:** `version:` in `pubspec.yaml` (`1.0.0+1` means version 1.0.0, build 1). Raise the number after `+` for every APK or Play upload.
 - **Same rules as the website.** The labels are the website's, word for word, and every price, fee and check comes from the server (`../CLAUDE.md` describes them).
 
@@ -59,7 +59,7 @@ Without these steps, popups come only through the live connection, so only while
 
 1. Go to <https://console.firebase.google.com>, then **Create a project** (for example "Kingfisher"). Google Analytics is not needed.
 2. **Add app → Android**:
-   - Package name: `com.kingfisherbd24.app`.
+   - Package name: `kingfisherbd24.com`.
    - Download `google-services.json` and put it in `mobile/android/app/`.
    - Keep it out of git; the repository is public.
 3. **Project settings → Service accounts → Generate new private key**. This downloads a JSON key for the server. Turn it into one line:

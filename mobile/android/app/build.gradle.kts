@@ -35,8 +35,9 @@ android {
     }
 
     defaultConfig {
-        // Permanent once the app is on Google Play.
-        applicationId = "com.kingfisherbd24.app"
+        // The package name the Google Play Console app was created with; permanent. (The Kotlin
+        // namespace above stays com.kingfisherbd24.app, and the iPhone bundle id is still that too.)
+        applicationId = "kingfisherbd24.com"
         minSdk = 24
         // Google Play requires Android 16 (API 36) for new apps and updates from 31 August 2026.
         targetSdk = 36
