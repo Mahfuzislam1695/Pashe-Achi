@@ -26,7 +26,7 @@ import { AddressField, type AddressValue } from '@/customer/components/address-f
 import { Photo } from '@/customer/components/banner'
 import { DeveloperCredit } from '@/customer/components/developer-credit'
 import { BillPreviewCard, OrderTrackerCard, SplitHeadline } from '@/customer/components/showcase'
-import { ContactDock, Field, FormError, LangToggle, Logo } from '@/customer/components/ui'
+import { AppName, BrandText, ContactDock, Field, FormError, LangToggle, Logo } from '@/customer/components/ui'
 import { api } from '@/customer/lib/api'
 import { useLang } from '@/customer/lib/i18n'
 import { webPaths as paths } from '@/customer/lib/paths'
@@ -58,7 +58,9 @@ function BrandPanel() {
         <Logo />
       </Link>
       <div className="auth-message">
-        <p className="eyebrow">{APP_WELCOME[lang]}</p>
+        <p className="eyebrow">
+          <BrandText text={APP_WELCOME[lang]} />
+        </p>
         <SplitHeadline text={APP_TAGLINE[lang]} />
         <p>{t('কাঁচা বাজার, বাসা বদল, জরুরী ঔষুধ ও পণ্য আদান প্রদান — এক জায়গায়।', 'Fresh market, house shifting, emergency medicine and parcel delivery, in one place.')}</p>
         <ul className="auth-visual-services">
@@ -85,7 +87,7 @@ function BrandPanel() {
           </a>
         )}
         <small>
-          © {new Date().getFullYear()} {APP_NAME[lang]}
+          © {new Date().getFullYear()} <AppName />
         </small>
         <DeveloperCredit tone="dark" />
       </div>
@@ -102,7 +104,9 @@ function AuthHero() {
       <Link href={paths.entry} className="auth-hero-brand">
         <img src={APP_LOGO_LARGE} alt="" />
         <span>
-          <strong>{APP_NAME[lang]}</strong>
+          <strong>
+            <AppName />
+          </strong>
           <small>{APP_TAGLINE[lang]}</small>
         </span>
       </Link>
@@ -267,7 +271,7 @@ export function AuthScreen({ mode }: { mode: 'login' | 'signup' }) {
           </p>
         )}
         <p className="switch-auth">
-          {isSignup ? t('আগে থেকেই অ্যাকাউন্ট আছে?', 'Already have an account?') : t('নতুন গ্রাহক?', `New to ${APP_NAME.en}?`)}{' '}
+          <BrandText text={isSignup ? t('আগে থেকেই অ্যাকাউন্ট আছে?', 'Already have an account?') : t('নতুন গ্রাহক?', `New to ${APP_NAME.en}?`)} />{' '}
           <Link className="link-button" href={isSignup ? paths.login : paths.signup}>
             {isSignup ? t('লগইন', 'Login') : t('সাইন আপ', 'Sign up')}
           </Link>

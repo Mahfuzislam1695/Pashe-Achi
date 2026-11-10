@@ -22,18 +22,20 @@ const _roughAccuracyMeters = 100.0;
 
 /// Opens the map full screen and returns the place picked, or null when cancelled. [onSave] runs
 /// before closing (Profile saves the location there); a failure keeps the map open with its message.
+/// [manual] opens it with the address typed by the customer (ঠিকানা নিজে লিখুন).
 Future<Place?> pickPlace(
   BuildContext context, {
   required String title,
   Place? initial,
   bool? locate,
+  bool manual = false,
   String? submitLabel,
   Future<void> Function(Place place)? onSave,
 }) {
   return Navigator.of(context, rootNavigator: true).push<Place>(
     MaterialPageRoute(
       fullscreenDialog: true,
-      builder: (_) => LocationSheet(title: title, initial: initial, locate: locate ?? initial == null, submitLabel: submitLabel, onSave: onSave),
+      builder: (_) => LocationSheet(title: title, initial: initial, locate: locate ?? initial == null, manual: manual, submitLabel: submitLabel, onSave: onSave),
     ),
   );
 }
@@ -41,15 +43,19 @@ Future<Place?> pickPlace(
 enum _Lookup { idle, looking, found, failed }
 
 /// Picking a place on the map (the website's components/location-sheet.tsx). The customer moves the
-/// map under a fixed pin; the address comes from the map, and they add only an optional house/flat/road.
+/// map under a fixed pin; the address comes from the map, or they type it themselves, and they add
+/// an optional house/flat/road. The pin is required either way.
 class LocationSheet extends ConsumerStatefulWidget {
-  const LocationSheet({super.key, required this.title, this.initial, required this.locate, this.submitLabel, this.onSave});
+  const LocationSheet({super.key, required this.title, this.initial, required this.locate, this.manual = false, this.submitLabel, this.onSave});
 
   final String title;
   final Place? initial;
 
   /// Start by finding the device (an empty box does).
   final bool locate;
+
+  /// Start with the address typed by the customer instead of the map's.
+  final bool manual;
   final String? submitLabel;
   final Future<void> Function(Place place)? onSave;
 
@@ -60,11 +66,17 @@ class LocationSheet extends ConsumerStatefulWidget {
 class _LocationSheetState extends ConsumerState<LocationSheet> {
   final _map = MapController();
   late final _details = TextEditingController(text: widget.initial?.details ?? '');
+
+  /// The typed address: in manual mode, or the area's name when the map found no address.
   final _area = TextEditingController();
 
   GeoPoint? _pin;
   String _address = '';
   _Lookup _lookup = _Lookup.idle;
+
+  /// The customer chose to type the address; the map's address is then only kept for switching back.
+  late bool _manual = widget.manual;
+  bool get _typing => _manual || _lookup == _Lookup.failed;
   bool _locating = false;
   bool _movedByHand = false;
   double? _accuracy;
@@ -179,9 +191,10 @@ class _LocationSheetState extends ConsumerState<LocationSheet> {
   Future<void> _submit() async {
     final pin = _pin;
     if (pin == null) return setState(() => _error = 'location.pin');
-    if (_lookup == _Lookup.looking || _saving) return;
-    final address = (_lookup == _Lookup.failed ? _area.text : _address).trim();
-    if (address.isEmpty) return setState(() => _error = _lookup == _Lookup.failed ? 'location.address' : 'location.pin');
+    if ((!_manual && _lookup == _Lookup.looking) || _saving) return;
+    final typing = _typing;
+    final address = (typing ? _area.text : _address).trim();
+    if (address.isEmpty) return setState(() => _error = typing ? 'location.address' : 'location.pin');
     if (address.length > 300 || _details.text.trim().length > 120) return setState(() => _error = 'field.invalid');
     final place = Place(address: address, details: _details.text.trim(), pin: pin);
     if (widget.onSave != null) {
@@ -319,17 +332,41 @@ class _LocationSheetState extends ConsumerState<LocationSheet> {
                     style: TextStyle(fontSize: 12.5, color: rough ? Kf.orangeInk : Kf.muted, height: 1.5),
                   ),
                   const SizedBox(height: 12),
-                  if (_lookup == _Lookup.failed) ...[
+                  if (_typing) ...[
                     LabeledField(
-                      label: l.t('এলাকা', 'Area'),
-                      child: TextField(controller: _area, maxLength: 300, decoration: InputDecoration(hintText: l.t('যেমন: মিরপুর ১০, ঢাকা', 'e.g. Mirpur 10, Dhaka'), counterText: '')),
+                      label: _manual ? l.t('ঠিকানা', 'Address') : l.t('এলাকা', 'Area'),
+                      child: TextField(
+                        controller: _area,
+                        maxLength: 300,
+                        onChanged: (_) {
+                          if (_error != null) setState(() => _error = null);
+                        },
+                        decoration: InputDecoration(
+                          hintText: _manual ? l.t('যেমন: মিরপুর ১০, সেকশন ২, ঢাকা', 'e.g. Mirpur 10, Section 2, Dhaka') : l.t('যেমন: মিরপুর ১০, ঢাকা', 'e.g. Mirpur 10, Dhaka'),
+                          counterText: '',
+                        ),
+                      ),
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      l.t('ম্যাপে এই জায়গার ঠিকানা পাওয়া যায়নি, এলাকার নাম লিখুন।', "The map has no address for this place. Enter the area's name."),
+                      _manual
+                          ? l.t('ম্যাপে পিনটিও এই ঠিকানায় বসান, যাতে ডেলিভারিম্যান খুঁজে পান।', 'Also put the pin on this address so the rider can find it.')
+                          : l.t('ম্যাপে এই জায়গার ঠিকানা পাওয়া যায়নি, এলাকার নাম লিখুন।', "The map has no address for this place. Enter the area's name."),
                       style: const TextStyle(fontSize: 12, color: Kf.muted),
                     ),
-                  ] else
+                    if (_manual && _lookup != _Lookup.failed)
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: TextButton.icon(
+                          onPressed: () => setState(() {
+                            _manual = false;
+                            _error = null;
+                          }),
+                          icon: const Icon(LucideIcons.map, size: 15),
+                          label: Text(l.t('ম্যাপের ঠিকানা ব্যবহার করুন', 'Use the address from the map')),
+                        ),
+                      ),
+                  ] else ...[
                     LabeledField(
                       label: l.t('ম্যাপের ঠিকানা', 'Address from the map'),
                       child: Container(
@@ -359,6 +396,19 @@ class _LocationSheetState extends ConsumerState<LocationSheet> {
                         ),
                       ),
                     ),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: TextButton.icon(
+                        onPressed: () => setState(() {
+                          _manual = true;
+                          _area.text = _address;
+                          _error = null;
+                        }),
+                        icon: const Icon(LucideIcons.fileText, size: 15),
+                        label: Text(l.t('ঠিকানা নিজে লিখুন', 'Type the address yourself')),
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 14),
                   LabeledField(
                     label: l.t('বাসা/ফ্ল্যাট, রোড (ঐচ্ছিক)', 'House, flat, road (optional)'),
@@ -400,7 +450,7 @@ class _LocationSheetState extends ConsumerState<LocationSheet> {
                           label: _saving ? l.t('অপেক্ষা করুন…', 'Please wait…') : (widget.submitLabel ?? l.t('এই লোকেশন ব্যবহার করুন', 'Use this location')),
                           icon: LucideIcons.check,
                           busy: _saving,
-                          onPressed: _lookup == _Lookup.looking || (_locating && _pin == null) ? null : _submit,
+                          onPressed: (!_manual && _lookup == _Lookup.looking) || (_locating && _pin == null) ? null : _submit,
                         ),
                       ),
                     ],

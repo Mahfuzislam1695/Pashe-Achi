@@ -647,6 +647,9 @@ button:focus-visible, a:focus-visible, summary:focus-visible { outline: 2px soli
 .brand { color: var(--navy); }
 .brand strong { font-weight: 700; letter-spacing: -.2px; }
 .brand small { color: var(--muted-2); }
+/* "BD24" after "Kingfisher" (BrandText): half the height of the text around it, on its baseline, wherever the name
+   shows. The span starts with the space, so the gap is that half-size space plus this margin. */
+.brand-suffix { margin-left: .1em; font-size: .5em; letter-spacing: 0; }
 /* The logo is a transparent bird, so it sits on the page with no tile or plate behind it. */
 img.brand-mark { width: 46px; height: 46px; border-radius: 0; background: none; object-fit: contain; box-shadow: none; filter: drop-shadow(0 3px 6px color-mix(in srgb, var(--navy) 18%, transparent)); }
 
@@ -661,6 +664,7 @@ img.brand-mark { width: 46px; height: 46px; border-radius: 0; background: none; 
 .danger-button:hover { border-color: var(--danger); background: var(--danger-soft); color: var(--danger-ink); }
 .link-button, .edit-button, .add-row { color: var(--blue); font-weight: 600; }
 .link-button:hover, .add-row:hover { color: var(--blue-hover); }
+.add-row:disabled, .add-row:disabled:hover { color: var(--muted-2); cursor: not-allowed; }
 
 /* Form fields */
 .field, .field-row { color: var(--ink-2); font-size: 12px; font-weight: 600; }
@@ -817,6 +821,8 @@ input::placeholder { color: var(--muted-3); }
 .address-card strong { color: var(--navy); font-weight: 600; }
 .address-card > .address-card-open { margin-left: auto; color: var(--muted); }
 .address-card.empty { border-style: dashed; background: var(--blue-tint); color: var(--blue-ink); font-weight: 600; }
+/* ঠিকানা নিজে লিখুন / ম্যাপের ঠিকানা ব্যবহার করুন: under an address box and in the map sheet. */
+.link-button.address-mode { display: inline-flex; align-items: center; gap: 5px; min-height: 32px; margin-top: 4px; padding: 0; font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
 
 .sheet-layer { position: fixed; inset: 0; z-index: 40; display: flex; align-items: stretch; justify-content: center; background: #10213a66; overscroll-behavior: contain; }
 .sheet { display: flex; flex-direction: column; width: min(100%, 430px); height: 100dvh; overflow: hidden; background: var(--surface); outline: none; }

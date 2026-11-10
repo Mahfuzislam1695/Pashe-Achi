@@ -14,8 +14,8 @@ export const requiredPin = z.object(geoPointSchema.shape, { error: 'location.req
 
 /**
  * A place picked on the map: the customer's own location (signup, PUT /me/location) and the
- * value of every address box. `address` is what the map gave for the pin; `details` is the
- * house, flat or road the customer added.
+ * value of every address box. `address` is what the map gave for the pin, or what the customer
+ * typed (ঠিকানা নিজে লিখুন); `details` is the house, flat or road the customer added.
  */
 export const customerLocationSchema = z.object(
   {

@@ -9,7 +9,7 @@ import { Photo, useServiceBlurbs, useServiceCharges } from '@/customer/component
 import { DeveloperCredit } from '@/customer/components/developer-credit'
 import { ServiceSwitcher } from '@/customer/components/service-switcher'
 import { QuotePreviewCard } from '@/customer/components/showcase'
-import { ContactDock, LangToggle, Logo } from '@/customer/components/ui'
+import { AppName, BrandText, ContactDock, LangToggle, Logo } from '@/customer/components/ui'
 import { useLang } from '@/customer/lib/i18n'
 import { webPaths as paths } from '@/customer/lib/paths'
 import { useCatalog, useOffers } from '@/customer/lib/queries'
@@ -290,7 +290,7 @@ export function LandingScreen({ signedIn, fontClass = '' }: { signedIn: boolean;
         </div>
         <div className="lp-container lp-copyright">
           <span>
-            © {new Date().getFullYear()} {APP_NAME[lang]}
+            © {new Date().getFullYear()} <AppName />
           </span>
           <DeveloperCredit tone="dark" />
         </div>
@@ -304,7 +304,9 @@ export function LandingScreen({ signedIn, fontClass = '' }: { signedIn: boolean;
 function SectionHead({ title, subtitle }: { title: string; subtitle?: string }) {
   return (
     <div className="lp-head">
-      <h2>{title}</h2>
+      <h2>
+        <BrandText text={title} />
+      </h2>
       {subtitle && <p>{subtitle}</p>}
     </div>
   )
@@ -472,7 +474,7 @@ function AppSection() {
         </div>
         <div>
           <SectionHead
-            title={t('ফোনে কিংফিশার অ্যাপ', 'Kingfisher on your phone')}
+            title={t(`ফোনে ${APP_NAME.bn} অ্যাপ`, `${APP_NAME.en} on your phone`)}
             subtitle={
               android
                 ? t('Android অ্যাপ ডাউনলোড করুন; দাম এলেই ফোনে নোটিফিকেশন পাবেন। ওয়েবসাইটও ফোনের ব্রাউজারে চলে।', 'Download the Android app and get a notification the moment your price arrives. The website works in your phone’s browser too.')

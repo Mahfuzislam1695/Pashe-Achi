@@ -11,7 +11,39 @@ import '../core/messages.dart';
 import 'lucide.dart';
 import 'theme.dart';
 
-const appName = Bilingual('কিংফিশার', 'Kingfisher');
+/// The name as on the website (src/shared/brand.ts): "Kingfisher" with "BD24" after it, in English letters in
+/// both languages. Wherever it is seen, show it through [BrandText] so BD24 is half height; [appName] stays plain
+/// only where text can't be styled (the window title, semantic labels).
+const appNameSuffix = 'BD24';
+const appName = Bilingual('কিংফিশার $appNameSuffix', 'Kingfisher $appNameSuffix');
+
+/// Text holding the name: every " BD24" in it is drawn at half the size of the text around it, on the same
+/// baseline, as on the website (BrandText in src/customer/components/ui.tsx).
+class BrandText extends StatelessWidget {
+  const BrandText(this.text, {super.key, this.style, this.textAlign});
+
+  final String text;
+  final TextStyle? style;
+  final TextAlign? textAlign;
+
+  @override
+  Widget build(BuildContext context) {
+    final size = DefaultTextStyle.of(context).style.merge(style).fontSize ?? 14;
+    final parts = text.split(' $appNameSuffix');
+    return Text.rich(
+      TextSpan(
+        children: [
+          for (var i = 0; i < parts.length; i++) ...[
+            if (i > 0) TextSpan(text: ' $appNameSuffix', style: TextStyle(fontSize: size / 2)),
+            TextSpan(text: parts[i]),
+          ],
+        ],
+      ),
+      style: style,
+      textAlign: textAlign,
+    );
+  }
+}
 
 /// Opens a link outside the app (dialer, WhatsApp, Google Maps), or inside it for web pages.
 Future<void> openLink(Uri uri, {bool inApp = false}) async {
@@ -20,7 +52,8 @@ Future<void> openLink(Uri uri, {bool inApp = false}) async {
   } catch (_) {}
 }
 
-/// The logo with both names: "কিংফিশার" in bold over "Kingfisher" (the other language) in small.
+/// The logo with both names: "কিংফিশার BD24" in bold (BD24 at half height) over "Kingfisher BD24" (the other
+/// language) in small.
 class KfLogo extends ConsumerWidget {
   const KfLogo({super.key, this.size = 31});
 
@@ -42,8 +75,8 @@ class KfLogo extends ConsumerWidget {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(appName.of(lang), style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: Kf.navy, height: 1.15)),
-              Text(appName.of(other), style: const TextStyle(fontSize: 10, color: Kf.muted, height: 1.2)),
+              BrandText(appName.of(lang), style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: Kf.navy, height: 1.15)),
+              BrandText(appName.of(other), style: const TextStyle(fontSize: 10, color: Kf.muted, height: 1.2)),
             ],
           ),
         ],

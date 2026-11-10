@@ -25,8 +25,9 @@ class LineColumn {
   final bool optional;
 }
 
-/// The bazar and medicine lists (the website's components/line-table.tsx): one row to start, a
-/// greyed price box that staff fill in, and "add more" once the last row's required boxes are filled.
+/// The bazar and medicine lists (the website's components/line-table.tsx): at least three rows, a
+/// greyed price box that staff fill in, and "add more" always shown, enabled once the last row's
+/// required boxes are filled.
 class LineTable extends StatefulWidget {
   const LineTable({super.key, required this.columns, required this.rows, required this.onChanged, required this.addLabel, required this.tone, required this.priceLabel});
 
@@ -42,7 +43,17 @@ class LineTable extends StatefulWidget {
 }
 
 class _LineTableState extends State<LineTable> {
+  /// Always at least this many rows on screen; empty ones are ignored when the order is sent.
+  static const _minRows = 3;
+
   final _controllers = <List<TextEditingController>>[];
+
+  /// The draft's rows, plus empty ones up to [_minRows] (a new form, one reset after an order, an
+  /// item added from Home). An empty row becomes part of the draft once typed into.
+  List<Map<String, String>> get _rows => [
+    ...widget.rows,
+    for (var i = widget.rows.length; i < _minRows; i++) <String, String>{},
+  ];
 
   @override
   void initState() {
@@ -58,17 +69,18 @@ class _LineTableState extends State<LineTable> {
 
   /// Keeps one controller per box, following the draft (it resets after an order is sent).
   void _sync() {
-    while (_controllers.length > widget.rows.length) {
+    final rows = _rows;
+    while (_controllers.length > rows.length) {
       for (final c in _controllers.removeLast()) {
         c.dispose();
       }
     }
-    for (var i = 0; i < widget.rows.length; i++) {
+    for (var i = 0; i < rows.length; i++) {
       if (i >= _controllers.length) {
-        _controllers.add([for (final column in widget.columns) TextEditingController(text: widget.rows[i][column.key] ?? '')]);
+        _controllers.add([for (final column in widget.columns) TextEditingController(text: rows[i][column.key] ?? '')]);
       } else {
         for (var j = 0; j < widget.columns.length; j++) {
-          final value = widget.rows[i][widget.columns[j].key] ?? '';
+          final value = rows[i][widget.columns[j].key] ?? '';
           if (_controllers[i][j].text != value) _controllers[i][j].text = value;
         }
       }
@@ -86,13 +98,13 @@ class _LineTableState extends State<LineTable> {
   }
 
   void _edit(int row, String key, String value) {
-    final rows = [for (final r in widget.rows) {...r}];
+    final rows = [for (final r in _rows) {...r}];
     rows[row][key] = value;
     widget.onChanged(rows);
   }
 
   bool get _lastComplete {
-    final last = widget.rows.last;
+    final last = _rows.last;
     return widget.columns.where((c) => !c.optional).every((c) => (last[c.key] ?? '').trim().isNotEmpty);
   }
 
@@ -102,6 +114,7 @@ class _LineTableState extends State<LineTable> {
       builder: (context, ref, _) {
         final l = ref.watch(l10nProvider);
         final tone = widget.tone;
+        final rows = _rows;
         const numberWidth = 22.0;
         const priceFlex = 8;
         Widget cell(int flex, Widget child) => Expanded(flex: flex, child: Padding(padding: const EdgeInsets.symmetric(horizontal: 2), child: child));
@@ -125,7 +138,7 @@ class _LineTableState extends State<LineTable> {
                 ],
               ),
             ),
-            for (var i = 0; i < widget.rows.length && i < _controllers.length; i++)
+            for (var i = 0; i < rows.length && i < _controllers.length; i++)
               Padding(
                 padding: const EdgeInsets.only(top: 8),
                 child: Row(
@@ -164,15 +177,15 @@ class _LineTableState extends State<LineTable> {
                   ],
                 ),
               ),
-            if (_lastComplete)
-              Align(
-                alignment: Alignment.centerLeft,
-                child: TextButton.icon(
-                  onPressed: () => widget.onChanged([...widget.rows, <String, String>{}]),
-                  icon: const Icon(LucideIcons.plus, size: 15),
-                  label: Text(widget.addLabel),
-                ),
+            // Always shown; enabled once the last row's required boxes are filled.
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                onPressed: _lastComplete ? () => widget.onChanged([...rows, <String, String>{}]) : null,
+                icon: const Icon(LucideIcons.plus, size: 15),
+                label: Text(widget.addLabel),
               ),
+            ),
           ],
         );
       },

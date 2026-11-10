@@ -1,11 +1,12 @@
 'use client'
 
-import { APP_LOGO, APP_LOGO_HERO, APP_NAME, APP_TAGLINE, FORM_ERROR_PRIORITY, type MessageCode, photo, staffLoginSchema, validateForm } from '@/shared'
+import { APP_LOGO, APP_LOGO_HERO, APP_TAGLINE, FORM_ERROR_PRIORITY, type MessageCode, photo, staffLoginSchema, validateForm } from '@/shared'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { LogIn } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 
+import { AppName } from '@/admin/components/app-name'
 import { DeveloperCredit } from '@/admin/components/developer-credit'
 import { Button, ErrorNote, Field, Input, LangSwitch } from '@/admin/components/ui'
 import { api } from '@/admin/lib/api'
@@ -49,7 +50,9 @@ export default function LoginPage() {
         <div className="flex items-center gap-3">
           <img src={APP_LOGO} alt="" className="size-14 object-contain drop-shadow-md" />
           <div className="leading-tight">
-            <strong className="block text-lg font-bold text-white">{APP_NAME.en}</strong>
+            <strong className="block text-lg font-bold text-white">
+              <AppName />
+            </strong>
             <span className="text-sm font-medium text-teal">{t('অ্যাডমিন প্যানেল', 'Admin panel')}</span>
           </div>
         </div>
@@ -62,7 +65,7 @@ export default function LoginPage() {
         </div>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <small className="text-white/60">
-            © {new Date().getFullYear()} {APP_NAME.en}
+            © {new Date().getFullYear()} <AppName />
           </small>
           <DeveloperCredit tone="dark" />
         </div>
@@ -82,7 +85,9 @@ export default function LoginPage() {
               <div className="flex items-center gap-2.5">
                 <img src={APP_LOGO} alt="" className="size-12 object-contain drop-shadow-sm" />
                 <div className="leading-tight">
-                  <strong className="block font-bold text-navy">{APP_NAME.en}</strong>
+                  <strong className="block font-bold text-navy">
+                    <AppName />
+                  </strong>
                   <span className="text-xs font-medium text-brand-600">{t('অ্যাডমিন প্যানেল', 'Admin panel')}</span>
                 </div>
               </div>

@@ -5,7 +5,7 @@ import { ArrowLeft, LogIn, MapPin, MessageCircle, Phone, Trash2 } from 'lucide-r
 import Link from 'next/link'
 
 import { DeveloperCredit } from '@/customer/components/developer-credit'
-import { ContactDock, LangToggle, Logo } from '@/customer/components/ui'
+import { AppName, BrandText, ContactDock, LangToggle, Logo } from '@/customer/components/ui'
 import { useLang } from '@/customer/lib/i18n'
 import { webPaths as paths } from '@/customer/lib/paths'
 import { useCatalog } from '@/customer/lib/queries'
@@ -41,7 +41,7 @@ function LegalPage({ children }: { children: React.ReactNode }) {
       <footer className="lp-footer lp-dl-footer">
         <div className="lp-container lp-copyright">
           <span>
-            © {new Date().getFullYear()} {APP_NAME[lang]} · <Link href={paths.privacy}>{t('প্রাইভেসি পলিসি', 'Privacy policy')}</Link> ·{' '}
+            © {new Date().getFullYear()} <AppName /> · <Link href={paths.privacy}>{t('প্রাইভেসি পলিসি', 'Privacy policy')}</Link> ·{' '}
             <Link href={paths.accountDeletion}>{t('অ্যাকাউন্ট মুছে ফেলা', 'Delete your account')}</Link>
           </span>
           <DeveloperCredit tone="dark" />
@@ -87,10 +87,12 @@ export function PrivacyScreen() {
       <h1>{t('প্রাইভেসি পলিসি', 'Privacy policy')}</h1>
       <p className="lp-legal-updated">{t(`সর্বশেষ আপডেট: ${UPDATED.bn}`, `Last updated: ${UPDATED.en}`)}</p>
       <p className="lp-legal-lead">
-        {t(
-          `${name} কাঁচা বাজার, বাসা বদল, জরুরী ঔষুধ ও পণ্য আদান প্রদানের সেবা দেয়: এই ওয়েবসাইটে এবং Android ও iPhone-এর ${name} অ্যাপে। আপনার কোন তথ্য আমরা রাখি, কেন রাখি আর কীভাবে আপনি তা বদলাতে বা মুছে ফেলতে পারেন, এখানে সহজ ভাষায় লেখা আছে।`,
-          `${name} delivers fresh market shopping, house shifting, emergency medicine and parcels, through this website and the ${name} app for Android and iPhone. This page explains, in plain words, what we keep about you, why, and how you can change or delete it.`,
-        )}
+        <BrandText
+          text={t(
+            `${name} কাঁচা বাজার, বাসা বদল, জরুরী ঔষুধ ও পণ্য আদান প্রদানের সেবা দেয়: এই ওয়েবসাইটে এবং Android ও iPhone-এর ${name} অ্যাপে। আপনার কোন তথ্য আমরা রাখি, কেন রাখি আর কীভাবে আপনি তা বদলাতে বা মুছে ফেলতে পারেন, এখানে সহজ ভাষায় লেখা আছে।`,
+            `${name} delivers fresh market shopping, house shifting, emergency medicine and parcels, through this website and the ${name} app for Android and iPhone. This page explains, in plain words, what we keep about you, why, and how you can change or delete it.`,
+          )}
+        />
       </p>
 
       <section>
@@ -209,7 +211,9 @@ export function AccountDeletionScreen({ signedIn }: { signedIn: boolean }) {
   const name = APP_NAME[lang]
   return (
     <LegalPage>
-      <h1>{t(`${name} অ্যাকাউন্ট মুছে ফেলুন`, `Delete your ${name} account`)}</h1>
+      <h1>
+        <BrandText text={t(`${name} অ্যাকাউন্ট মুছে ফেলুন`, `Delete your ${name} account`)} />
+      </h1>
       <p className="lp-legal-updated">{t(`সর্বশেষ আপডেট: ${UPDATED.bn}`, `Last updated: ${UPDATED.en}`)}</p>
       <p className="lp-legal-lead">
         {t(
@@ -221,7 +225,9 @@ export function AccountDeletionScreen({ signedIn }: { signedIn: boolean }) {
       <section>
         <h2>{t('কীভাবে মুছবেন', 'How to delete it')}</h2>
         <ol>
-          <li>{t(`${name} অ্যাপে: প্রোফাইল → অ্যাকাউন্ট মুছে ফেলুন → আপনার মোবাইল নম্বর লিখে নিশ্চিত করুন।`, `In the ${name} app: Profile → Delete account → type your mobile number to confirm.`)}</li>
+          <li>
+            <BrandText text={t(`${name} অ্যাপে: প্রোফাইল → অ্যাকাউন্ট মুছে ফেলুন → আপনার মোবাইল নম্বর লিখে নিশ্চিত করুন।`, `In the ${name} app: Profile → Delete account → type your mobile number to confirm.`)} />
+          </li>
           <li>{t('ওয়েবসাইটে: লগইন করুন → প্রোফাইল → অ্যাকাউন্ট মুছে ফেলুন।', 'On the website: log in → Profile → Delete account.')}</li>
           <li>
             {t(

@@ -18,7 +18,7 @@ import '../../ui/address_field.dart';
 import '../../ui/theme.dart';
 import '../../ui/widgets.dart';
 
-const _welcome = Bilingual('কিংফিশার-এ স্বাগতম', 'WELCOME TO KINGFISHER');
+const _welcome = Bilingual('কিংফিশার BD24-এ স্বাগতম', 'WELCOME TO KINGFISHER BD24');
 const _tagline = Bilingual('উন্নত জীবনের – সহজ সমাধান', 'Better living – simple solutions');
 
 /// While the saved session is checked at launch, or when the server couldn't be reached to check it.
@@ -127,7 +127,7 @@ class WelcomeScreen extends ConsumerWidget {
                               : FormErrorBox(code: reason),
                           const SizedBox(height: 16),
                         ],
-                        Text(l.text(_welcome), textAlign: TextAlign.center, style: const TextStyle(color: Kf.blue, fontSize: 12, fontWeight: FontWeight.w600)),
+                        BrandText(l.text(_welcome), textAlign: TextAlign.center, style: const TextStyle(color: Kf.blue, fontSize: 12, fontWeight: FontWeight.w600)),
                         const SizedBox(height: 6),
                         Text(l.text(_tagline), textAlign: TextAlign.center, style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w700, color: Kf.navy, height: 1.3)),
                         const SizedBox(height: 8),
@@ -406,8 +406,8 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                               Flexible(
-                                child: Text(
-                                  signup ? l.t('আগে থেকেই অ্যাকাউন্ট আছে?', 'Already have an account?') : l.t('নতুন গ্রাহক?', 'New to Kingfisher?'),
+                                child: BrandText(
+                                  signup ? l.t('আগে থেকেই অ্যাকাউন্ট আছে?', 'Already have an account?') : l.t('নতুন গ্রাহক?', 'New to ${appName.en}?'),
                                   style: const TextStyle(color: Kf.muted, fontSize: 13),
                                 ),
                               ),

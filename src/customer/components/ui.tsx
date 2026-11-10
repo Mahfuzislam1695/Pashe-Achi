@@ -3,6 +3,7 @@
 import {
   APP_LOGO,
   APP_NAME,
+  APP_NAME_SUFFIX,
   type CustomerDto,
   joinAddress,
   type Lang,
@@ -12,12 +13,38 @@ import {
   type OrderStatus,
   type ServiceId,
   SERVICE_LABELS,
+  splitBrand,
 } from '@/shared'
 import { Check, MessageCircle, Phone, Smartphone, type LucideIcon } from 'lucide-react'
 import Link from 'next/link'
+import { Fragment } from 'react'
 
 import { useLang } from '@/customer/lib/i18n'
 import { useCatalog } from '@/customer/lib/queries'
+
+/**
+ * Any visible text holding the name: every " BD24" in it is drawn at half the height of the text around it, on the
+ * same baseline (`.brand-suffix`). The space stays in the span, so copying and screen readers get "Kingfisher BD24".
+ */
+export function BrandText({ text }: { text: string }) {
+  const parts = splitBrand(text)
+  return (
+    <>
+      {parts.map((part, index) => (
+        <Fragment key={index}>
+          {index > 0 && <span className="brand-suffix">{` ${APP_NAME_SUFFIX}`}</span>}
+          {part}
+        </Fragment>
+      ))}
+    </>
+  )
+}
+
+/** The name as a wordmark, in the page's language or the one given. */
+export function AppName({ lang }: { lang?: Lang }) {
+  const current = useLang().lang
+  return <BrandText text={APP_NAME[lang ?? current]} />
+}
 
 export function Logo() {
   const { lang } = useLang()
@@ -25,8 +52,12 @@ export function Logo() {
     <div className="brand">
       <img className="brand-mark" src={APP_LOGO} alt="" />
       <div>
-        <strong>{APP_NAME[lang]}</strong>
-        <small>{APP_NAME[lang === 'bn' ? 'en' : 'bn']}</small>
+        <strong>
+          <AppName />
+        </strong>
+        <small>
+          <AppName lang={lang === 'bn' ? 'en' : 'bn'} />
+        </small>
       </div>
     </div>
   )

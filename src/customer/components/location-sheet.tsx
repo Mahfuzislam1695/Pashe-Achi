@@ -1,7 +1,7 @@
 'use client'
 
 import { type CustomerLocationInput, customerLocationSchema, FORM_ERROR_PRIORITY, type GeoPoint, type MessageCode, validateForm } from '@/shared'
-import { Check, LocateFixed, MapPin, X } from 'lucide-react'
+import { Check, LocateFixed, Map as MapIcon, MapPin, PenLine, X } from 'lucide-react'
 import dynamic from 'next/dynamic'
 import { useEffect, useId, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
@@ -21,7 +21,7 @@ const LOOKUP_DELAY_MS = 600
 const ROUGH_ACCURACY_M = 100
 const PRIORITY = FORM_ERROR_PRIORITY.location
 
-/** Where the address text stands: from the map, being looked up, or typed because the map found nothing. */
+/** Where the map's address for the pin stands: found, being looked up, or not found (the customer names the area). */
 type Lookup = 'found' | 'looking' | 'failed'
 
 interface LocationSheetProps {
@@ -29,6 +29,8 @@ interface LocationSheetProps {
   initial?: CustomerLocationInput | null
   /** Ask for the device's position as soon as the sheet opens. On by default when there is no starting place. */
   locate?: boolean
+  /** Open with the address typed by the customer instead of the map's (ঠিকানা নিজে লিখুন). */
+  manual?: boolean
   submitLabel?: string
   /** Applies or saves the location. A rejected promise keeps the sheet open and shows the error. */
   onSubmit: (value: CustomerLocationInput) => Promise<unknown> | void
@@ -37,12 +39,12 @@ interface LocationSheetProps {
 
 /**
  * The map sheet: drag the map under the pin (or tap Current location). With no starting place it
- * goes to the device's position on its own. The address comes from the map; the customer adds
- * only the house, flat or road. If the map finds no address for the pin, they name the area
- * themselves, but the pin is still required. Full screen in the app's phone column; a centred
- * dialog on the web from 1024px. Render it only while open.
+ * goes to the device's position on its own. The address comes from the map, or the customer types
+ * it themselves (ঠিকানা নিজে লিখুন), and adds the house, flat or road. If the map finds no address
+ * for the pin, they name the area. Either way the pin is still required. Full screen in the app's
+ * phone column; a centred dialog on the web from 1024px. Render it only while open.
  */
-export function LocationSheet({ title, initial, locate = !initial, submitLabel, onSubmit, onClose }: LocationSheetProps) {
+export function LocationSheet({ title, initial, locate = !initial, manual: startManual = false, submitLabel, onSubmit, onClose }: LocationSheetProps) {
   const { t, lang, digits } = useLang()
   const titleId = useId()
   const areaId = useId()
@@ -53,6 +55,11 @@ export function LocationSheet({ title, initial, locate = !initial, submitLabel, 
   const [target, setTarget] = useState<MapTarget | null>(null)
   const [address, setAddress] = useState(initial?.address ?? '')
   const [lookup, setLookup] = useState<Lookup>('found')
+  /** The customer chose to type the address; the map's address is then only kept for switching back. */
+  const [manual, setManual] = useState(startManual)
+  /** The typed address: in manual mode, or the area's name when the map found no address. */
+  const [typed, setTyped] = useState('')
+  const typing = manual || lookup === 'failed'
   const [details, setDetails] = useState(initial?.details ?? '')
   const [locating, setLocating] = useState(false)
   /** How far off (metres) the device said its position may be, until the customer drags the map. */
@@ -140,9 +147,10 @@ export function LocationSheet({ title, initial, locate = !initial, submitLabel, 
 
   const submit = async () => {
     if (!pin) return setError('location.pin')
-    if (lookup === 'looking') return
-    if (!address.trim()) return setError(lookup === 'failed' ? 'location.address' : 'location.pin')
-    const check = validateForm(customerLocationSchema, { address, details: details || undefined, ...pin }, PRIORITY)
+    if (!manual && lookup === 'looking') return
+    const text = typing ? typed : address
+    if (!text.trim()) return setError(typing ? 'location.address' : 'location.pin')
+    const check = validateForm(customerLocationSchema, { address: text, details: details || undefined, ...pin }, PRIORITY)
     if (!check.success) return setError(check.code)
     setPending(true)
     try {
@@ -205,22 +213,40 @@ export function LocationSheet({ title, initial, locate = !initial, submitLabel, 
 
           <div className="sheet-fields">
             <div className="field">
-              {lookup === 'failed' ? (
+              {typing ? (
                 <>
                   <label htmlFor={areaId} className="field-label">
-                    {t('এলাকা', 'Area')}
+                    {manual ? t('ঠিকানা', 'Address') : t('এলাকা', 'Area')}
                   </label>
                   <input
                     id={areaId}
-                    value={address}
+                    value={typed}
                     onChange={event => {
-                      setAddress(event.target.value)
+                      setTyped(event.target.value)
                       setError(null)
                     }}
-                    placeholder={t('যেমন: মিরপুর ১০, ঢাকা', 'e.g. Mirpur 10, Dhaka')}
+                    placeholder={manual ? t('যেমন: মিরপুর ১০, সেকশন ২, ঢাকা', 'e.g. Mirpur 10, Section 2, Dhaka') : t('যেমন: মিরপুর ১০, ঢাকা', 'e.g. Mirpur 10, Dhaka')}
                     maxLength={300}
+                    autoComplete="address-line1"
                   />
-                  <p className="map-status">{t('ম্যাপে এই জায়গার ঠিকানা পাওয়া যায়নি, এলাকার নাম লিখুন।', "The map has no address for this place. Enter the area's name.")}</p>
+                  <p className="map-status">
+                    {manual
+                      ? t('ম্যাপে পিনটিও এই ঠিকানায় বসান, যাতে ডেলিভারিম্যান খুঁজে পান।', 'Also put the pin on this address so the rider can find it.')
+                      : t('ম্যাপে এই জায়গার ঠিকানা পাওয়া যায়নি, এলাকার নাম লিখুন।', "The map has no address for this place. Enter the area's name.")}
+                  </p>
+                  {manual && lookup !== 'failed' && (
+                    <button
+                      type="button"
+                      className="link-button address-mode"
+                      onClick={() => {
+                        setManual(false)
+                        setError(null)
+                      }}
+                    >
+                      <MapIcon size={14} aria-hidden="true" />
+                      {t('ম্যাপের ঠিকানা ব্যবহার করুন', 'Use the address from the map')}
+                    </button>
+                  )}
                 </>
               ) : (
                 <>
@@ -234,6 +260,18 @@ export function LocationSheet({ title, initial, locate = !initial, submitLabel, 
                           ? t('আপনার বর্তমান লোকেশন খোঁজা হচ্ছে…', 'Finding your current location…')
                           : t('ম্যাপ সরিয়ে বা বর্তমান লোকেশন চেপে জায়গাটি বাছুন।', 'Move the map or tap Current location to pick the place.'))}
                   </p>
+                  <button
+                    type="button"
+                    className="link-button address-mode"
+                    onClick={() => {
+                      setManual(true)
+                      setTyped(address)
+                      setError(null)
+                    }}
+                  >
+                    <PenLine size={14} aria-hidden="true" />
+                    {t('ঠিকানা নিজে লিখুন', 'Type the address yourself')}
+                  </button>
                 </>
               )}
             </div>
@@ -261,7 +299,7 @@ export function LocationSheet({ title, initial, locate = !initial, submitLabel, 
           <button type="button" className="secondary-button" onClick={onClose}>
             {t('বাতিল', 'Cancel')}
           </button>
-          <button type="button" className="primary-button" onClick={submit} disabled={pending || lookup === 'looking' || (locating && !pin)} aria-busy={pending}>
+          <button type="button" className="primary-button" onClick={submit} disabled={pending || (!manual && lookup === 'looking') || (locating && !pin)} aria-busy={pending}>
             <Check size={17} />
             {pending ? t('অপেক্ষা করুন…', 'Please wait…') : (submitLabel ?? t('এই লোকেশন ব্যবহার করুন', 'Use this location'))}
           </button>

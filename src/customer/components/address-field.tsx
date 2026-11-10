@@ -1,7 +1,7 @@
 'use client'
 
 import { type CustomerLocationDto, type CustomerLocationInput, joinAddress } from '@/shared'
-import { ChevronRight, MapPin } from 'lucide-react'
+import { ChevronRight, MapPin, PenLine } from 'lucide-react'
 import { useId, useState } from 'react'
 
 import { useLang } from '@/customer/lib/i18n'
@@ -19,9 +19,10 @@ export const addressText = (value: AddressValue) => (value ? joinAddress(value) 
 export const addressPin = (value: AddressValue) => (value ? { lat: value.lat, lng: value.lng } : undefined)
 
 /**
- * An address box. Nothing is typed into it: tapping the card opens the map sheet, where the place
- * is picked on the map (or by Current location) and the house, flat or road is added. `inline`
- * lays it out like the parcel screen's label-left rows.
+ * An address box. Nothing is typed into the card: tapping it opens the map sheet, where the place
+ * is picked on the map (or by Current location) and the house, flat or road is added. The link
+ * under it opens the same sheet with the address typed by the customer (the pin is still
+ * required). `inline` lays it out like the parcel screen's label-left rows.
  */
 export function AddressField({
   label,
@@ -36,10 +37,10 @@ export function AddressField({
 }) {
   const { t } = useLang()
   const id = useId()
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState<false | 'map' | 'type'>(false)
 
   const card = (
-    <button type="button" id={id} className={`address-card ${value ? '' : 'empty'}`} onClick={() => setOpen(true)}>
+    <button type="button" id={id} className={`address-card ${value ? '' : 'empty'}`} onClick={() => setOpen('map')}>
       <MapPin size={17} aria-hidden="true" />
       {value ? (
         <span>
@@ -52,14 +53,30 @@ export function AddressField({
       <ChevronRight size={16} className="address-card-open" aria-hidden="true" />
     </button>
   )
+  const typeLink = (
+    <button type="button" className="link-button address-mode" onClick={() => setOpen('type')}>
+      <PenLine size={14} aria-hidden="true" />
+      {t('ঠিকানা নিজে লিখুন', 'Type the address yourself')}
+    </button>
+  )
 
   return (
     <div className={inline ? 'field-row address-field' : 'field address-field'}>
       <label htmlFor={id} className="field-label">
         {label}
       </label>
-      {inline ? <div className="address-control">{card}</div> : card}
-      {open && <LocationSheet title={label} initial={value} onSubmit={onChange} onClose={() => setOpen(false)} />}
+      {inline ? (
+        <div className="address-control">
+          {card}
+          {typeLink}
+        </div>
+      ) : (
+        <>
+          {card}
+          {typeLink}
+        </>
+      )}
+      {open && <LocationSheet title={label} initial={value} manual={open === 'type'} onSubmit={onChange} onClose={() => setOpen(false)} />}
     </div>
   )
 }

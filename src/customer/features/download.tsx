@@ -5,7 +5,7 @@ import { ArrowLeft, FileDown, Play, Smartphone } from 'lucide-react'
 import Link from 'next/link'
 
 import { DeveloperCredit } from '@/customer/components/developer-credit'
-import { ContactDock, LangToggle, Logo } from '@/customer/components/ui'
+import { AppName, ContactDock, LangToggle, Logo } from '@/customer/components/ui'
 import { useLang } from '@/customer/lib/i18n'
 import { webPaths as paths } from '@/customer/lib/paths'
 
@@ -40,7 +40,9 @@ export function DownloadScreen({ fontClass = '' }: { fontClass?: string }) {
       <main className="lp-app lp-dl">
         <div className="lp-container lp-app-grid lp-dl-grid">
           <div>
-            <p className="lp-tagline">{APP_NAME[lang]}</p>
+            <p className="lp-tagline">
+              <AppName />
+            </p>
             <h1>{t('অ্যাপ ডাউনলোড করুন', 'Get the app')}</h1>
             <p className="lp-dl-lead">
               {t(
@@ -117,7 +119,7 @@ export function DownloadScreen({ fontClass = '' }: { fontClass?: string }) {
       <footer className="lp-footer lp-dl-footer">
         <div className="lp-container lp-copyright">
           <span>
-            © {new Date().getFullYear()} {APP_NAME[lang]} · <Link href={paths.privacy}>{t('প্রাইভেসি পলিসি', 'Privacy policy')}</Link>
+            © {new Date().getFullYear()} <AppName /> · <Link href={paths.privacy}>{t('প্রাইভেসি পলিসি', 'Privacy policy')}</Link>
           </span>
           <DeveloperCredit tone="dark" />
         </div>

@@ -2,7 +2,19 @@
 // (order codes, notification text) read from here. The logo files and the icons in public/ (logo-mark, logo-256,
 // logo-512, icon-32x32, icon-192x192, icon-512x512, apple-icon, og-image.jpg) are made from the transparent
 // public/logo/logo.png, so re-render them if the logo changes.
-export const APP_NAME = { bn: 'কিংফিশার', en: 'Kingfisher' } as const
+// The name is "Kingfisher" with "BD24" after it (the domain is kingfisherbd24.com), BD24 in English letters in both
+// languages. Wherever the name is seen on a page (logo, headings, sentences, footers), BD24 is half the height of
+// the word and sits on its baseline: render the text through `BrandText` (src/customer/components/ui.tsx,
+// src/admin/components/app-name.tsx, mobile/lib/ui/widgets.dart). APP_NAME stays plain only where text can't be
+// styled: tab titles, share cards, alt and aria labels, the manifest.
+export const APP_NAME_BASE = { bn: 'কিংফিশার', en: 'Kingfisher' } as const
+export const APP_NAME_SUFFIX = 'BD24'
+export const APP_NAME = { bn: `${APP_NAME_BASE.bn} ${APP_NAME_SUFFIX}`, en: `${APP_NAME_BASE.en} ${APP_NAME_SUFFIX}` } as const
+
+/** `text` cut at every " BD24", for `BrandText` to draw BD24 small between the pieces. */
+export function splitBrand(text: string): string[] {
+  return text.split(` ${APP_NAME_SUFFIX}`)
+}
 export const APP_LOGO = '/logo/logo-mark.webp'
 export const APP_LOGO_LARGE = '/logo/logo-256.webp'
 export const APP_LOGO_HERO = '/logo/logo-512.webp'
@@ -13,7 +25,7 @@ export const DEVELOPER = { name: 'Aethrasoft', url: 'https://www.aethrasoft.com/
 export const DEVELOPED_BY = { bn: 'ডেভেলপ করেছে', en: 'Developed by' } as const
 
 // These phrases depend on the name's wording and grammar, so they live with it.
-export const APP_WELCOME = { bn: 'কিংফিশার-এ স্বাগতম', en: 'WELCOME TO KINGFISHER' } as const
+export const APP_WELCOME = { bn: 'কিংফিশার BD24-এ স্বাগতম', en: 'WELCOME TO KINGFISHER BD24' } as const
 export const APP_TAGLINE = { bn: 'উন্নত জীবনের – সহজ সমাধান', en: 'Better living – simple solutions' } as const
 
 // The head office, shown in the landing page's footer and contact card. `map` opens it in Google Maps (no key).

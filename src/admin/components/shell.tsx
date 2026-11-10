@@ -1,6 +1,6 @@
 'use client'
 
-import { APP_LOGO, APP_NAME, can } from '@/shared'
+import { APP_LOGO, can } from '@/shared'
 import { useQueryClient } from '@tanstack/react-query'
 import { BadgePercent, Bell, BellOff, BellRing, ClipboardList, History, House, LayoutDashboard, LogOut, Megaphone, Menu, RotateCw, Server, Settings2, ShieldCheck, UserCog, UserRound, Users, Volume2, VolumeX, X } from 'lucide-react'
 import Link from 'next/link'
@@ -14,6 +14,7 @@ import { forgetAdminPush, PushProvider, usePush } from '@/admin/lib/push'
 import { useAdmin, useUnreadCount } from '@/admin/lib/queries'
 import { RealtimeProvider, useOrderSound } from '@/admin/lib/realtime'
 import { cn } from '@/admin/lib/utils'
+import { AppName } from './app-name'
 import { DeveloperCredit } from './developer-credit'
 import { Button, ErrorNote, LangSwitch, Loading } from './ui'
 
@@ -57,7 +58,9 @@ function Brand({ compact = false }: { compact?: boolean }) {
     <div className="flex items-center gap-2.5">
       <img src={APP_LOGO} alt="" className="size-11 object-contain drop-shadow-sm" />
       <div className={cn('leading-tight', compact && 'hidden sm:block')}>
-        <strong className="block text-[15px] font-bold text-navy">{APP_NAME.en}</strong>
+        <strong className="block text-[15px] font-bold text-navy">
+          <AppName />
+        </strong>
         <span className="text-xs font-medium text-brand-600">Admin</span>
       </div>
     </div>
